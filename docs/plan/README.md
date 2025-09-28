@@ -1,7 +1,7 @@
 # Features Proposal for Project Option: Mining Digital Work Artifacts
 
 **Team Number:** 14  
-**Team Members:** Tahsin Jawwad SN43291889, Abijeet Dhillon SN43227198
+**Team Members:** Tahsin Jawwad, Abijeet Dhillon, Abdur Rehman, Abhinav Malik, Kaiden Merchant, Misha Gavura
 
 ---
 
