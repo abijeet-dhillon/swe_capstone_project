@@ -57,7 +57,7 @@ Future weeks will include more detailed documentation of tasks as work progresse
   - N/A
 
 ### 2. Burnup Chart
-![Burnup Chart Placeholder](./burnup-milestone1.png)  
+![Burnup Chart Placeholder](images/burnup-chart-week4.png)  
 
 ### 3. Username → Student Name Mapping
 | GitHub Username | Student Name |
@@ -70,7 +70,7 @@ Future weeks will include more detailed documentation of tasks as work progresse
 | username | name |
 
 ### 4. Completed Tasks
-![Kanban Board for Completed Tasks Week 4](images/completed-tasks-week-4.png)
+![Kanban Board for Completed Tasks Week 4](images/kanban-board-week4.png)
 
 ### 5. In Progress Tasks
 | Task ID | Issue Title | Username | Associated Feature |
