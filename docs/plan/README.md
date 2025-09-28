@@ -1,7 +1,7 @@
 # Features Proposal for Project Option: Mining Digital Work Artifacts
 
 **Team Number:** 14  
-**Team Members:** Tahsin Jawwad SN43291889
+**Team Members:** Tahsin Jawwad SN43291889, Abijeet Dhillon SN43227198
 
 ---
 
@@ -93,14 +93,14 @@ Our value proposition is a privacy-first, testable, and extensible architecture 
 
 | Requirement | Description | Test Cases | Who | H/M/E |
 |---|---|---|---|---|
-| R1 Directory Selection & Policy | User can select folders; allow/deny patterns; size caps | ... | _TBD_ | M |
-| R2 Type Detection | Detect by magic/extension; skip unsupported | ... | _TBD_ | M |
-| R3 Git Adapter | Extract commits, authorship, churn | ... | _TBD_ | H |
-| R4 Office/PDF Adapter | Word/page counts; last-edit time | ... | _TBD_ | M |
-| R5 Media/Design Adapter | Duration/dimensions from metadata | ... | _TBD_ | M |
-| R6 Storage Layer | Persist entities; migrations | ... | _TBD_ | M |
-| R7 Analytics | ... | _TBD_ | M |
-| R8 API Endpoints | REST for artifacts/insights/search | ... | _TBD_ | M |
-| R9 Incremental Scan | Only process changed files | ... | _TBD_ | M |
-| R10 Export | Export insights to JSON/CSV | ... | _TBD_ | E |
-| R11 Notes/Annotations | Users add notes for projects | ... | _TBD_ | E |
+| R1 Directory Selection & Policy | User can select folders; set allow/deny patterns, size caps | **Positive:** TC1.1 Select valid folder → config saved.<br>TC1.2 Allow/deny filters apply correctly.<br>**Negative:** TC1.3 Unreadable folder → error.<br>TC1.4 Conflicting rules → warning. | _TBD_ | M |
+| R2 Type Detection | Detect file types via extension/magic, skip unsupported | **Positive:** TC2.1 Supported file detected.<br>TC2.2 Mixed input → only supported kept.<br>**Negative:** TC2.3 Unsupported file skipped w/ warning.<br>TC2.4 Corrupt header → fallback or skip. | _TBD_ | M |
+| R3 Git Adapter | Extract commits, authorship, churn | **Positive:** TC3.1 Small repo → commit count matches `git log`.<br>TC3.2 Author list extracted.<br>**Negative:** TC3.3 Missing `.git/` folder → error.<br>TC3.4 Huge repo → timeout handled. | Abijeet Dhillon | H |
+| R4 Office/PDF Adapter | Parse Word, PPT, PDF for counts & metadata | **Positive:** TC4.1 Word file word count accurate.<br>TC4.2 PDF page count correct.<br>**Negative:** TC4.3 Corrupt file → error logged.<br>TC4.4 Missing metadata handled safely. | _TBD_ | M |
+| R5 Media/Design Adapter | Extract duration, resolution/dimensions | **Positive:** TC5.1 Video duration correct.<br>TC5.2 Image width/height detected.<br>**Negative:** TC5.3 Corrupt file skipped w/ warning.<br>TC5.4 Unsupported format skipped. | _TBD_ | M |
+| R6 Storage Layer | Persist normalized entities; migrations | **Positive:** TC6.1 Insert + retrieve artifact.<br>TC6.2 Schema migration keeps data.<br>**Negative:** TC6.3 Insert duplicate → deduped.<br>TC6.4 Invalid ID query → error/null. | _TBD_ | M |
+| R7 Analytics | Compute insights (timelines, streaks, totals) | **Positive:** TC7.1 Commit streak detected.<br>TC7.2 Totals computed correctly.<br>**Negative:** TC7.3 Empty dataset handled.<br>TC7.4 Invalid input → error logged. | _TBD_ | M |
+| R8 API Endpoints | REST endpoints for artifacts, insights, search | **Positive:** TC8.1 `/artifacts` returns valid schema.<br>TC8.2 `/insights` matches DB.<br>**Negative:** TC8.3 Invalid param → 400.<br>TC8.4 Bad ID → 404. | _TBD_ | M |
+| R9 Incremental Scan | Process only changed/new files | **Positive:** TC9.1 No changes → no new entries.<br>TC9.2 Add new file detected once.<br>**Negative:** TC9.3 Modify file → version updated.<br>TC9.4 Deleted file not re-added. | _TBD_ | M |
+| R10 Export | Export insights to JSON/CSV/PDF | **Positive:** TC10.1 JSON export valid.<br>TC10.2 CSV opens in Excel.<br>**Negative:** TC10.3 Bad path → error.<br>TC10.4 Corrupt DB → clean fail. | _TBD_ | E |
+| R11 Notes/Annotations | User can attach notes to projects| **Positive:** TC11.1 Add + retrieve note works.<br>TC11.2 Delete removes note.<br>**Negative:** TC11.3 Add note to missing artifact → error.<br>TC11.4 Empty note rejected. | Abijeet Dhillon | E |
