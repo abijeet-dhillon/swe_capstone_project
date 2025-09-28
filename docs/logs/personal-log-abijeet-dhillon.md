@@ -1,9 +1,13 @@
 # Individual Log – Abijeet Dhillon
 
-## Week 4 – September 22 to September 28
+[Week 3 Individual Logs](#week-3)<br>
+[Week 4 Individual Logs](#week-4)
+
+## Week 4
+### September 22 to September 28
 
 ### 1. Type of Tasks Worked On
-![Abijeet Dhillon Week 4 Task Types Screenshot](images/abijetdhillon_week4_tasks.png)  
+![Abijeet Dhillon Week 4 Task Types Screenshot](images//abijeetdhillon_week4_tasks.png)  
 
 ---
 
@@ -38,7 +42,8 @@ N/A
 
 ---
 
-## Week 3 – September 15 to September 21
+## Week 3
+### September 15 to September 21
 
 ### 1. Type of Tasks Worked On
 ![Abijeet Dhillon Week 3 Task Type Screenshot](images/abijeetdhillon_week3_tasks.jpeg)  
