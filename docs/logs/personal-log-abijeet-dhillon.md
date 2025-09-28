@@ -1,5 +1,43 @@
 # Individual Log – Abijeet Dhillon
 
+## Week 4 – September 22 to September 28
+
+### 1. Type of Tasks Worked On
+![Abijeet Dhillon Week 4 Task Types Screenshot](images/abijetdhillon_week4_tasks.png)  
+
+---
+
+### 2. Recap of Weekly Goals
+This week focused on understanding the project scope, creating the proposal and drawing the system architecture design diagram. I collaborated with my team members in the following:
+- creating the project proposal
+- creating the system architecture design diagram
+
+Future weeks will include more detailed documentation of tasks as work progresses.
+
+---
+
+### 3. Features Owned in Project Plan
+- N/A
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+- N/A
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title | Status       | Notes |
+|--------|-------------|-------------|-------|
+| N/A   | N/A        | N/A        | N/A   |
+
+---
+
+### 6. Additional Context
+N/A
+
+---
+
 ## Week 3 – September 15 to September 21
 
 ### 1. Type of Tasks Worked On
@@ -7,7 +45,7 @@
 
 ---
 
-### 3. Recap of Weekly Goals
+### 2. Recap of Weekly Goals
 This week focused on foundational project setup work. I assisted in the following:
 - creating the project requirements document
 - initializing the repository
@@ -17,24 +55,24 @@ Future weeks will include more detailed documentation of tasks as work progresse
 
 ---
 
-### 4. Features Owned in Project Plan
+### 3. Features Owned in Project Plan
 - Project Requirements
 
 ---
 
-### 5. Tasks from Project Board Associated with These Features
+### 4. Tasks from Project Board Associated with These Features
 - Project Requirements
 
 ---
 
-### 6. Tasks Completed / In Progress in the Last 2 Weeks
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
 | Task ID | Issue Title | Status       | Notes |
 |--------|-------------|-------------|-------|
 | 3   | Project Requirements        | Completed        | N/A   |
 
 ---
 
-### 7. Additional Context
+### 6. Additional Context
 N/A
 
 ---
