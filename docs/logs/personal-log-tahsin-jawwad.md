@@ -1,6 +1,7 @@
 # Personal Log
 
 [Week 3 Personal Logs](#week-3)
+[Week 4 Personal Logs](#week-4)
 
 ## Week 3
 ### Date Range 
@@ -20,3 +21,24 @@
 
 **Completed/In-progress tasks**: 
 * "Project Requirements"
+
+---
+## Week 4
+### Date Range 
+22nd September 2025 - 28th September 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 4](images/tahsin-week-4.png)
+
+### Weekly Goals
+**My features**:
+* Collaborate on creating the system architecture diagram
+* Collaborate on drafting and completing the project proposal
+
+**Task from project board**:
+* System Architecture Diagram
+* Project Proposal
+
+**Completed/In-progress tasks**: 
+* System Architecture Diagram
+* Project Proposal

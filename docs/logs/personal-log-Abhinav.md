@@ -34,3 +34,41 @@ This week was mainly focused on early requirement gathering and planning activit
 
 ### 7. Additional Context
 N/A
+
+
+## Week 4 – September 22 to September 28
+
+### 1. Type of Tasks Worked On
+![Week 4 Task Screenshot](images/abhinav_week4.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week, the focus shifted to design and proposal activities. My contributions included:  
+- collaborating on creating the system architecture diagram  
+- contributing to drafting and completing the project proposal  
+
+---
+
+### 4. Features Owned in Project Plan
+- System Architecture Diagram  
+- Project Proposal  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- System Architecture Diagram  
+- Project Proposal  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title              | Status       | Notes |
+|---------|--------------------------|--------------|-------|
+| 4       | System Architecture      | Completed    | Worked with team to finalize diagram |
+| 5       | Project Proposal         | In Progress  | Draft completed, reviewing with team |
+
+---
+
+### 7. Additional Context
+N/A  
