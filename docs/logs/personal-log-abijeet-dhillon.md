@@ -21,19 +21,23 @@ Future weeks will include more detailed documentation of tasks as work progresse
 ---
 
 ### 3. Features Owned in Project Plan
-- N/A
+- System Architecture Diagram
+- Project Proposal
 
 ---
 
 ### 4. Tasks from Project Board Associated with These Features
-- N/A
+- System Architecture Diagram
+- Project Proposal
 
 ---
 
 ### 5. Tasks Completed / In Progress in the Last 2 Weeks
 | Task ID | Issue Title | Status       | Notes |
 |--------|-------------|-------------|-------|
-| N/A   | N/A        | N/A        | N/A   |
+| #5  | System Architecture Diagram        | Completed       | N/A   |
+| #6  | Project Proposal        | Completed       | N/A   |
+
 
 ---
 
