@@ -36,7 +36,9 @@
 * Collaborate on drafting and completing the project proposal
 
 **Task from project board**:
-* 
+* System Architecture Diagram
+* Project Proposal
 
 **Completed/In-progress tasks**: 
-* 
+* System Architecture Diagram
+* Project Proposal
