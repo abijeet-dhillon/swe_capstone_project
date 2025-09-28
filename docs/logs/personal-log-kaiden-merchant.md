@@ -46,8 +46,8 @@ This section outlines the individual log for week 4
     - Project Proposal
 
 3. Completed/In-Progress
-    - Completed discussions with the team to understand the project.
-    - Completed project requirements document.
+    - Completed system architecture diagram with updates from the discussion in class.
+    - Completed project proposal.
 
 
 
