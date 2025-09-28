@@ -124,6 +124,7 @@ Our value proposition is a privacy-first, testable, and extensible architecture 
 - Reviewer requests more detail → Creator reconfigures export and generates a new file.  
 
 
+![UML Diagram](./uml_diagram.png)
 ---
 
 
