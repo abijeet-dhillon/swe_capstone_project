@@ -1,7 +1,45 @@
 # Individual Log – Abijeet Dhillon
 
 [Week 3 Individual Logs](#week-3)<br>
-[Week 4 Individual Logs](#week-4)
+[Week 4 Individual Logs](#week-4)<br>
+[Week 5 Individual Logs](#week-5)
+
+
+## Week 5
+### September 29 to October 5
+
+### 1. Type of Tasks Worked On
+![Abijeet Dhillon Week 5 Task Types Screenshot]()  
+
+---
+
+### 2. Recap of Weekly Goals
+This week focused on a collaborative effort of our team members to understand and create an initial data flow diagram for level 0 and level 1. I assisted in the following:
+- creating the project's data flow diagram for level 0 and level 1
+
+---
+
+### 3. Features Owned in Project Plan
+- N/A
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+- N/A
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title | Status       | Notes |
+|--------|-------------|-------------|-------|
+| N/A  | N/A | N/A | N/A |
+
+---
+
+### 6. Additional Context
+N/A
+
+---
 
 ## Week 4
 ### September 22 to September 28

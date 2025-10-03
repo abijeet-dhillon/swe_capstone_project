@@ -84,3 +84,43 @@ N/A
 This week the team focused on defining the scope of the project and capturing the high-level architecture. The main deliverables were the **project proposal** and the **system architecture design diagram**. Future weeks will include more detailed task breakdowns and tracking via the Kanban board.
 
 ---
+
+## Week 5
+### September 29 to October 5
+
+### 1. Milestone Goals Recap
+- Planned Features for This Milestone:
+  - Create level 0 data flow diagram
+  - Create level 1 data flow diagram
+- Tasks from Project Board Associated with These Features
+  - N/A (add after creation)
+
+### 2. Burnup Chart
+![Burnup Chart For Week 5]()  
+
+
+### 3. Username → Student Name Mapping
+| GitHub Username | Student Name |
+|-----------------|-------------|
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj | Tahsin Jawwad |
+| kmerchant1 | Kaiden Merchant |
+| Malik-Abhinav | Abhinav Malik |
+| abdur026 | Abdur Rehman |
+| username | name |
+
+### 4. Completed Tasks
+![Kanban Board for Completed Tasks Week 5]()
+
+### 5. In Progress Tasks
+| Task ID | Issue Title | Username | Associated Feature |
+|--------|-------------|----------|-------------------|
+| N/A    | N/A         | N/A      | N/A               |
+
+### 6. Test Report
+N/A
+
+### 7. Additional Context
+This week the team focused on researching and learning about data flow diagrams, which helped in the creation of our level 0 and level 1 data flow diagrams for the project. The main delivarables were the level 0 and level 1 data flow diagrams.
+
+---
