@@ -1,7 +1,8 @@
 # Team 14 – Capstone Project Team Log 
 
 [Week 3 Team Logs](#week-3)<br>
-[Week 4 Team Logs](#week-4)
+[Week 4 Team Logs](#week-4)<br>
+[Week 5 Team Logs](#week-5)
 
 ## Week 3 
 ### September 15 to September 21
