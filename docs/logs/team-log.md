@@ -94,7 +94,7 @@ This week the team focused on defining the scope of the project and capturing th
   - Create level 0 data flow diagram
   - Create level 1 data flow diagram
 - Tasks from Project Board Associated with These Features
-  - N/A (add after creation)
+  - N/A
 
 ### 2. Burnup Chart
 ![Burnup Chart For Week 5]()  
@@ -111,7 +111,7 @@ This week the team focused on defining the scope of the project and capturing th
 | username | name |
 
 ### 4. Completed Tasks
-![Kanban Board for Completed Tasks Week 5]()
+![Kanban Board for Completed Tasks Week 5](images/completed-tasks-week-5.png)
 
 ### 5. In Progress Tasks
 | Task ID | Issue Title | Username | Associated Feature |
@@ -122,6 +122,6 @@ This week the team focused on defining the scope of the project and capturing th
 N/A
 
 ### 7. Additional Context
-This week the team focused on researching and learning about data flow diagrams, which helped in the creation of our level 0 and level 1 data flow diagrams for the project. The main delivarables were the level 0 and level 1 data flow diagrams.
+This week the team focused on researching and learning about data flow diagrams, which helped in the creation of our level 0 and level 1 data flow diagrams for the project. The main delivarables were the level 0 and level 1 data flow diagrams. We also discussed the differences between our data flow diagrams with other groups in class to gain a better understanding of how we could imporve our own data flow diagrams.
 
 ---
