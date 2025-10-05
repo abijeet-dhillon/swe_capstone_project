@@ -4,6 +4,7 @@
 
 1. [Week 3](#week-3)
 1. [Week 4](#week-4)
+1. [Week 5](#week-5)
 
 ## Week 3
 This section outlines the individual log for week 3
