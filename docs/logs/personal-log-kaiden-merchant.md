@@ -49,6 +49,25 @@ This section outlines the individual log for week 4
     - Completed system architecture diagram with updates from the discussion in class.
     - Completed project proposal.
 
+## Week 5
+This section outlines the individual log for week 5
 
+### September 29 - October 5
+
+### Tasks
+![](images/kaiden_week5_tasks.png)
+
+### Weekly Goals
+
+1. My Features: 
+    - Create DFD (level 0, level 1) diagrams
+
+2. Associated Tasks
+    - Data Flow Diagram
+
+3. Completed/In-Progress
+    - Completed level 0 diagram 
+    - Completed level 1 diagram
+    
 
 
