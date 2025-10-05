@@ -97,7 +97,7 @@ This week the team focused on defining the scope of the project and capturing th
   - N/A
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 5]()  
+![Burnup Chart For Week 5](images/burnup-chart-week5.png)  
 
 
 ### 3. Username → Student Name Mapping
