@@ -72,3 +72,40 @@ This week, the focus shifted to design and proposal activities. My contributions
 
 ### 7. Additional Context
 N/A  
+
+--- 
+
+## Week 5 – September 29 to October 5
+
+### 1. Type of Tasks Worked On
+![Week 5 Task Screenshot](images/week5-abhinavmalik.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week focused on data flow diagrams and system modeling activities. My contributions included:  
+- collaborating on creating Level 0 and Level 1 Data Flow Diagrams (DFDs)  
+- reviewing and refining the DFDs with the team to ensure logical flow and accuracy  
+- discussing with other teams for feedback and improvement  
+
+---
+
+### 4. Features Owned in Project Plan
+- Data Flow Diagram  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- Data Flow Diagram  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title          | Status     | Notes |
+|---------|----------------------|------------|-------|
+| 6       | Data Flow Diagram    | Completed  | Created Level 0 and Level 1 DFDs with team collaboration |
+
+---
+
+### 7. Additional Context
+N/A  
