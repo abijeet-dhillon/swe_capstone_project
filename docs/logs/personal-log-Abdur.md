@@ -1,6 +1,7 @@
 # Individual Log – Abdur Rehman
 1. [Week 3](#week-3)
 1. [Week 4](#week-4)
+1. [Week 5](#week-5)
 
 ## Week 3 
 
@@ -60,4 +61,31 @@ This section outlines the individual log for week 4
 3. Completed/In-Progress
     - Finalized the requirements and proposal write-up.
 
+
+
+## Week 5
+This section outlines the individual log for week 5
+
+### September 29 - October 5
+
+### Tasks
+![](images/abdur-week5.png)
+
+### Weekly Goals
+
+1.Weekly Goals
+
+My Focus Areas:
+
+Develop Level 0 and Level 1 Data Flow Diagrams (DFDs)
+
+2.Related Tasks:
+
+Work on creating and refining the Data Flow Diagram
+
+3.Progress Summary:
+
+Finished the Level 0 DFD
+
+Completed the Level 1 DFD
 ---
