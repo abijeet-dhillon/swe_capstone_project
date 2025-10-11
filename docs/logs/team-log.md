@@ -125,3 +125,43 @@ N/A
 This week the team focused on researching and learning about data flow diagrams, which helped in the creation of our level 0 and level 1 data flow diagrams for the project. The main delivarables were the level 0 and level 1 data flow diagrams. We also discussed the differences between our data flow diagrams with other groups in class to gain a better understanding of how we could imporve our own data flow diagrams.
 
 ---
+## Week 6
+### October 6 to October 12
+
+### 1. Milestone Goals Recap
+- Revised the System Architecture Diagram
+- Revised the Level 1 Data Flow Diagram
+- Revised the WBS
+- Initialised Project Environment
+- Tasks from Project Board Associated with These Features
+  - System Architecture Revision
+  - DFD Revision
+  - WBS Revision
+  - Project Environment Setup
+
+### 2. Burnup Chart
+![Burnup Chart For Week 6](images/burnup-chart-week6.png)  
+
+
+### 3. Username → Student Name Mapping
+| GitHub Username | Student Name |
+|-----------------|-------------|
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj | Tahsin Jawwad |
+| kmerchant1 | Kaiden Merchant |
+| Malik-Abhinav | Abhinav Malik |
+| abdur026 | Abdur Rehman |
+| username | name |
+
+### 4. Completed Tasks
+![Kanban Board for Completed Tasks Week 6](images/completed-tasks-week-6.png)
+
+### 5. In Progress Tasks
+| Task ID | Issue Title | Username | Associated Feature |
+|--------|-------------|----------|-------------------|
+| N/A    | N/A         | N/A      | N/A               |
+
+### 6. Test Report
+N/A
+
+### 7. Additional Context
