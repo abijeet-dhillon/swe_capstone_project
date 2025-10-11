@@ -59,3 +59,21 @@
 
 **Completed/In-progress tasks**: 
 * Data Flow Diagram (Completed)
+
+## Week 6
+### Date Range 
+6th September 2025 - 12th October 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 6](images/tahsin-week-6.png)
+
+### Weekly Goals
+**My features**:
+* Worked on revising the Data Flow Diagram based on the Milestone #1 requirements
+* Setup tasks in the Kanban Board based on Milestone #1 requirements and assigned some people to tasks
+
+**Task from project board**:
+* DFD Revision
+
+**Completed/In-progress tasks**: 
+* DFD Revision (Completed)
