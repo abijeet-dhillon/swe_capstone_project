@@ -24,7 +24,7 @@ Be sure to keep your docs and README.md up-to-date.
 ## System Architecture Diagram
 
 ## Level 1 Data Flow Diagram
-![Level 1 DFD](docs\images\level1dfd.png)
+![Level 1 DFD](docs/images/level1dfd.png)
 
 The link for the same DFD can be viewed using this [link](https://lucid.app/lucidchart/c9654f3d-90ee-4b90-83d7-652ac1448dad/edit?viewport_loc=-76%2C-92%2C2911%2C1466%2C6~KY3uEuKYee&invitationId=inv_5a51ab76-9aa7-4549-b897-4f521982137b).
 
