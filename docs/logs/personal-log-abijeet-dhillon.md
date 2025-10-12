@@ -2,8 +2,44 @@
 
 [Week 3 Individual Logs](#week-3)<br>
 [Week 4 Individual Logs](#week-4)<br>
-[Week 5 Individual Logs](#week-5)
+[Week 5 Individual Logs](#week-5)<br>
+[Week 6 Individual Logs](#week-6)
 
+
+## Week 6
+### October 6 to October 12
+
+### 1. Type of Tasks Worked On
+![Abijeet Dhillon Week 6 Task Types Screenshot](images/abijeetdhillon_week6_tasks.png)  
+
+---
+
+### 2. Recap of Weekly Goals
+This week, I focused on setting up the project environment using docker and ensuring that others can replicate the project environment on their local machines.
+
+---
+
+### 3. Features Owned in Project Plan
+- Project Environment Setup
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+- Project Environment Setup
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title | Status       | Notes |
+|--------|-------------|-------------|-------|
+| 15 | Project Environment Setup | Completed | N/A |
+
+---
+
+### 6. Additional Context
+N/A
+
+---
 
 ## Week 5
 ### September 29 to October 5
