@@ -16,7 +16,8 @@
   - N/A (Kanban board setup completed this week)
 
 ### 2. Burnup Chart
-![Burnup Chart Placeholder](images/burnout-update.png)
+![Burnup Chart Placeholder](./burnup-milestone1.png)  
+N/A (tracking begins later)
 
 ### 3. Username → Student Name Mapping
 | GitHub Username | Student Name |
@@ -96,7 +97,8 @@ This week the team focused on defining the scope of the project and capturing th
   - N/A
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 5](images/burnout-update.png)  
+![Burnup Chart For Week 5](images/burnout-update
+.png)  
 
 
 ### 3. Username → Student Name Mapping
@@ -139,7 +141,7 @@ This week the team focused on researching and learning about data flow diagrams,
   - Project Environment Setup
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 6](images/burnup-chart-week6.png)  
+![Burnup Chart For Week 6](images/burnout-update.png)  
 
 
 ### 3. Username → Student Name Mapping
@@ -153,7 +155,7 @@ This week the team focused on researching and learning about data flow diagrams,
 | username | name |
 
 ### 4. Completed Tasks
-![Kanban Board for Completed Tasks Week 6](images/completed-tasks-week-6.png)
+![Kanban Board for Completed Tasks Week 6](images/kanban-update.png)
 
 ### 5. In Progress Tasks
 | Task ID | Issue Title | Username | Associated Feature |
