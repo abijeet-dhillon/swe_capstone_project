@@ -16,8 +16,7 @@
   - N/A (Kanban board setup completed this week)
 
 ### 2. Burnup Chart
-![Burnup Chart Placeholder](./burnup-milestone1.png)  
-N/A (tracking begins later)
+![Burnup Chart Placeholder](images/burnout-update.png)
 
 ### 3. Username → Student Name Mapping
 | GitHub Username | Student Name |
