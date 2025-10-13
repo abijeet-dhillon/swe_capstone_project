@@ -19,112 +19,146 @@ Our value proposition is a privacy-first, testable, and extensible architecture 
 
 ## 3. Use Cases
 
-### Use Case 1: Configure Scan
-- **Primary actor:** Creator  
-- **Description:** Select folders to scan and set scanning/redaction preferences.  
-- **Precondition:** Application installed locally; Creator has access to target folders.  
-- **Postcondition:** A scan configuration with allowlists/denylists, size caps, and redaction rules is saved.  
-- **Main Scenario:**
-  1. Creator opens app and chooses “Configure Scan.”
-  2. Creator selects one or more folders (e.g., `./Projects`, external drive).
-  3. Creator sets file-type limits, max file size, and exclusion patterns.
-  4. Creator reviews default redaction rules and adjusts as needed.
-  5. System validates access and saves configuration.
-- **Extensions:**
-  - Folder not accessible: system displays error and suggests alternatives.
-  - Conflicting rules: system highlights conflicts and asks for resolution.
-
-### Use Case 2: Run Scan & Ingest
-- **Primary actor:** Creator  
-- **Description:** Enumerate files, parse artifacts via adapters, normalize and deduplicate, apply redaction, and persist locally.  
-- **Precondition:** A valid scan configuration exists.  
-- **Postcondition:** Normalized artifacts and derived metrics are stored in the local DB with an audit log.  
-- **Main Scenario:**
-  1. Creator clicks “Run Scan.”
-  2. System enumerates files and detects types.
-  3. Adapters extract metadata/content summaries (Git stats, doc word/page counts, media duration).
-  4. System normalizes, deduplicates by hash, and applies redaction.
-  5. System writes records to DB and emits progress status.
-- **Extensions:**
-  - Timeout on large files: system skips with warning and continues.
-  - Duplicate files detected: single canonical record retained.
-
-### Use Case 3: View Insights via API
-- **Primary actor:** Creator  
-- **Description:** Query local API for artifacts, timelines, and summary insights.  
-- **Precondition:** Scan has completed successfully.  
-- **Postcondition:** Creator receives JSON responses for artifacts and insights.  
-- **Main Scenario:**
-  1. Creator requests summary endpoint (e.g., `/insights/summary`).
-  2. System aggregates metrics (contribution heatmap, streaks).
-  3. System returns JSON with totals and timelines.
-- **Extensions:**
-  - Empty dataset: system returns empty arrays with guidance to run a scan.
-
-### Use Case 4: Export Summaries
-- **Primary actor:** Creator  
-- **Description:** Export selected insights as JSON/CSV/PDF for Reviewers.  
-- **Precondition:** Insights exist in the DB.  
-- **Postcondition:** Exported file is generated locally.  
-- **Main Scenario:**
-  1. Creator selects export format and scope (time window/projects).
-  2. System formats and writes the export to a chosen location.
-  3. System confirms completion and path to file.
-- **Extensions:**
-  - Path not writable: system prompts for another/default location.
-
-### Use Case 5: Manage Privacy/Redaction
-- **Primary actor:** Administrator  
-- **Description:** Configure redaction policies and retention; purge data on request.  
-- **Precondition:** Admin access to the local instance.  
-- **Postcondition:** Policies are updated; data purged if requested.  
-- **Main Scenario:**
-  1. Admin opens Privacy settings.
-  2. Admin edits redaction regexes and retention windows.
-  3. System revalidates rules and saves.
-- **Extensions:**
-  - Invalid regex: system highlights error and suggests a fix.
-
-
-
-### Use Case 6: Add Notes/Annotations
-
-- **Primary actor:** Creator  
-- **Description:** Attach personal notes or reflections to a project or artifact.  
-- **Precondition:** Artifact exists in the local database.  
-- **Postcondition:** Note is stored and associated with the artifact.  
-
-**Main Scenario:**  
-1. Creator selects an artifact from the list of scanned items.  
-2. Creator chooses “Add Note.”  
-3. Creator writes a note and saves it.  
-4. System stores the note linked to the artifact.  
-5. System confirms successful save.  
-
-**Extensions:**  
-- Empty note submitted → system rejects and prompts for valid input.  
-- Artifact deleted before save → system displays error and cancels operation.  
+### **Use Case 1: Give Consent for Data Access**
+- **Primary actor:** User / Administrator  
+- **Description:** Obtain explicit consent before accessing or analyzing any files.  
+- **Precondition:** Application is launched.  
+- **Postcondition:** Consent preference is securely stored in configuration.  
+- **Main Scenario:**  
+  1. User or Administrator opens the application.  
+  2. System displays data access consent message.  
+  3. User reviews and accepts or declines consent.  
+  4. If accepted, consent is stored in local configuration.  
+- **Extensions:**  
+  - Consent declined → System halts further actions.  
+  - Consent record missing → System prompts for authorization again.  
 
 ---
 
-### Use Case 7: Reviewer Consumes Export
+### **Use Case 2: Upload & Validate ZIP Folder**
+- **Primary actor:** User  
+- **Description:** Upload a zipped folder containing nested project files for processing.  
+- **Precondition:** Valid user consent exists.  
+- **Postcondition:** ZIP folder is validated and ready for parsing.  
+- **Main Scenario:**  
+  1. User selects ZIP file.  
+  2. System validates the format and checks for corruption.  
+  3. System extracts contents and prepares data for analysis.  
+- **Extensions:**  
+  - Invalid file format → System displays an error.  
+  - Corrupted ZIP → User is prompted to re-upload.  
 
-- **Primary actor:** Reviewer  
-- **Description:** Reviewer opens and reviews an exported portfolio summary without accessing raw files.  
-- **Precondition:** Export file (JSON/CSV/PDF) has been generated by the Creator.  
-- **Postcondition:** Reviewer is able to view structured insights and summaries.  
+---
 
-**Main Scenario:**  
-1. Reviewer receives the exported file from the Creator.  
-2. Reviewer opens the file in a suitable application (e.g., Excel for CSV, PDF reader).  
-3. Reviewer reviews contributions, timelines, and summaries.  
+### **Use Case 3: Request Permission for External Services (LLM)**
+- **Primary actor:** User  
+- **Description:** Request explicit user permission to use an external AI (LLM) for enhanced analysis.  
+- **Precondition:** Valid ZIP folder has been uploaded.  
+- **Postcondition:** User’s permission for external data processing is stored.  
+- **Main Scenario:**  
+  1. System prompts user for LLM usage consent.  
+  2. User is informed of privacy implications.  
+  3. User allows or denies access.  
+  4. System stores this preference in configuration.  
+- **Extensions:**  
+  - Permission denied → System performs local-only analysis.  
 
-**Extensions:**  
-- Export file is missing or corrupted → Reviewer cannot open and requests Creator to regenerate.  
-- Reviewer requests more detail → Creator reconfigures export and generates a new file.  
+---
+
+### **Use Case 4: Run Analysis (Local or LLM-Assisted)**
+- **Primary actor:** User  
+- **Description:** Analyze uploaded files locally or using an LLM, depending on granted permissions.  
+- **Precondition:** ZIP folder validated and permissions recorded.  
+- **Postcondition:** Analysis metrics and intermediate results generated.  
+- **Main Scenario:**  
+  1. User initiates analysis.  
+  2. System processes files and applies parsing adapters.  
+  3. External LLM/API assists if permission granted.  
+  4. Results are stored temporarily.  
+- **Extensions:**  
+  - Timeout on large files → Skipped with a warning.  
+  - LLM unreachable → Fallback to local analysis.  
+
+---
+
+### **Use Case 5: Extract Key Metrics & Skills**
+- **Primary actor:** User  
+- **Description:** Identify project metrics and skills from analyzed artifacts.  
+- **Precondition:** Analysis has been completed successfully.  
+- **Postcondition:** Extracted information saved to project record.  
+- **Main Scenario:**  
+  1. System identifies project type and structure.  
+  2. Detects programming languages, frameworks, and key metrics (duration, frequency).  
+  3. Extracts skill insights from artifacts.  
+  4. Stores extracted data for future retrieval.  
+- **Extensions:**  
+  - Missing metadata → System estimates based on available data.  
+
+---
+
+### **Use Case 6: Store Configurations & Project Data**
+- **Primary actor:** User / Administrator  
+- **Description:** Save configurations, permissions, and analyzed project data into persistent storage.  
+- **Precondition:** Analysis or configuration data exists.  
+- **Postcondition:** Data saved successfully in local database.  
+- **Main Scenario:**  
+  1. System saves configurations and generated insights.  
+  2. Administrator manages privacy and retention settings.  
+- **Extensions:**  
+  - Storage error → System retries or logs the issue.  
+
+---
+
+### **Use Case 7: Delete Insights Safely**
+- **Primary actor:** Administrator  
+- **Description:** Delete stored analysis results without affecting shared or dependent data.  
+- **Precondition:** Data to delete exists in the system.  
+- **Postcondition:** Target data is removed securely.  
+- **Main Scenario:**  
+  1. Administrator requests deletion of stored insights.  
+  2. System checks dependencies and confirms deletion.  
+  3. Data removed securely.  
+- **Extensions:**  
+  - Shared data found → System preserves shared records and logs the action.  
+
+---
+
+### **Use Case 8: Retrieve Stored Portfolio / Resume Info**
+- **Primary actor:** User  
+- **Description:** Retrieve previously stored project and résumé information from the local database.  
+- **Precondition:** Past analysis and data exist.  
+- **Postcondition:** Data fetched and ready for output generation.  
+- **Main Scenario:**  
+  1. User requests previously stored portfolio data.  
+  2. System retrieves summary information from storage.  
+  3. Data displayed or formatted for export.  
+- **Extensions:**  
+  - No stored data → System prompts to run a new analysis.  
+
+---
+
+### **Use Case 9: Generate Text-Based Output (Résumé / Portfolio Info)**
+- **Primary actor:** User / Reviewer  
+- **Description:** Produce text-based summaries (JSON, CSV, or plain text) representing portfolio and résumé insights.  
+- **Precondition:** Analyzed and stored project data exists.  
+- **Postcondition:** Output file generated and ready for sharing.  
+- **Main Scenario:**  
+  1. User selects output type and scope.  
+  2. System generates text-based summary of insights.  
+  3. Output file created locally.  
+  4. Reviewer opens the exported file for review.  
+- **Extensions:**  
+  - Invalid path or permission denied → System requests new save location.  
+
+---
 
 
-![UML Diagram](./uml_diagram.png)
+
+![UML Diagram](./revised-uml-diagram.png)
+
+
+
+
 ---
 
 
@@ -140,28 +174,25 @@ Our value proposition is a privacy-first, testable, and extensible architecture 
 
 | Requirement | Description | Test Cases | Who | H/M/E |
 |---|---|---|---|---|
-| R1 Directory Selection & Policy | User can select folders; set allow/deny patterns, size caps | **Positive:** TC1.1 Select valid folder → config saved.<br>TC1.2 Allow/deny filters apply correctly.<br>**Negative:** TC1.3 Unreadable folder → error.<br>TC1.4 Conflicting rules → warning. | **Tahsin Jawwad** | M |
-| R2 Type Detection | Detect file types via extension/magic, skip unsupported | **Positive:** TC2.1 Supported file detected.<br>TC2.2 Mixed input → only supported kept.<br>**Negative:** TC2.3 Unsupported file skipped w/ warning.<br>TC2.4 Corrupt header → fallback or skip. | **Misha** | M |
-| R3 Git Adapter | Extract commits, authorship, churn | **Positive:** TC3.1 Small repo → commit count matches `git log`.<br>TC3.2 Author list extracted.<br>**Negative:** TC3.3 Missing `.git/` folder → error.<br>TC3.4 Huge repo → timeout handled. | **Abijeet Dhillon** | H |
-| R4 Office/PDF Adapter | Parse Word, PPT, PDF for counts & metadata | **Positive:** TC4.1 Word file word count accurate.<br>TC4.2 PDF page count correct.<br>**Negative:** TC4.3 Corrupt file → error logged.<br>TC4.4 Missing metadata handled safely. | **Abhinav Malik** | M |
-| R5 Media/Design Adapter | Extract duration, resolution/dimensions | **Positive:** TC5.1 Video duration correct.<br>TC5.2 Image width/height detected.<br>**Negative:** TC5.3 Corrupt file skipped w/ warning.<br>TC5.4 Unsupported format skipped. | **Kaiden Merchant** | M |
-| R6 Storage Layer | Persist normalized entities; migrations | **Positive:** TC6.1 Insert + retrieve artifact.<br>TC6.2 Schema migration keeps data.<br>**Negative:** TC6.3 Insert duplicate → deduped.<br>TC6.4 Invalid ID query → error/null. | **Abdur Rehman** | M |
-| R7 Analytics | Compute insights (timelines, streaks, totals) | **Positive:** TC7.1 Commit streak detected.<br>TC7.2 Totals computed correctly.<br>**Negative:** TC7.3 Empty dataset handled.<br>TC7.4 Invalid input → error logged. | **Tahsin Jawwad** | M |
-| R8 API Endpoints | REST endpoints for artifacts, insights, search | **Positive:** TC8.1 `/artifacts` returns valid schema.<br>TC8.2 `/insights` matches DB.<br>**Negative:** TC8.3 Invalid param → 400.<br>TC8.4 Bad ID → 404. | **Abhinav Malik** | M |
-| R9 Incremental Scan | Process only changed/new files | **Positive:** TC9.1 No changes → no new entries.<br>TC9.2 Add new file detected once.<br>**Negative:** TC9.3 Modify file → version updated.<br>TC9.4 Deleted file not re-added. | **Misha** | M |
-| R10 Export | Export insights to JSON/CSV/PDF | **Positive:** TC10.1 JSON export valid.<br>TC10.2 CSV opens in Excel.<br>**Negative:** TC10.3 Bad path → error.<br>TC10.4 Corrupt DB → clean fail. | **Kaiden Merchant** | E |
-| R11 Notes/Annotations | User can attach notes to projects | **Positive:** TC11.1 Add + retrieve note works.<br>TC11.2 Delete removes note.<br>**Negative:** TC11.3 Add note to missing artifact → error.<br>TC11.4 Empty note rejected. | **Abijeet Dhillon** | E |
-| R12 Privacy/Redaction Policies | Configure regexes, retention, and purge data | **Positive:** TC12.1 Add valid regex → saved.<br>TC12.2 Retention window applied.<br>**Negative:** TC12.3 Invalid regex → error.<br>TC12.4 Purge request clears data. | **Abdur Rehman** | M |
+| **R1 Consent & Configuration** | User must provide explicit consent and configure data access settings | **Positive:** TC1.1 User grants consent → stored securely.<br>TC1.2 Config saved correctly.<br>**Negative:** TC1.3 Consent declined → processing blocked.<br>TC1.4 Missing config → prompt again. | **Tahsin Jawwad** | M |
+| **R2 ZIP Validation & Parsing** | System must validate and extract contents from uploaded ZIP | **Positive:** TC2.1 Valid ZIP → extracted successfully.<br>TC2.2 Nested folders handled.<br>**Negative:** TC2.3 Wrong format → error shown.<br>TC2.4 Corrupted file skipped. | **Misha** | M |
+| **R3 External LLM Permission** | Request and store user permission for external service (LLM/API) use | **Positive:** TC3.1 Consent accepted → flag stored.<br>TC3.2 User informed of data privacy.<br>**Negative:** TC3.3 Denied → local-only mode.<br>TC3.4 No response → defaults to deny. | **Abdur Rehman** | M |
+| **R4 Local & LLM-Assisted Analysis** | Analyze data locally or via LLM if permitted | **Positive:** TC4.1 Local parsing works.<br>TC4.2 LLM request handled securely.<br>**Negative:** TC4.3 Timeout → skipped with warning.<br>TC4.4 LLM unavailable → fallback to local. | **Abijeet Dhillon** | H |
+| **R5 Metrics & Skill Extraction** | Extract project type, key metrics, and inferred skills | **Positive:** TC5.1 Correct metrics computed.<br>TC5.2 Skill keywords identified.<br>**Negative:** TC5.3 Missing metadata handled.<br>TC5.4 Unreadable file skipped. | **Abhinav Malik** | M |
+| **R6 Storage & Persistence** | Persist user config, consent, and analysis outputs | **Positive:** TC6.1 Insert and retrieve data.<br>TC6.2 Update works without loss.<br>**Negative:** TC6.3 Invalid record rejected.<br>TC6.4 Storage error logged. | **Kaiden Merchant** | M |
+| **R7 Deletion & Privacy Controls** | Delete or purge stored insights safely | **Positive:** TC7.1 Valid delete → data removed.<br>TC7.2 Shared data preserved.<br>**Negative:** TC7.3 Missing data → graceful fail.<br>TC7.4 Unauthorized request denied. | **Abdur Rehman** | M |
+| **R8 Retrieval & Output Generation** | Retrieve previously generated portfolio/résumé data | **Positive:** TC8.1 Fetch previous insights.<br>TC8.2 Retrieve historical summaries.<br>**Negative:** TC8.3 Empty DB → prompt new scan.<br>TC8.4 Missing entry handled. | **Tahsin Jawwad** | M |
+| **R9 Export Text-Based Output** | Export portfolio/résumé insights in text, JSON, or CSV format | **Positive:** TC9.1 JSON export valid.<br>TC9.2 CSV opens correctly.<br>**Negative:** TC9.3 Invalid path → error.<br>TC9.4 File locked → retry prompt. | **Misha** | E |
 
 ---
 
 ### Workload Summary
 
-- **Tahsin Jawwad** → R1 (M), R7 (M) → Config + analytics  
-- **Abijeet Dhillon** → R3 (H), R11 (E) → Git + annotations  
-- **Misha** → R2 (M), R9 (M) → Detection + incremental scan  
-- **Abhinav Malik** → R4 (M), R8 (M) → Office/PDF parsing + API  
-- **Kaiden Merchant** → R5 (M), R10 (E) → Media parsing + export  
-- **Abdur Rehman** → R6 (M), R12 (M) → Storage + privacy/redaction  
+- **Tahsin Jawwad** → R1 (M), R8 (M) → Consent + retrieval  
+- **Abijeet Dhillon** → R4 (H) → Local + LLM analysis  
+- **Misha** → R2 (M), R9 (E) → ZIP parsing + export  
+- **Abhinav Malik** → R5 (M) → Metrics and skill extraction  
+- **Kaiden Merchant** → R6 (M) → Storage and persistence  
+- **Abdur Rehman** → R3 (M), R7 (M) → External permission + privacy/deletion  
 
 ---
