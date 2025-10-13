@@ -22,6 +22,38 @@ Be sure to keep your docs and README.md up-to-date.
 
 # Project Diagrams
 ## System Architecture Diagram
+![System Architecture](docs/images/revised-uml-diagram.png)
+
+The **System Architecture Diagram** above represents the core workflow of the *Mining Digital Work Artifacts System*, showing the interaction between users, administrators, reviewers, and external services.  
+
+### Overview  
+The system facilitates the secure extraction of professional insights (résumé or portfolio information) from digital work artifacts. It emphasizes **data privacy, consent management, and controlled use of external AI services (LLMs)**.  
+
+### Main Components  
+1. **Actors**
+   - **Administrator** – Manages data access permissions and overall system governance.  
+   - **User** – Provides data (e.g., ZIP folders), grants permissions, and retrieves results.  
+   - **Reviewer** – Evaluates generated outputs for accuracy and relevance.  
+   - **External LLM/API** – Supports AI-assisted analysis when user consent allows.  
+
+2. **Core Processes**
+   - **Give Consent for Data Access** – Ensures user and admin authorization before any processing.  
+   - **Upload & Validate ZIP Folder** – Users upload their work data, which the system validates.  
+   - **Request Permission for External Services (LLM)** – Manages consent for sending data to external AI systems.  
+   - **Run Analysis (Local or LLM-Assisted)** – Executes data mining to extract metrics and skills.  
+   - **Extract Key Metrics & Skills** – Summarizes user competencies and project patterns.  
+   - **Store Configurations & Project Data** – Saves extracted insights, maintaining confidentiality.  
+   - **Retrieve Stored Portfolio / Résumé Info** – Allows users or reviewers to fetch stored insights.  
+   - **Generate Text-Based Output** – Produces structured résumé or portfolio summaries.  
+   - **Delete Insights Safely** – Ensures data can be removed securely without leaving residual traces.  
+
+3. **Data Flow**
+   - **Inputs:** User uploads (ZIP files) and consent records.  
+   - **Processing:** Validation → Analysis → Storage → Output generation.  
+   - **Outputs:** Structured resume/portfolio insights.  
+   - **Feedback Loop:** Reviewers and users can trigger re-analysis or deletion requests.  
+
+This architecture ensures transparency, modularity, and privacy compliance while leveraging AI tools responsibly to analyze digital work artifacts.
 
 ## Level 1 Data Flow Diagram
 ![Level 1 DFD](docs/images/level1dfd.png)
