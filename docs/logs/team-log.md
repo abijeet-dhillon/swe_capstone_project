@@ -139,7 +139,7 @@ This week the team focused on researching and learning about data flow diagrams,
   - Project Environment Setup
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 6](images/burnup-chart-week6.png)  
+![Burnup Chart For Week 6](images/burnout-update.png)  
 
 
 ### 3. Username → Student Name Mapping
@@ -153,7 +153,7 @@ This week the team focused on researching and learning about data flow diagrams,
 | username | name |
 
 ### 4. Completed Tasks
-![Kanban Board for Completed Tasks Week 6](images/completed-tasks-week-6.png)
+![Kanban Board for Completed Tasks Week 6](images/kanban-update.png)
 
 ### 5. In Progress Tasks
 | Task ID | Issue Title | Username | Associated Feature |
@@ -164,3 +164,4 @@ This week the team focused on researching and learning about data flow diagrams,
 N/A
 
 ### 7. Additional Context
+This sprint focused more on understanding the full requirements, revising docs, and setting up the project environment.
