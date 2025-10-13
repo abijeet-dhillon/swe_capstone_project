@@ -140,7 +140,7 @@ This week the team focused on researching and learning about data flow diagrams,
   - Project Environment Setup
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 6](images/burnup-chart-week6.png)  
+![Burnup Chart For Week 6](images/week6-burnup-chart.png)  
 
 
 ### 3. Username → Student Name Mapping
@@ -154,7 +154,7 @@ This week the team focused on researching and learning about data flow diagrams,
 | username | name |
 
 ### 4. Completed Tasks
-![Kanban Board for Completed Tasks Week 6](images/completed-tasks-week-6.png)
+![Kanban Board for Completed Tasks Week 6](images/week6-completed_task.png)
 
 ### 5. In Progress Tasks
 | Task ID | Issue Title | Username | Associated Feature |
