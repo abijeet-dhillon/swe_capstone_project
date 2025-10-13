@@ -97,7 +97,7 @@ This week the team focused on defining the scope of the project and capturing th
   - N/A
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 5](images/burnup-chart-week5.png)  
+![Burnup Chart For Week 5](images/burnout-update.png)  
 
 
 ### 3. Username → Student Name Mapping
@@ -111,7 +111,7 @@ This week the team focused on defining the scope of the project and capturing th
 | username | name |
 
 ### 4. Completed Tasks
-![Kanban Board for Completed Tasks Week 5](images/completed-tasks-week-5.png)
+![Kanban Board for Completed Tasks Week 5](images/kanban-update.png)
 
 ### 5. In Progress Tasks
 | Task ID | Issue Title | Username | Associated Feature |
