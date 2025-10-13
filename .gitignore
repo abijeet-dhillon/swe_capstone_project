@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+venv/
+.vscode/
+.idea/
+data/
+output/
+*.zip
+*.json
+*.csv
+.DS_Store
+Thumbs.db
