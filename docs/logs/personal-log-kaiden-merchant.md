@@ -5,6 +5,7 @@
 1. [Week 3](#week-3)
 1. [Week 4](#week-4)
 1. [Week 5](#week-5)
+1. [Week 6](#week-6)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -70,5 +71,22 @@ This section outlines the individual log for week 5
     - Completed level 0 diagram 
     - Completed level 1 diagram
     
+## Week 6
+This section outlines the individual log for week 6
 
+### October 6 - October 12
+
+### Tasks
+![](images/kaiden_week6_tasks.png)
+
+### Weekly Goals
+
+1. My Features: 
+    - Revise DFD based on new requirements
+
+2. Associated Tasks
+    - Data Flow Diagram
+
+3. Completed/In-Progress
+    - Completed refactoring of dfd (via new requirements)
 
