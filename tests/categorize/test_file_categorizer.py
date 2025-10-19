@@ -6,9 +6,9 @@ Ensures categorized folder structure is correctly returned as JSON-style dict,
 and now also verifies language-based categorization (code_by_language).
 
 Run from root directory with:
-    docker compose run --rm backend python3 -m pytest tests/categorize/test_file_categorizer.py
+    docker compose run --rm backend python3 -m pytest tests/categorize/test_file_categorizer.py -v
     or 
-    python3 -m pytest tests/categorize/test_file_categorizer.py
+    python3 -m pytest tests/categorize/test_file_categorizer.py -v
 """
 
 import pytest
