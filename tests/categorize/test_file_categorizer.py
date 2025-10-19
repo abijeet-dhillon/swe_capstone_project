@@ -4,17 +4,20 @@ test_file_categorizer.py
 Tests for file_categorizer.py using pytest.
 Ensures categorized folder structure is correctly returned as JSON-style dict,
 and now also verifies language-based categorization (code_by_language).
+
+Run from root directory with:
+    docker compose run --rm backend python3 -m pytest tests/categorize/test_file_categorizer.py
+    or 
+    python3 -m pytest tests/categorize/test_file_categorizer.py
 """
 
 import pytest
 import tempfile
 from pathlib import Path
-
 from src.categorize.file_categorizer import (
     categorize_folder_structure,
     categorize_file,
 )
-
 
 @pytest.fixture
 def temp_project_dir():
@@ -39,7 +42,6 @@ def temp_project_dir():
 
         yield base
 
-
 def test_categorize_file_by_extension():
     """Test Scenario: Verify correct category is assigned based on file extension."""
     assert categorize_file("script.py") == "code"
@@ -47,7 +49,6 @@ def test_categorize_file_by_extension():
     assert categorize_file("diagram.png") == "images"
     assert categorize_file("design.drawio") == "sketches"
     assert categorize_file("random.bin") == "other"
-
 
 def test_structure_keys_and_categories(temp_project_dir):
     """Test Scenario: Ensure output contains correct folder keys and categories."""
@@ -83,12 +84,10 @@ def test_structure_keys_and_categories(temp_project_dir):
     assert "App.java" in code_langs["java"]
     assert "script.sh" in code_langs["shell"]
 
-
 def test_invalid_path_raises_valueerror():
     """Test Scenario: Invalid folder path should raise ValueError."""
     with pytest.raises(ValueError):
         categorize_folder_structure("/non/existent/path")
-
 
 def test_empty_directory_returns_empty_categories(temp_project_dir):
     """Test Scenario: Empty folder should still produce category keys with empty lists."""
