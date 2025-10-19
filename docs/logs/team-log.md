@@ -217,7 +217,7 @@ This week’s milestone focused on implementing and validating several core back
 
 ### 2. Burnup Chart
 
-![Burnup Chart For Week 7](images/)
+![Burnup Chart For Week 7](images/burnup_chart_week7.png)
 
 ### 3. Username → Student Name Mapping
 
@@ -231,7 +231,7 @@ This week’s milestone focused on implementing and validating several core back
 
 ### 4. Completed Tasks
 
-![Kanban Board for Completed Tasks Week 7](images/)
+![Kanban Board for Completed Tasks Week 7](images/completed-tasks-week-7.png)
 
 ### 5. In Progress Tasks
 
