@@ -1,13 +1,17 @@
-# Team 14 – Capstone Project Team Log 
+# Team 14 – Capstone Project Team Log
 
 [Week 3 Team Logs](#week-3)<br>
 [Week 4 Team Logs](#week-4)<br>
-[Week 5 Team Logs](#week-5)
+[Week 5 Team Logs](#week-5)<br>
+[Week 6 Team Logs](#week-6)<br>
+[Week 7 Team Logs](#week-7)
 
-## Week 3 
+## Week 3
+
 ### September 15 to September 21
 
 ### 1. Milestone Goals Recap
+
 - Planned Features for This Milestone:
   - Create project requirements document
   - Set up project repository
@@ -16,40 +20,48 @@
   - N/A (Kanban board setup completed this week)
 
 ### 2. Burnup Chart
+
 ![Burnup Chart Placeholder](images/burnout-update.png)
 
 ### 3. Username → Student Name Mapping
-| GitHub Username | Student Name |
-|-----------------|-------------|
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
 | abijeet-dhillon | Abijeet Dhillon |
-| tahsinj | Tahsin Jawwad |
-| kmerchant1 | Kaiden Merchant |
-| Malik-Abhinav | Abhinav Malik |
-| abdur026 | Abdur Rehman |
-| username | name |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| username        | name            |
 
 ### 4. Completed Tasks
+
 ![Kanban Board for Completed Tasks Week 3](images/completed-tasks-week-3.png)
 
 ### 5. In Progress Tasks
+
 | Task ID | Issue Title | Username | Associated Feature |
-|--------|-------------|----------|-------------------|
-| N/A    | N/A         | N/A      | N/A               |
+| ------- | ----------- | -------- | ------------------ |
+| N/A     | N/A         | N/A      | N/A                |
 
 ### 6. Test Report
+
 N/A
 
 ### 7. Additional Context
-This week focused on foundational project setup work. The team created the project requirements document, initialized the repository, and set up the Kanban project board on GitHub.  
+
+This week focused on foundational project setup work. The team created the project requirements document, initialized the repository, and set up the Kanban project board on GitHub.
 
 Future weeks will include more detailed documentation of tasks as work progresses.
 
 ---
 
-## Week 4 
+## Week 4
+
 ### September 21 to September 28
 
 ### 1. Milestone Goals Recap
+
 - Planned Features for This Milestone:
   - Create system architecture diagram
   - Create project proposal
@@ -57,38 +69,46 @@ Future weeks will include more detailed documentation of tasks as work progresse
   - N/A
 
 ### 2. Burnup Chart
-![Burnup Chart Placeholder](images/burnup-chart-week4.png)  
+
+![Burnup Chart Placeholder](images/burnup-chart-week4.png)
 
 ### 3. Username → Student Name Mapping
-| GitHub Username | Student Name |
-|-----------------|-------------|
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
 | abijeet-dhillon | Abijeet Dhillon |
-| tahsinj | Tahsin Jawwad |
-| kmerchant1 | Kaiden Merchant |
-| Malik-Abhinav | Abhinav Malik |
-| abdur026 | Abdur Rehman |
-| username | name |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| username        | name            |
 
 ### 4. Completed Tasks
+
 ![Kanban Board for Completed Tasks Week 4](images/kanban-board-week4.png)
 
 ### 5. In Progress Tasks
+
 | Task ID | Issue Title | Username | Associated Feature |
-|--------|-------------|----------|-------------------|
-| N/A    | N/A         | N/A      | N/A               |
+| ------- | ----------- | -------- | ------------------ |
+| N/A     | N/A         | N/A      | N/A                |
 
 ### 6. Test Report
+
 N/A
 
 ### 7. Additional Context
+
 This week the team focused on defining the scope of the project and capturing the high-level architecture. The main deliverables were the **project proposal** and the **system architecture design diagram**. Future weeks will include more detailed task breakdowns and tracking via the Kanban board.
 
 ---
 
 ## Week 5
+
 ### September 29 to October 5
 
 ### 1. Milestone Goals Recap
+
 - Planned Features for This Milestone:
   - Create level 0 data flow diagram
   - Create level 1 data flow diagram
@@ -96,38 +116,46 @@ This week the team focused on defining the scope of the project and capturing th
   - N/A
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 5](images/burnout-update.png)  
 
+![Burnup Chart For Week 5](images/burnout-update.png)
 
 ### 3. Username → Student Name Mapping
-| GitHub Username | Student Name |
-|-----------------|-------------|
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
 | abijeet-dhillon | Abijeet Dhillon |
-| tahsinj | Tahsin Jawwad |
-| kmerchant1 | Kaiden Merchant |
-| Malik-Abhinav | Abhinav Malik |
-| abdur026 | Abdur Rehman |
-| username | name |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| username        | name            |
 
 ### 4. Completed Tasks
+
 ![Kanban Board for Completed Tasks Week 5](images/kanban-update.png)
 
 ### 5. In Progress Tasks
+
 | Task ID | Issue Title | Username | Associated Feature |
-|--------|-------------|----------|-------------------|
-| N/A    | N/A         | N/A      | N/A               |
+| ------- | ----------- | -------- | ------------------ |
+| N/A     | N/A         | N/A      | N/A                |
 
 ### 6. Test Report
+
 N/A
 
 ### 7. Additional Context
+
 This week the team focused on researching and learning about data flow diagrams, which helped in the creation of our level 0 and level 1 data flow diagrams for the project. The main delivarables were the level 0 and level 1 data flow diagrams. We also discussed the differences between our data flow diagrams with other groups in class to gain a better understanding of how we could imporve our own data flow diagrams.
 
 ---
+
 ## Week 6
+
 ### October 6 to October 12
 
 ### 1. Milestone Goals Recap
+
 - Revised the System Architecture Diagram
 - Revised the Level 1 Data Flow Diagram
 - Revised the WBS
@@ -139,29 +167,79 @@ This week the team focused on researching and learning about data flow diagrams,
   - Project Environment Setup
 
 ### 2. Burnup Chart
-![Burnup Chart For Week 6](images/burnout-update.png)  
 
+![Burnup Chart For Week 6](images/burnout-update.png)
 
 ### 3. Username → Student Name Mapping
-| GitHub Username | Student Name |
-|-----------------|-------------|
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
 | abijeet-dhillon | Abijeet Dhillon |
-| tahsinj | Tahsin Jawwad |
-| kmerchant1 | Kaiden Merchant |
-| Malik-Abhinav | Abhinav Malik |
-| abdur026 | Abdur Rehman |
-| username | name |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| username        | name            |
 
 ### 4. Completed Tasks
+
 ![Kanban Board for Completed Tasks Week 6](images/kanban-update.png)
 
 ### 5. In Progress Tasks
+
 | Task ID | Issue Title | Username | Associated Feature |
-|--------|-------------|----------|-------------------|
-| N/A    | N/A         | N/A      | N/A               |
+| ------- | ----------- | -------- | ------------------ |
+| N/A     | N/A         | N/A      | N/A                |
 
 ### 6. Test Report
+
 N/A
 
 ### 7. Additional Context
+
 This sprint focused more on understanding the full requirements, revising docs, and setting up the project environment.
+
+---
+
+---
+
+## Week 7
+
+### October 13 2025 to October 19 2025
+
+### 1. Milestone Goals Recap
+
+- N/A
+
+### 2. Burnup Chart
+
+![Burnup Chart For Week 6](images/burnout-update.png)
+
+### 3. Username → Student Name Mapping
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| username        | name            |
+
+### 4. Completed Tasks
+
+![Kanban Board for Completed Tasks Week 6](images/kanban-update.png)
+
+### 5. In Progress Tasks
+
+| Task ID | Issue Title | Username | Associated Feature |
+| ------- | ----------- | -------- | ------------------ |
+| N/A     | N/A         | N/A      | N/A                |
+
+### 6. Test Report
+
+N/A
+
+### 7. Future Cycle Plans
+
+N/A
