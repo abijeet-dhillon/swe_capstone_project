@@ -201,19 +201,23 @@ This sprint focused more on understanding the full requirements, revising docs, 
 
 ---
 
----
-
 ## Week 7
 
 ### October 13 2025 to October 19 2025
 
 ### 1. Milestone Goals Recap
 
-- N/A
+This week’s milestone focused on implementing and validating several core backend components that support data ingestion and structured representation of project files:
+
+- (#18) Zip Folder Validation and Basic Parser
+- (#50) Categorize Files & Create Structured Representation
+- (#16) User Consent – Directory Access
+- (#17) User Consent – External LLM Data Access
+  The goal was to extend the parsing layer so that all team members can validate and categorize project data in a reproducible, Dockerized environment.
 
 ### 2. Burnup Chart
 
-![Burnup Chart For Week 6](images/burnout-update.png)
+![Burnup Chart For Week 7](images/)
 
 ### 3. Username → Student Name Mapping
 
@@ -224,22 +228,44 @@ This sprint focused more on understanding the full requirements, revising docs, 
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| username        | name            |
 
 ### 4. Completed Tasks
 
-![Kanban Board for Completed Tasks Week 6](images/kanban-update.png)
+![Kanban Board for Completed Tasks Week 7](images/)
 
 ### 5. In Progress Tasks
 
-| Task ID | Issue Title | Username | Associated Feature |
-| ------- | ----------- | -------- | ------------------ |
-| N/A     | N/A         | N/A      | N/A                |
+| Task ID | Issue Title                    | Username        | Associated Feature                       |
+| ------- | ------------------------------ | --------------- | ---------------------------------------- |
+| 22      | Store/Load User Configurations | abijeet-dhillon | Store User Configurations for Future Use |
 
 ### 6. Test Report
 
-N/A
+All pytest suites passed successfully this week.
+
+- Tests implemented for Zip Folder Validation and Basic Parser (#18)
+- Tests implemented for Categorize Files & Create Structured Representation (#50)
 
 ### 7. Future Cycle Plans
 
-N/A
+To build upon this cycle’s work and address identified challenges, the team will:
+
+- Set up the analysis pipeline to connect the parsing and categorization layers into a unified data flow.
+- Implement storing/loading of user configurations to handle environment differences between Docker and local setups.
+- Detect individual vs. collaborative projects to enable contribution tracking in later stages.
+- Extrapolate individual contributions for analytical visualization in upcoming milestones.
+- Break down these larger tasks into smaller sub-issues to improve clarity and workload distribution.
+
+### 8. Reflection on This Cycle
+
+What went well:
+
+- The team made strong progress on foundational backend functionality. We successfully implemented the zip folder validation, basic parser, and file categorization system that generates a structured representation of the project’s folder hierarchy. These features were integrated smoothly into the existing backend and passed all associated tests.
+
+What didn’t go as well:
+
+- Time management was a challenge this week due to multiple academic commitments — specifically, studying and preparation for ongoing midterms (including this course's quiz) reduced the amount of time available to work toward issues. This caused slower progress on project features, which will carry over into the next cycle.
+
+How this informs next cycle:
+
+- To maintain steady momentum, the next cycle’s plan includes subdividing large tasks and setting clearer priorities early in the week. This will ensure that high-priority features receive consistent progress even during heavier academic weeks.
