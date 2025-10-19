@@ -41,7 +41,8 @@ This week, I extended the backend parsing functionality by implementing a new fi
 | Task ID | Issue Title                                         | Status      | Notes                                                                                                                                                                          |
 | ------- | --------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 50      | Categorize Files & Create Structured Representation | Completed   | Implemented file_categorizer.py to walk through project folders, classify files by type, and store the output in a structured JSON format. Also tested tests cases via pytest. |
-| 15      | Store/Load User Configurations                      | In Progress | N/A                                                                                                                                                                            |
+| 22      | Store/Load User Configurations                      | In Progress | N/A                                                                                                                                                                            |
+| 15      | Project Environment Setup | Completed | N/A   |
 
 ---
 
