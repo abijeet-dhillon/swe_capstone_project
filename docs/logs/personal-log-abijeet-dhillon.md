@@ -18,7 +18,7 @@
 
 ### 2. Recap of Weekly Goals
 
-This week, I extended the backend parsing functionality by implementing a new file categorization component, which categorizes files and saves a structured output for later downstream use. I also participated in team meetings, reviewed pull requests, and tested teammates' code on active branches.
+This week, I extended the backend parsing functionality by implementing a new file categorization component, which categorizes files and saves a structured output for later downstream use. I also participated in team meetings, reviewed pull requests, tested teammates' code on active branches, and wrote test cases for my implementations using TDD principles.
 
 ---
 
@@ -38,16 +38,20 @@ This week, I extended the backend parsing functionality by implementing a new fi
 
 ### 5. Tasks Completed / In Progress in the Last 2 Weeks
 
-| Task ID | Issue Title                                         | Status      | Notes                                                                                                                                                                                                                                                                                           |
-| ------- | --------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 50      | Categorize Files & Create Structured Representation | Completed   | Implemented file_categorizer.py to walk through project folders, classify files by type (code, docs, images, sketches, other), and store the output in a structured JSON format for downstream processing. Also added pytest coverage to validate edge cases and language-based categorization. |
-| 15      | Store/Load User Configurations                      | In Progress | N/A                                                                                                                                                                                                                                                                                             |
+| Task ID | Issue Title                                         | Status      | Notes                                                                                                                                                                          |
+| ------- | --------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 50      | Categorize Files & Create Structured Representation | Completed   | Implemented file_categorizer.py to walk through project folders, classify files by type, and store the output in a structured JSON format. Also tested tests cases via pytest. |
+| 15      | Store/Load User Configurations                      | In Progress | N/A                                                                                                                                                                            |
 
 ---
 
 ### 6. Future Cycle Plans
 
-In the upcoming cycle, I plan to: - Integrate the file categorization output into the larger data workflow (once it is established). - Implement a user configuration storage method to allow persistent environment settings for users. - Collaborate with teammates to potentially connect the parsing component and categorizer component to create a unified backend pipeline.
+In the upcoming cycle, I plan to:
+
+- Integrate the file categorization output into the larger data workflow (once it is established).
+- Implement a user configuration storage method to allow persistent environment settings for users.
+- Collaborate with teammates to potentially connect the parsing component and categorizer component to create a unified backend pipeline.
 
 ---
 
