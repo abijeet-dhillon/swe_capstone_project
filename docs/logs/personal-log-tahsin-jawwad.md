@@ -2,6 +2,9 @@
 
 [Week 3 Personal Logs](#week-3)
 [Week 4 Personal Logs](#week-4)
+[Week 5 Personal Logs](#week-5)
+[Week 6 Personal Logs](#week-6)
+[Week 7 Personal Logs](#week-7)
 
 ## Week 3
 ### Date Range 
@@ -62,7 +65,7 @@
 
 ## Week 6
 ### Date Range 
-6th September 2025 - 12th October 2025
+6th October 2025 - 12th October 2025
 
 ### Type of tasks worked on
 ![Tahsin Type of Tasks Week 6](images/tahsin-week-6.png)
@@ -77,3 +80,25 @@
 
 **Completed/In-progress tasks**: 
 * DFD Revision (Completed)
+
+## Week 7
+### Date Range 
+13th October 2025 - 19th October 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 7](images/tahsin-week-7.png)
+
+### Weekly Goals
+**My features**:
+* Started researching on an parsing a specified zip folder using Python and useful libraries.
+* Wrote initial test code to ensure that initially fails but ensures eventually that my feature works as intended.
+* Implemented the parser and useful json utility and tested against the written code to ensure it works.
+
+**Task from project board**:
+* ZIP Folder Validation and Basic Parser
+
+**Completed/In-progress tasks**: 
+* ZIP Folder Validation and Basic Parser (Completed)
+
+**Future cycle plans**:
+* The next step will involve storage of the data generated from this sprint (e.g. user configs, folders structure/metadata) and possibly start looking into ways of analyzing this data.
