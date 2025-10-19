@@ -5,7 +5,9 @@ Responsible for categorizing a given extracted folder that may contain nested su
 and producing a structured JSON representation of the directory hierarchy.
 
 Run from root directory with:
-    docker compose run --rm backend python -m src.categorize.file_categorizer
+    docker compose run --rm backend python3 -m src.categorize.file_categorizer 
+    or 
+    python3 -m src.categorize.file_categorizer 
 """
 
 from pathlib import Path
@@ -162,3 +164,8 @@ def categorize_folder_structure(folder_path: str) -> dict:
         structured_representation[relative_path] = categorized
 
     return structured_representation
+
+if __name__ == "__main__":
+    import sys
+    target = "tests/categorize/demo_projects"
+    print(json.dumps(categorize_folder_structure(target), indent=4))
