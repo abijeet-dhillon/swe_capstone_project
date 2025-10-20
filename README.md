@@ -27,7 +27,7 @@ Be sure to keep your docs and README.md up-to-date.
 The **System Architecture Diagram** above represents the core workflow of the *Mining Digital Work Artifacts System*, showing the interaction between users, administrators, reviewers, and external services.  
 
 ### Overview  
-The system facilitates the secure extraction of professional insights (résumé or portfolio information) from digital work artifacts. It emphasizes **data privacy, consent management, and controlled use of external AI services (LLMs)**.  
+The system facilitates the secure extraction of professional insights (résumé or portfolio information) from digital work artifacts. It emphasizes **data privacy, consent management, and controlled use of external AI services (LLMs)**.
 
 ### Main Components  
 1. **Actors**
@@ -102,7 +102,40 @@ Processes deletion requests and ensures shared data across reports is preserved.
 - **D1 User Config** → stores consent and user preferences  
 - **D2 Project Database** → stores extracted project insights and summaries  
 
+## Getting Started
 
+### Current Capabilities (Milestone #1)
+The system currently supports:
+- ZIP file parsing and metadata extraction
+- Basic file type detection
+- Docker containerization
+
+### Prerequisites
+- Python 3.10+
+- Docker (optional)
+
+### Installation
+```bash
+# Clone the repository
+git clone <repository-url>
+cd capstone-project-team-14
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
+python -m src.main
+```
+
+### Docker
+```bash
+# Build and run with Docker
+docker-compose up
+```
+
+### Future Milestones
+- **Milestone #2:** API service with human-in-the-loop customization
+- **Milestone #3:** Frontend interface with résumé and portfolio generation
 
 
 --------
