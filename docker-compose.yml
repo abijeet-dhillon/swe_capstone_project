@@ -3,6 +3,6 @@ services:
     build: .
     command: python -m src.main
     volumes:
-      - .:/app      
+      - .:/code      
     environment:
       - PYTHONUNBUFFERED=1
