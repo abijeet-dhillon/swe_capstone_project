@@ -32,7 +32,7 @@
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishagavura     | Misha Gavura    |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -81,7 +81,7 @@ Future weeks will include more detailed documentation of tasks as work progresse
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishagavura     | Misha Gavura    |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -128,7 +128,7 @@ This week the team focused on defining the scope of the project and capturing th
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishagavura     | Misha Gavura    |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -179,7 +179,7 @@ This week the team focused on researching and learning about data flow diagrams,
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishagavura     | Misha Gavura    |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -213,11 +213,13 @@ This week’s milestone focused on implementing and validating several core back
 - (#50) Categorize Files & Create Structured Representation
 - (#16) User Consent – Directory Access
 - (#17) User Consent – External LLM Data Access
-  The goal was to extend the parsing layer so that all team members can validate and categorize project data in a reproducible, Dockerized environment.
+- (#20) External LLM analysis
+
+The goal was to extend the parsing layer so that all team members can validate and categorize project data in a reproducible, Dockerized environment.
 
 ### 2. Burnup Chart
 
-![Burnup Chart For Week 7](images/burnup_chart_week7.png)
+![Burnup Chart For Week 7](images/week7-burnup-chart.png)
 
 ### 3. Username → Student Name Mapping
 
@@ -228,11 +230,11 @@ This week’s milestone focused on implementing and validating several core back
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishagavura     | Misha Gavura    |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
-![Kanban Board for Completed Tasks Week 7](images/completed-tasks-week-7.png)
+![Kanban Board for Completed Tasks Week 7](images/week7-kanban.png)
 
 ### 5. In Progress Tasks
 
@@ -246,6 +248,8 @@ All pytest suites passed successfully this week.
 
 - Tests implemented for Zip Folder Validation and Basic Parser (#18)
 - Tests implemented for Categorize Files & Create Structured Representation (#50)
+- Tests implemented for User Consent – Directory Access (#16)
+- Tests implemented for User Consent – External LLM Data Access (#17)
 
 ### 7. Future Cycle Plans
 
