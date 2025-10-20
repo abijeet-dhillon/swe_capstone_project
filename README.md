@@ -167,9 +167,24 @@ python -m src.main
 docker-compose up
 ```
 
-### Future Milestones
-- **Milestone #2:** API service with human-in-the-loop customization
-- **Milestone #3:** Frontend interface with résumé and portfolio generation
+## API Reference
+
+This section is WIP and will be refined as apart of Milestone #2
+
+#### Configuration
+- `POST /config/scan` - Create scan configuration
+- `GET /config/scan` - Get current configuration
+
+#### File Processing
+- `POST /scan/start` - Start scanning a ZIP file
+- `GET /scan/status` - Check scan progress
+
+#### Insights
+- `GET /insights/summary` - Get project summary
+
+#### Export
+- `POST /export/json` - Export data as JSON
+- `POST /export/csv` - Export data as CSV
 
 
 --------
