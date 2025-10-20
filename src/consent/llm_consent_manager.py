@@ -3,7 +3,7 @@ Handles user consent for external LLM data access.
 
 This module defines the LLMConsentManager class, responsible for securely
 recording and managing user consent to share data with external LLMs.
-It follows a privacy-first, explicit opt-in approach.
+
 
 Note:
 This module manages *LLM data access consent only*.

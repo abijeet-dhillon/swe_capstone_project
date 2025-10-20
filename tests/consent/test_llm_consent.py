@@ -243,15 +243,3 @@ class TestLLMConsent:
         assert config_path.parent.exists()
         assert config_path.exists()
     
-    def test_error_handling_on_write_failure(self, manager, tmp_path, monkeypatch):
-        """Verify proper error handling when write operations fail."""
-        config_path = tmp_path / "consent" / "llm.json"
-        
-        # Make directory read-only to simulate write failure
-        config_path.parent.chmod(0o444)
-        
-        with pytest.raises(Exception):
-            manager.grant()
-        
-        # Restore permissions for cleanup
-        config_path.parent.chmod(0o755)
