@@ -1,0 +1,8 @@
+services:
+  backend:
+    build: .
+    command: python -m src.main
+    volumes:
+      - .:/app      
+    environment:
+      - PYTHONUNBUFFERED=1

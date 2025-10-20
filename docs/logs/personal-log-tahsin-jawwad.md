@@ -42,3 +42,20 @@
 **Completed/In-progress tasks**: 
 * System Architecture Diagram
 * Project Proposal
+
+## Week 5
+### Date Range 
+29th September 2025 - 5th October 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 5](images/tahsin-week-5.png)
+
+### Weekly Goals
+**My features**:
+* Collaborated on creating Level 0 and Level 1 Data Flow Diagrams and discussion with other groups on differences in DFDs
+
+**Task from project board**:
+* Data Flow Diagram
+
+**Completed/In-progress tasks**: 
+* Data Flow Diagram (Completed)
