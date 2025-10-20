@@ -242,4 +242,4 @@ class TestLLMConsent:
         manager = LLMConsentManager(str(config_path))
         assert config_path.parent.exists()
         assert config_path.exists()
-    
+    """ fixed the last test case """
