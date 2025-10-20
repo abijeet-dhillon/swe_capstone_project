@@ -109,3 +109,46 @@ This week focused on data flow diagrams and system modeling activities. My contr
 
 ### 7. Additional Context
 N/A  
+
+
+
+## Week 6 – October 6 to October 12
+
+### 1. Type of Tasks Worked On
+![Week 6 Task Screenshot](images/week6-log-abhinav.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week was focused on revising and refining the system architecture diagram to align with updated workflow and consent management logic in the Mining Digital Work Artifacts System.  
+My contributions included:  
+- updating and restructuring the system architecture diagram based on feedback  
+- improving clarity in actor interactions (User, Administrator, Reviewer, External LLM/API)  
+- aligning data flow with the Level 1 DFD for consistency  
+- preparing updated documentation for submission  
+
+---
+
+### 4. Features Owned in Project Plan
+- System Architecture Diagram (Revision)  
+- Documentation Updates  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- System Architecture Revision  
+- Documentation Updates  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title                    | Status      | Notes |
+|---------|--------------------------------|-------------|-------|
+| 7       | System Architecture Revision   | Completed   | Revised diagram to reflect updated workflow and external service permissions |
+| 8       | Documentation Updates          | Completed | Updated README.md and project documentation to include revised architecture |
+
+---
+
+### 7. Additional Context
+-   
+- 
