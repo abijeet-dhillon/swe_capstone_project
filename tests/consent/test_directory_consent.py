@@ -1,5 +1,5 @@
 """
-Tests for LLM consent management functionality.
+Tests for directory consent management functionality.
 
 """
 
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.consent.llm_consent_manager import LLMConsentManager
+from src.consent.directory_consent_manager import DirectoryConsentManager
 
 
 def read_config(path):
@@ -23,26 +23,28 @@ def read_config(path):
 
 @pytest.fixture
 def manager(tmp_path):
-    """Create a fresh LLMConsentManager for each test."""
-    config_path = tmp_path / "consent" / "llm.json"
-    return LLMConsentManager(str(config_path))
+    """Create a fresh DirectoryConsentManager for each test."""
+    config_path = tmp_path / "consent" / "directory.json"
+    return DirectoryConsentManager(str(config_path))
 
 
-class TestLLMConsent:
-    """Test cases for LLMConsentManager class."""
+class TestDirectoryConsent:
+    """Test cases for DirectoryConsentManager class."""
     
     def test_default_state_no_consent(self, manager, tmp_path):
         """Ensure default consent is false and config file created."""
         assert not manager.has_consent()
         assert manager.get_consent_timestamp() is None
+        assert manager.get_allowed_paths() == []
         
-        config_path = tmp_path / "consent" / "llm.json"
+        config_path = tmp_path / "consent" / "directory.json"
         assert config_path.exists()
         
         config = read_config(config_path)
         assert config["consent_given"] is False
         assert config["consent_timestamp"] is None
-        assert config["consent_type"] == "external_llm_data_access"
+        assert config["consent_type"] == "directory_access"
+        assert config["allowed_paths"] == []
     
     def test_grant_consent_sets_true(self, manager, tmp_path):
         """Verify granting consent sets consent_given=True."""
@@ -51,26 +53,42 @@ class TestLLMConsent:
         manager.grant()
         assert manager.has_consent()
         
-        config_path = tmp_path / "consent" / "llm.json"
+        config_path = tmp_path / "consent" / "directory.json"
         config = read_config(config_path)
         
         assert config["consent_given"] is True
         assert config["consent_timestamp"] is not None
         assert config["last_updated"] is not None
     
-    def test_revoke_consent_sets_false(self, manager, tmp_path):
-        """Verify revoking consent sets consent_given=False."""
-        manager.grant()
+    def test_grant_consent_with_paths(self, manager, tmp_path):
+        """Verify granting consent with specific paths."""
+        test_paths = ["/path/to/dir1", "/another/path"]
+        manager.grant(allowed_paths=test_paths)
+        
         assert manager.has_consent()
+        assert set(manager.get_allowed_paths()) == set(test_paths)
+        
+        config_path = tmp_path / "consent" / "directory.json"
+        config = read_config(config_path)
+        
+        assert set(config["allowed_paths"]) == set(test_paths)
+    
+    def test_revoke_consent_sets_false_and_clears_paths(self, manager, tmp_path):
+        """Verify revoking consent sets consent_given=False and clears paths."""
+        manager.grant(allowed_paths=["/test/path"])
+        assert manager.has_consent()
+        assert manager.get_allowed_paths() == ["/test/path"]
         
         manager.revoke()
         assert not manager.has_consent()
+        assert manager.get_allowed_paths() == []
         
-        config_path = tmp_path / "consent" / "llm.json"
+        config_path = tmp_path / "consent" / "directory.json"
         config = read_config(config_path)
         
         assert config["consent_given"] is False
         assert config["consent_timestamp"] is not None
+        assert config["allowed_paths"] == []
     
     def test_consent_timestamp_updates_after_grant(self, manager):
         """Verify timestamp is set after granting consent."""
@@ -88,7 +106,7 @@ class TestLLMConsent:
         manager.grant()
         initial_timestamp = manager.get_consent_timestamp()
         
-      
+       
         import time
         time.sleep(0.1)
         
@@ -103,12 +121,14 @@ class TestLLMConsent:
     
     def test_get_consent_info_complete_data(self, manager):
         """Verify get_consent_info returns all expected fields."""
-        manager.grant()
+        test_paths = ["/test/path1", "/test/path2"]
+        manager.grant(allowed_paths=test_paths)
         info = manager.get_consent_info()
         
         expected_fields = [
             "consent_given", "consent_timestamp", "consent_type",
-            "last_updated", "version", "description", "config_path"
+            "last_updated", "version", "description", "config_path",
+            "allowed_paths"
         ]
         
         for field in expected_fields:
@@ -116,17 +136,20 @@ class TestLLMConsent:
         
         assert info["consent_given"] is True
         assert info["consent_timestamp"] is not None
-        assert info["consent_type"] == "external_llm_data_access"
+        assert info["consent_type"] == "directory_access"
         assert info["version"] == "1.0"
+        assert set(info["allowed_paths"]) == set(["/test/path1", "/test/path2"])
     
     def test_reset_consent_functionality(self, manager):
         """Verify reset revokes consent and preserves timestamp."""
-        manager.grant()
+        manager.grant(allowed_paths=["/test/path"])
         assert manager.has_consent()
+        assert manager.get_allowed_paths() == ["/test/path"]
         
         manager.reset()
         assert not manager.has_consent()
         assert manager.get_consent_timestamp() is not None
+        assert manager.get_allowed_paths() == []
     
     def test_is_valid(self, manager):
         """Verify consent validation logic."""
@@ -141,102 +164,83 @@ class TestLLMConsent:
     def test_multiple_operations_preserve_state(self, manager):
         """Verify multiple operations maintain correct state."""
         assert not manager.has_consent()
+        assert manager.get_allowed_paths() == []
         
+      
         manager.grant()
         assert manager.has_consent()
+        assert manager.get_allowed_paths() == []
+        
+     
+        manager.revoke()
+        assert not manager.has_consent()
+        assert manager.get_allowed_paths() == []
+        
+      
+        test_paths = ["/path/one", "/path/two"]
+        manager.grant(allowed_paths=test_paths)
+        assert manager.has_consent()
+        assert set(manager.get_allowed_paths()) == set(test_paths)
+        
         
         manager.revoke()
         assert not manager.has_consent()
-        
-        manager.grant()
-        assert manager.has_consent()
-        
-        info = manager.get_consent_info()
-        assert info["consent_given"] is True
-        assert info["consent_timestamp"] is not None
+        assert manager.get_allowed_paths() == []
     
     def test_corrupted_config_file_self_healing(self, manager, tmp_path):
         """Verify self-healing behavior with corrupted JSON."""
-        config_path = tmp_path / "consent" / "llm.json"
-  
+        config_path = tmp_path / "consent" / "directory.json"
+        
+        
         with open(config_path, 'w') as f:
             f.write("{ invalid json content")
         
-       
+      
         assert not manager.has_consent()
         
-        manager.grant()
+        test_paths = ["/test/path"]
+        manager.grant(allowed_paths=test_paths)
         assert manager.has_consent()
+        assert manager.get_allowed_paths() == test_paths
         
-     
+       
         config = read_config(config_path)
         assert config["consent_given"] is True
+        assert config["allowed_paths"] == test_paths
     
-    def test_separation_from_directory_consent(self, manager, tmp_path):
-        """Verify LLM consent is separate from directory access consent."""
-        llm_config_path = tmp_path / "consent" / "llm.json"
+    def test_separation_from_llm_consent(self, manager, tmp_path):
+        """Verify directory consent is separate from LLM consent."""
         dir_config_path = tmp_path / "consent" / "directory.json"
+        llm_config_path = tmp_path / "consent" / "llm.json"
         
-        manager.grant()
+        
+        manager.grant(allowed_paths=["/test/path"])
         assert manager.has_consent()
         
-        assert llm_config_path.exists()
-        assert not dir_config_path.exists()
         
-        config = read_config(llm_config_path)
-        assert config["consent_type"] == "external_llm_data_access"
+        assert dir_config_path.exists()
+        dir_config = read_config(dir_config_path)
+        assert dir_config["consent_type"] == "directory_access"
+        
+
+        assert not llm_config_path.exists()
     
     def test_backward_compatibility_methods(self, manager):
         """Verify deprecated methods still work."""
-        assert not manager.has_llm_consent()
+        assert not manager.has_directory_consent()
         
-        manager.grant_llm_consent()
-        assert manager.has_llm_consent()
+        manager.grant_directory_consent(["/test/path"])
+        assert manager.has_directory_consent()
+        assert manager.get_allowed_paths() == ["/test/path"]
         
-        manager.revoke_llm_consent()
-        assert not manager.has_llm_consent()
-        
-        info = manager.get_llm_consent_info()
-        assert "consent_given" in info
-        
-        manager.grant_llm_consent()
-        manager.reset_llm_consent()
-        assert not manager.has_llm_consent()
-        
-        assert not manager.is_llm_consent_valid()
-    
-    def test_config_file_structure(self, manager, tmp_path):
-        """Verify config file has correct structure and metadata."""
-        config_path = tmp_path / "consent" / "llm.json"
-        config = read_config(config_path)
-        
-    
-        assert "consent_given" in config
-        assert "consent_timestamp" in config
-        assert "consent_type" in config
-        assert "version" in config
-        assert "created_at" in config
-        assert "description" in config
-        
-    
-        assert config["consent_type"] == "external_llm_data_access"
-        assert config["version"] == "1.0"
-        assert "LLM data analysis" in config["description"]
+        manager.revoke_directory_consent()
+        assert not manager.has_directory_consent()
         
       
-        created_at = config["created_at"]
-        parsed_created = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-        assert isinstance(parsed_created, datetime)
-    
-    def test_directory_creation(self, tmp_path):
-        """Verify consent directory is created automatically."""
-        config_path = tmp_path / "consent" / "llm.json"
+        manager.grant_directory_consent()
+        assert manager.is_directory_consent_valid()
+        assert manager.get_directory_consent_timestamp() is not None
+        assert "consent_given" in manager.get_directory_consent_info()
         
-     
-        assert not config_path.parent.exists()
-        
-  
-        manager = LLMConsentManager(str(config_path))
-        assert config_path.parent.exists()
-        assert config_path.exists()
-    """ fixed the last test case """
+        manager.reset_directory_consent()
+        assert not manager.has_directory_consent()

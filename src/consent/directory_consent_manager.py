@@ -1,5 +1,5 @@
 """
-Handles user consent for external LLM data access.
+Handles user consent for directory access.
 """
 
 import logging
@@ -10,10 +10,10 @@ from typing import Dict, Any, Optional
 from ..utils.jsonio import to_json, from_json
 
 
-class LLMConsentManager:
-    """Manages user consent specifically for external LLM data access."""
+class DirectoryConsentManager:
+    """Manages user consent specifically for directory access."""
 
-    def __init__(self, config_path: str = "data/consent/llm.json"):
+    def __init__(self, config_path: str = "data/consent/directory.json"):
         """
         Initialize the manager and ensure configuration file exists.
 
@@ -32,13 +32,14 @@ class LLMConsentManager:
         default_config = {
             "consent_given": False,
             "consent_timestamp": None,
-            "consent_type": "external_llm_data_access",
+            "consent_type": "directory_access",
             "version": "1.0",
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "description": "Consent for external LLM data analysis (e.g., OpenAI API)."
+            "description": "Consent for accessing user directory.",
+            "allowed_paths": []
         }
         to_json(default_config, self.config_path)
-        self.logger.info(f"Initialized default LLM consent config at {self.config_path}")
+        self.logger.info(f"Initialized default directory consent config at {self.config_path}")
 
     def _read_config(self) -> Dict[str, Any]:
         """Load the consent configuration from disk, re-initializing if corrupted."""
@@ -46,7 +47,7 @@ class LLMConsentManager:
             return from_json(self.config_path)
         except Exception as e:
             self.logger.error(f"Error reading {self.config_path}: {e}")
-            self.logger.info("Re-initializing corrupted LLM consent config file")
+            self.logger.info("Re-initializing corrupted directory consent config file")
             self._initialize_default_config()
             return from_json(self.config_path)
 
@@ -58,33 +59,49 @@ class LLMConsentManager:
             self.logger.error(f"Error writing {self.config_path}: {e}")
             raise
 
-    def grant(self) -> None:
-        """Grant user consent for external LLM analysis."""
+    def grant(self, allowed_paths: Optional[list] = None) -> None:
+        """
+        Grant user consent for directory access.
+        
+        Args:
+            allowed_paths: List of directory paths that are allowed to be accessed.
+        """
         config = self._read_config()
         now = datetime.now(timezone.utc).isoformat()
-        config.update({
+        
+        update_data = {
             "consent_given": True,
             "consent_timestamp": now,
             "last_updated": now
-        })
+        }
+        
+        if allowed_paths is not None:
+            update_data["allowed_paths"] = [str(Path(path).resolve()) for path in allowed_paths]
+            
+        config.update(update_data)
         self._write_config(config)
-        self.logger.info(f"Granted LLM consent at {now}")
+        self.logger.info(f"Granted directory access consent at {now}")
 
     def revoke(self) -> None:
-        """Revoke previously granted consent for LLM access."""
+        """Revoke previously granted consent for directory access."""
         config = self._read_config()
         now = datetime.now(timezone.utc).isoformat()
         config.update({
             "consent_given": False,
             "consent_timestamp": now,
-            "last_updated": now
+            "last_updated": now,
+            "allowed_paths": []
         })
         self._write_config(config)
-        self.logger.info(f"Revoked LLM consent at {now}")
+        self.logger.info(f"Revoked directory access consent at {now}")
 
     def has_consent(self) -> bool:
-        """Return True if user has granted LLM consent."""
+        """Return True if user has granted directory access consent."""
         return self._read_config().get("consent_given", False)
+
+    def get_allowed_paths(self) -> list:
+        """Return the list of allowed directory paths."""
+        return self._read_config().get("allowed_paths", [])
 
     def get_consent_timestamp(self) -> Optional[str]:
         """Return the timestamp of the last consent update, if available."""
@@ -96,17 +113,18 @@ class LLMConsentManager:
         return {
             "consent_given": cfg.get("consent_given", False),
             "consent_timestamp": cfg.get("consent_timestamp"),
-            "consent_type": cfg.get("consent_type", "external_llm_data_access"),
+            "consent_type": cfg.get("consent_type", "directory_access"),
             "last_updated": cfg.get("last_updated"),
             "version": cfg.get("version", "1.0"),
-            "description": cfg.get("description", "Consent for external LLM data analysis"),
+            "description": cfg.get("description", "Consent for directory access"),
+            "allowed_paths": cfg.get("allowed_paths", []),
             "config_path": str(self.config_path)
         }
 
     def reset(self) -> None:
         """Reset consent to its default (revoked) state."""
         self.revoke()
-        self.logger.info("Reset LLM consent configuration to default")
+        self.logger.info("Reset directory access consent configuration to default")
 
     def is_valid(self) -> bool:
         """
@@ -115,38 +133,38 @@ class LLMConsentManager:
         """
         return self.has_consent()
 
-
-    def grant_llm_consent(self) -> None:
+   
+    def grant_directory_consent(self, allowed_paths: Optional[list] = None) -> None:
         """Deprecated: use grant()."""
-        self.logger.warning("grant_llm_consent() is deprecated, use grant() instead")
-        self.grant()
+        self.logger.warning("grant_directory_consent() is deprecated, use grant() instead")
+        self.grant(allowed_paths)
 
-    def revoke_llm_consent(self) -> None:
+    def revoke_directory_consent(self) -> None:
         """Deprecated: use revoke()."""
-        self.logger.warning("revoke_llm_consent() is deprecated, use revoke() instead")
+        self.logger.warning("revoke_directory_consent() is deprecated, use revoke() instead")
         self.revoke()
 
-    def has_llm_consent(self) -> bool:
+    def has_directory_consent(self) -> bool:
         """Deprecated: use has_consent()."""
-        self.logger.warning("has_llm_consent() is deprecated, use has_consent() instead")
+        self.logger.warning("has_directory_consent() is deprecated, use has_consent() instead")
         return self.has_consent()
 
-    def get_llm_consent_timestamp(self) -> Optional[str]:
+    def get_directory_consent_timestamp(self) -> Optional[str]:
         """Deprecated: use get_consent_timestamp()."""
-        self.logger.warning("get_llm_consent_timestamp() is deprecated, use get_consent_timestamp() instead")
+        self.logger.warning("get_directory_consent_timestamp() is deprecated, use get_consent_timestamp() instead")
         return self.get_consent_timestamp()
 
-    def get_llm_consent_info(self) -> Dict[str, Any]:
+    def get_directory_consent_info(self) -> Dict[str, Any]:
         """Deprecated: use get_consent_info()."""
-        self.logger.warning("get_llm_consent_info() is deprecated, use get_consent_info() instead")
+        self.logger.warning("get_directory_consent_info() is deprecated, use get_consent_info() instead")
         return self.get_consent_info()
 
-    def reset_llm_consent(self) -> None:
+    def reset_directory_consent(self) -> None:
         """Deprecated: use reset()."""
-        self.logger.warning("reset_llm_consent() is deprecated, use reset() instead")
+        self.logger.warning("reset_directory_consent() is deprecated, use reset() instead")
         self.reset()
 
-    def is_llm_consent_valid(self) -> bool:
+    def is_directory_consent_valid(self) -> bool:
         """Deprecated: use is_valid()."""
-        self.logger.warning("is_llm_consent_valid() is deprecated, use is_valid() instead")
+        self.logger.warning("is_directory_consent_valid() is deprecated, use is_valid() instead")
         return self.is_valid()

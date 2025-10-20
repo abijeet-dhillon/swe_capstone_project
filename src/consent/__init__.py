@@ -1,13 +1,12 @@
 """
-LLM Consent management module for external LLM data access.
+User consent management module for data access.
 
-This module provides functionality to manage user consent specifically for
-allowing their data to be analyzed by external LLMs, separate from directory
-access consent which will be handled in a different module.
-
-Note: This is specifically for LLM data access consent, not directory access consent.
+This module provides functionality to manage different types of user consents:
+- LLM data access consent
+- Directory access consent
 """
 
 from .llm_consent_manager import LLMConsentManager
+from .directory_consent_manager import DirectoryConsentManager
 
-__all__ = ['LLMConsentManager']
+__all__ = ['LLMConsentManager', 'DirectoryConsentManager']
