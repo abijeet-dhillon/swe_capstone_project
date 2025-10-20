@@ -6,6 +6,7 @@
 1. [Week 4](#week-4)
 1. [Week 5](#week-5)
 1. [Week 6](#week-6)
+1. [Week 7](#week-7)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -89,4 +90,58 @@ This section outlines the individual log for week 6
 
 3. Completed/In-Progress
     - Completed refactoring of dfd (via new requirements)
+
+## Week 7
+This section outlines the individual log for week 7
+
+### October 13 - October 19
+
+### Tasks
+![](images/kaiden_week7_tasks.png)
+
+### Weekly Goals
+
+1. My Features: 
+    - Update README.md with comprehensive project documentation
+    - Take on PM/PO role to build out development backlog
+    - Create detailed issue descriptions for all team members
+
+2. Associated Tasks
+    - README Documentation Updates
+    - Backlog Management and Issue Creation
+    - Project Milestone Planning
+
+3. Completed/In-Progress
+    - Completed comprehensive README.md updates including:
+        - Added Project Milestones section with clear goals for Milestone #1, #2, and #3
+        - Added Getting Started section with current capabilities and installation instructions
+        - Added API Reference section with core endpoints for Milestone #2
+        - Improved project structure and documentation organization
+    - Completed backlog creation as PM/PO:
+        - Created 18 detailed issue descriptions with user stories, acceptance criteria, and technical requirements
+        - Established clear dependencies between issues
+        - Assigned story points and priorities for sprint planning
+        - Created copy-paste ready issue descriptions for GitHub
+
+### Reflection Points
+
+**What went well:**
+- Successfully took on the PM/PO role and created a comprehensive backlog that will guide the team's development efforts
+- README updates should help users with getting started info and devs with planning.
+- Issue descriptions provide clear direction for all team members, reducing ambiguity
+- Established a structured approach to project management that will benefit future sprints
+
+**What didn't go well:**
+- Initially struggled with the scope of backlog creation - 18 issues was more extensive than anticipated
+- Some issue descriptions required talking with a few members to make sure that the issue was on the right track
+- Time management could have been better - spent more time on documentation than originally planned
+
+### Planning Activities for Next Cycle
+
+**Week 8 Goals:**
+- Most likely will take on more of a dev role next week to start implementing features.
+- Review and refine issue descriptions based on team feedback
+- Begin sprint planning with team for Milestone #1 deliverables
+- Focus on core infrastructure components that other features depend on
+
 
