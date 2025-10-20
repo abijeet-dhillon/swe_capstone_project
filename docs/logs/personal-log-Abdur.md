@@ -89,3 +89,23 @@ Finished the Level 0 DFD
 
 Completed the Level 1 DFD
 ---
+
+## Week 6
+This section outlines the individual log for week 6
+
+### October 6 - October 12
+
+### Tasks
+![](images/abdur-week6.png)
+
+### Weekly Goals
+
+1. My Features: 
+    - Create and revise WBS chart based on project updates
+
+2. Associated Tasks
+    - Work Breakdown Structure
+
+3. Completed/In-Progress
+    - Completed initial WBS chart
+    - Revised WBS chart according to updated project requirements
