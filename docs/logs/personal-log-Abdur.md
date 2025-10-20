@@ -109,3 +109,47 @@ This section outlines the individual log for week 6
 3. Completed/In-Progress
     - Completed initial WBS chart
     - Revised WBS chart according to updated project requirements
+
+
+## Week 7 – October 13 to October 19
+
+### 1. Type of Tasks Worked On
+![Week 7 Task Screenshot](images/abdurweek7.png)
+---
+
+### 3. Recap of Weekly Goals
+This week focused on developing and testing the consent management functionality for the system.
+My main contributions included:
+
+-implementing the User Directory Consent Manager module to handle user consent for directory data access
+
+- writing and running unit tests to verify consent operations such as grant, revoke, and reset
+
+- designing the system to be compatible with future modules like LLM access consent and external data analysis
+---
+
+### 4. Features Owned in Project Plan
+- User Consent – Directory Access  
+- Consent Management Module  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- User Consent – Directory Access (#16)  
+ 
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title                           | Status       | Notes |
+|----------|---------------------------------------|--------------|-------|
+| 16     | User Consent – Directory Access | Completed  | 
+---
+
+### 7. Additional Context
+- All tests for the User Directory Consent Manager passed successfully after debugging one write-handling issue.
+
+- Code was structured to integrate easily with future LLM access consent and external analysis features.
+
+
+- Continued documenting and refining the module for clarity and maintainability.
