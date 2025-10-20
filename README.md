@@ -29,6 +29,40 @@ The **System Architecture Diagram** above represents the core workflow of the *M
 ### Overview  
 The system facilitates the secure extraction of professional insights (résumé or portfolio information) from digital work artifacts. It emphasizes **data privacy, consent management, and controlled use of external AI services (LLMs)**.
 
+## Project Milestones
+
+### Milestone #1 (October-December 07) - **CURRENT FOCUS**
+**Goal:** Create functionality for parsing and outputting information correctly
+**Output:** Text-based (CSV, JSON, plain text)
+**Key Features:**
+- User consent for data access
+- ZIP file parsing and validation
+- Project analysis and metrics extraction
+- Database storage
+- Text-based output generation
+
+### Milestone #2 (January-March 05) - **PLANNED**
+**Goal:** API service with human-in-the-loop process
+**Key Features:**
+- Incremental file addition
+- Duplicate file recognition
+- User customization and corrections
+- Project re-ranking and selection
+- Role and success evidence incorporation
+- Image association for projects
+- Portfolio showcase customization
+- Résumé item customization
+- Display portfolio and résumé information
+
+### Milestone #3 (March-April 05) - **PLANNED**
+**Goal:** Front-end user interface
+**Key Features:**
+- One-page résumé generation
+- Web portfolio with timeline and heatmap
+- Top 3 projects showcase
+- Private/public dashboard modes
+- Interactive customization
+
 ### Main Components  
 1. **Actors**
    - **Administrator** – Manages data access permissions and overall system governance.  
