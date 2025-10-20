@@ -152,3 +152,47 @@ My contributions included:
 ### 7. Additional Context
 -   
 - 
+
+
+
+---
+## Week 7 – October 13 to October 19
+
+### 1. Type of Tasks Worked On
+![Week 7 Task Screenshot](images/week7-abhinav-tasks.png)
+---
+
+### 3. Recap of Weekly Goals
+This week focused on developing and testing the consent management functionality for the system.  
+My main contributions included:  
+- implementing the LLM Consent Manager module to handle user consent for external LLM data access  
+- writing and running unit tests to verify consent operations such as grant, revoke, and reset  
+- designing the system to be compatible with future modules like directory access consent and external LLM analysis  
+
+---
+
+### 4. Features Owned in Project Plan
+- User Consent – External LLM Data Access  
+- Consent Management Module  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- User Consent – External LLM Data Access (#17)  
+- LLM Consent Management Implementation (Internal)  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title                           | Status       | Notes |
+|----------|---------------------------------------|--------------|-------|
+| 17       | User Consent – External LLM Data Access | Completed  | Implemented backend LLM consent manager with JSON persistence and test coverage |
+| —        | LLM Consent Management Implementation  | Completed    | Added module to handle user opt-in/out consent  |
+
+---
+
+### 7. Additional Context
+- All tests for the LLM consent manager passed successfully after debugging one write-handling issue.  
+- Code was structured to integrate easily with future directory access consent and external LLM analysis features.  
+- Preparing to begin work on the External LLM Analysis module in the next sprint.  
+- Continued documenting and refining the module for clarity and maintainability.  
