@@ -32,7 +32,7 @@
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| username        | name            |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -81,7 +81,7 @@ Future weeks will include more detailed documentation of tasks as work progresse
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| username        | name            |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -128,7 +128,7 @@ This week the team focused on defining the scope of the project and capturing th
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| username        | name            |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -179,7 +179,7 @@ This week the team focused on researching and learning about data flow diagrams,
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| username        | name            |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -230,6 +230,7 @@ The goal was to extend the parsing layer so that all team members can validate a
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
+| mishgGavura         | Misha Gavura    |
 
 ### 4. Completed Tasks
 
