@@ -27,7 +27,41 @@ Be sure to keep your docs and README.md up-to-date.
 The **System Architecture Diagram** above represents the core workflow of the *Mining Digital Work Artifacts System*, showing the interaction between users, administrators, reviewers, and external services.  
 
 ### Overview  
-The system facilitates the secure extraction of professional insights (résumé or portfolio information) from digital work artifacts. It emphasizes **data privacy, consent management, and controlled use of external AI services (LLMs)**.  
+The system facilitates the secure extraction of professional insights (résumé or portfolio information) from digital work artifacts. It emphasizes **data privacy, consent management, and controlled use of external AI services (LLMs)**.
+
+## Project Milestones
+
+### Milestone #1 (October-December 07) - **CURRENT FOCUS**
+**Goal:** Create functionality for parsing and outputting information correctly
+**Output:** Text-based (CSV, JSON, plain text)
+**Key Features:**
+- User consent for data access
+- ZIP file parsing and validation
+- Project analysis and metrics extraction
+- Database storage
+- Text-based output generation
+
+### Milestone #2 (January-March 05) - **PLANNED**
+**Goal:** API service with human-in-the-loop process
+**Key Features:**
+- Incremental file addition
+- Duplicate file recognition
+- User customization and corrections
+- Project re-ranking and selection
+- Role and success evidence incorporation
+- Image association for projects
+- Portfolio showcase customization
+- Résumé item customization
+- Display portfolio and résumé information
+
+### Milestone #3 (March-April 05) - **PLANNED**
+**Goal:** Front-end user interface
+**Key Features:**
+- One-page résumé generation
+- Web portfolio with timeline and heatmap
+- Top 3 projects showcase
+- Private/public dashboard modes
+- Interactive customization
 
 ### Main Components  
 1. **Actors**
@@ -102,7 +136,55 @@ Processes deletion requests and ensures shared data across reports is preserved.
 - **D1 User Config** → stores consent and user preferences  
 - **D2 Project Database** → stores extracted project insights and summaries  
 
+## Getting Started
 
+### Current Capabilities (Milestone #1)
+The system currently supports:
+- ZIP file parsing and metadata extraction
+- Basic file type detection
+- Docker containerization
+
+### Prerequisites
+- Python 3.10+
+- Docker (optional)
+
+### Installation
+```bash
+# Clone the repository
+git clone <repository-url>
+cd capstone-project-team-14
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
+python -m src.main
+```
+
+### Docker
+```bash
+# Build and run with Docker
+docker-compose up
+```
+
+## API Reference
+
+This section is WIP and will be refined as apart of Milestone #2
+
+#### Configuration
+- `POST /config/scan` - Create scan configuration
+- `GET /config/scan` - Get current configuration
+
+#### File Processing
+- `POST /scan/start` - Start scanning a ZIP file
+- `GET /scan/status` - Check scan progress
+
+#### Insights
+- `GET /insights/summary` - Get project summary
+
+#### Export
+- `POST /export/json` - Export data as JSON
+- `POST /export/csv` - Export data as CSV
 
 
 --------
