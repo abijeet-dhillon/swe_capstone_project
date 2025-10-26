@@ -110,8 +110,3 @@ def categorize_folder_structure(folder_path: str) -> dict:
         structured_representation[relative_path] = categorized
 
     return structured_representation
-
-if __name__ == "__main__":
-    import sys
-    target = "tests/categorize/demo_projects"
-    print(json.dumps(categorize_folder_structure(target), indent=4))
