@@ -5,6 +5,7 @@
 [Week 5 Personal Logs](#week-5)
 [Week 6 Personal Logs](#week-6)
 [Week 7 Personal Logs](#week-7)
+[Week 8 Personal Logs](#week-8)
 
 ## Week 3
 ### Date Range 
@@ -102,3 +103,29 @@
 
 **Future cycle plans**:
 * The next step will involve storage of the data generated from this sprint (e.g. user configs, folders structure/metadata) and possibly start looking into ways of analyzing this data.
+
+## Week 8
+### Date Range 
+20th October 2025 - 26th October 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 8](images/tahsin-week-8.png)
+
+### Weekly Goals
+**My features**:
+* Implemented a local code analyzer for the artifact mining system
+* The analyzer performs local analysis without external APIs, supporting Python, JavaScript, Java, and C++
+* Developed a test-driven approach with 24 unit tests achieving 87% code coverage
+* Created working examples to demonstrate the analyzer's capabilities
+* Researched on libraries and ways to extend the local code analyzer to be more general (perceval, pydriller, gitpython)
+
+**Task from project board**:
+* Local Analysis Pipeline - Code Analyzer
+
+**Completed/In-progress tasks**: 
+* Local Analysis Pipeline - Code Analyzer (Completed)
+
+**Future cycle plans**:
+- Integrate the code analyzer with git repository scanning using python libraries
+- Build aggregation logic for multi-project portfolio statistics
+- Storage and evaluation of the extracted contribution metrics for resume items
