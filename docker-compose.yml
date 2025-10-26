@@ -1,8 +1,10 @@
 services:
   backend:
     build: .
+    working_dir: /code          
     command: python -m src.main
     volumes:
-      - .:/code      
+      - .:/code
     environment:
       - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/code        
