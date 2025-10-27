@@ -4,7 +4,8 @@
 [Week 4 Team Logs](#week-4)<br>
 [Week 5 Team Logs](#week-5)<br>
 [Week 6 Team Logs](#week-6)<br>
-[Week 7 Team Logs](#week-7)
+[Week 7 Team Logs](#week-7)<br>
+[Week 8 Team Logs](#week-8)
 
 ## Week 3
 
