@@ -1,4 +1,4 @@
-from analyze.video_analyzer import VideoAnalyzer
+from src.analyze.video_analyzer import VideoAnalyzer
 from pathlib import Path
 from colorama import Fore, Style, init
 import os
