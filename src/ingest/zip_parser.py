@@ -2,12 +2,16 @@
 Zip file parsing functionality.
 """
 
+import json
+import tempfile
+import shutil
 import zipfile
 import hashlib
 from pathlib import Path
 from typing import Union
 
 from .models import ZipIndex, ZipEntry
+from src.categorize.file_categorizer import categorize_folder_structure
 
 
 class ZipParseError(Exception):
@@ -108,3 +112,76 @@ def _is_text_content(content: bytes) -> bool:
         return True
     except Exception:
         return False
+    
+
+def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
+    """
+    Parse a ZIP file, extract its contents to a temporary folder,
+    categorize the extracted files by type, and include detailed file info
+    from the ZIP metadata.
+
+    Args:
+        zip_path (str | Path): Path to the ZIP file to parse and categorize.
+
+    Returns:
+        dict: A structured representation of the ZIP contents including:
+              - ZIP metadata
+              - File info for each entry
+              - Categorized folder structure
+    """
+    zip_path = Path(zip_path)
+
+    try:
+        # Parse ZIP metadata
+        zip_index = parse_zip(zip_path)
+        print(f"[INFO] Parsed ZIP '{zip_index.root_name}' with {zip_index.file_count} files")
+
+        # Extract contents to a temporary directory
+        temp_dir = Path(tempfile.mkdtemp(prefix="unzipped_"))
+        print(f"[INFO] Extracting ZIP to temporary folder: {temp_dir}")
+
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(temp_dir)
+
+        # Categorize extracted files
+        categorized_structure = categorize_folder_structure(temp_dir)
+
+        # Build file info list from ZipIndex
+        file_info = []
+        for entry in zip_index.files:
+            file_info.append({
+                "rel_path": entry.rel_path,
+                "size": entry.size,
+                "compressed_size": entry.compressed_size,
+                "is_compressed": entry.is_compressed,
+                "sha256": entry.sha256,
+                "depth": entry.depth,
+                "ext": entry.ext,
+                "is_text_guess": entry.is_text_guess
+            })
+
+        # Combine all components
+        combined = {
+            "zip_metadata": {
+                "root_name": zip_index.root_name,
+                "file_count": zip_index.file_count,
+                "total_uncompressed_bytes": zip_index.total_uncompressed_bytes,
+                "total_compressed_bytes": zip_index.total_compressed_bytes,
+            },
+            "file_info": file_info,
+            "categorized_contents": categorized_structure
+        }
+        return combined
+
+    except ZipParseError as e:
+        print(f"[ERROR] ZIP parsing failed: {e}")
+        return {}
+    except Exception as e:
+        print(f"[ERROR] categorize_parse_zip() failed: {e}")
+        return {}
+    finally:
+        # Clean up temporary directory
+        try:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception:
+            pass
