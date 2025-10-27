@@ -7,6 +7,7 @@
 1. [Week 5](#week-5)
 1. [Week 6](#week-6)
 1. [Week 7](#week-7)
+1. [Week 8](#week-8)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -143,5 +144,72 @@ This section outlines the individual log for week 7
 - Review and refine issue descriptions based on team feedback
 - Begin sprint planning with team for Milestone #1 deliverables
 - Focus on core infrastructure components that other features depend on
+
+## Week 8
+This section outlines the individual log for week 8
+
+### October 20 - October 26
+
+### Tasks
+![](images/kaiden_week8_tasks.png)
+
+### Weekly Goals
+
+1. My Features: 
+    - Implement text analyzer component for document analysis (R5: Media Metadata Extraction)
+    - Create comprehensive test suite for text analyzer
+    - Build CLI interface and example scripts for component usage
+
+2. Associated Tasks
+    - Text Analyzer Implementation
+    - Test Suite Development
+    - Documentation and Examples
+
+3. Completed/In-Progress
+    - Completed text analyzer core implementation:
+        - Built `TextAnalyzer` class with support for PDF, DOCX, TXT, and MD files
+        - Implemented 15+ metric extractions including word count, sentence count, paragraph count, reading time estimation, lexical diversity, and keyword frequency analysis
+        - Added batch processing capability with aggregate statistics across multiple files
+        - Created structured `TextMetrics` dataclass for clean dictionary output
+    - Completed test suite:
+        - Wrote 11 comprehensive tests covering all file types, batch analysis, error handling, and metric validation
+        - All tests passing with pytest
+        - Tests use temporary files with automatic cleanup
+    - Completed supporting tools:
+        - Built CLI wrapper (`analyze_text.py`) for command-line usage with pure JSON output
+        - Created example script (`example_txt_analysis.py`) that generates sample files and demonstrates usage
+        - Added robust import handling to work from any directory
+    - Documentation:
+        - Created comprehensive README for the text analyzer component
+        - Wrote PR template with detailed description of changes
+        - Documented usage examples for both CLI and Python API
+
+### Reflection Points
+
+**What went well:**
+- Successfully implemented a fully functional text analyzer component that works without LLM services
+- The component is modular and can be easily integrated with other parts of the system
+- Test coverage is comprehensive and all tests pass
+- CLI interface provides clean JSON output that can be piped or parsed programmatically
+- Batch processing with aggregate metrics adds significant value for analyzing multiple documents
+
+**What didn't go well:**
+- Initial import path issues required debugging and fixing the module resolution
+- Had to iterate on the CLI output format to make it cleaner (removed verbose formatting)
+- PDF creation for examples required adding `reportlab` dependency
+- Some confusion around file organization and which files were needed vs optional
+
+**Technical Challenges:**
+- Handling different file formats (PDF, DOCX, TXT) required different parsing libraries
+- Ensuring the component works when run from different directories required careful path handling
+- Balancing between comprehensive metrics and keeping the implementation efficient
+
+### Planning Activities for Next Cycle
+
+**Week 9 Goals:**
+- Continue working on media metadata extraction, specifically focusing on PDF files since TXT and DOCX are working
+- Integrate text analyzer with database storage layer (R6) once available
+- Collaborate with team members on API integration for the text analyzer component
+
 
 
