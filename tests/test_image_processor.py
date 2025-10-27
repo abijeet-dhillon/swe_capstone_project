@@ -1,8 +1,6 @@
 """
 Tests for image processor functionality.
 
-Comprehensive test suite covering image analysis, metrics extraction,
-EXIF data parsing, and error handling.
 """
 
 import json
@@ -31,13 +29,13 @@ def sample_png(tmp_path):
     """Create a sample PNG image for testing."""
     img_path = tmp_path / "test_image.png"
     
-    # Create a simple 100x50 RGB image with a gradient
+    
     img = Image.new('RGB', (100, 50))
     pixels = img.load()
     
     for x in range(100):
         for y in range(50):
-            # Create a gradient
+          
             r = int((x / 100) * 255)
             g = int((y / 50) * 255)
             b = 128
@@ -52,7 +50,7 @@ def sample_jpeg(tmp_path):
     """Create a sample JPEG image for testing."""
     img_path = tmp_path / "test_image.jpg"
     
-    # Create a simple 200x100 RGB image
+    
     img = Image.new('RGB', (200, 100), color=(255, 0, 0))  # Red image
     img.save(img_path, 'JPEG')
     return str(img_path)
@@ -63,7 +61,7 @@ def sample_grayscale(tmp_path):
     """Create a grayscale image for testing."""
     img_path = tmp_path / "test_gray.png"
     
-    # Create a grayscale image
+    
     img = Image.new('L', (50, 50), color=128)  # Mid-gray
     img.save(img_path, 'PNG')
     return str(img_path)
@@ -74,10 +72,10 @@ def sample_with_exif(tmp_path):
     """Create a JPEG image with EXIF data."""
     img_path = tmp_path / "test_exif.jpg"
     
-    # Create image
+    
     img = Image.new('RGB', (100, 100), color=(0, 255, 0))  # Green image
     
-    # Add basic EXIF data
+    
     exif_dict = {
         271: "Test Camera Make",  # Make
         272: "Test Camera Model",  # Model
@@ -123,11 +121,11 @@ class TestImageProcessor:
         assert ratio["ratio_string"] == "2:1"
         assert ratio["decimal"] == 2.0
         
-        # Test common aspect ratio
+        
         ratio_16_9 = processor.get_aspect_ratio(1920, 1080)
         assert ratio_16_9["ratio_string"] == "16:9"
         
-        # Test square
+       
         ratio_square = processor.get_aspect_ratio(100, 100)
         assert ratio_square["ratio_string"] == "1:1"
         assert ratio_square["decimal"] == 1.0
@@ -173,7 +171,7 @@ class TestImageProcessor:
         assert "accessed_timestamp" in stats
         assert "accessed_datetime" in stats
         
-        # Verify datetime format
+        
         datetime.fromisoformat(stats["created_datetime"])
         datetime.fromisoformat(stats["modified_datetime"])
     
@@ -187,7 +185,7 @@ class TestImageProcessor:
         assert "min_brightness" in brightness
         assert "max_brightness" in brightness
         
-        # Grayscale image with value 128 should have ~50% brightness
+        
         assert 45 <= brightness["brightness_percentage"] <= 55
         assert brightness["min_brightness"] == 128
         assert brightness["max_brightness"] == 128
@@ -205,12 +203,12 @@ class TestImageProcessor:
         assert "g" in rgb
         assert "b" in rgb
         
-        # Red image should have high R value
+        
         assert rgb["r"] > 200
         assert rgb["g"] < 50
         assert rgb["b"] < 50
         
-        # Hex should start with #
+        
         assert avg_color["average_hex"].startswith("#")
         assert len(avg_color["average_hex"]) == 7
     
@@ -252,35 +250,35 @@ class TestImageProcessor:
         assert "days_since_creation" in edit_freq
         assert "time_between_create_modify_seconds" in edit_freq
         
-        # Verify datetime format
+        
         datetime.fromisoformat(edit_freq["created"])
         datetime.fromisoformat(edit_freq["last_modified"])
         
-        # New file should have minimal time difference
+        
         assert edit_freq["days_since_creation"] >= 0
     
     def test_calculate_edit_frequency_modified_file(self, processor, tmp_path):
         """Test edit frequency with modified file."""
         img_path = tmp_path / "test_modified.png"
         
-        # Create image
+       
         img = Image.new('RGB', (50, 50), color=(0, 0, 255))
         img.save(img_path, 'PNG')
         
-        # Wait a bit and modify
+        
         time.sleep(0.1)
-        os.utime(img_path, None)  # Update modification time
+        os.utime(img_path, None)  
         
         edit_freq = processor.calculate_edit_frequency(str(img_path))
         
-        # File should be marked as edited
+       
         assert edit_freq["time_between_create_modify_seconds"] >= 0
     
     def test_analyze_image_complete(self, processor, sample_png):
         """Test complete image analysis."""
         result = processor.analyze_image(sample_png)
         
-        # Check all expected keys
+        
         expected_keys = [
             "file_path", "file_name", "resolution", "aspect_ratio",
             "format", "file_stats", "brightness", "average_color",
@@ -291,17 +289,17 @@ class TestImageProcessor:
         for key in expected_keys:
             assert key in result, f"Missing key: {key}"
         
-        # Verify resolution
+       
         assert result["resolution"]["width"] == 100
         assert result["resolution"]["height"] == 50
         
-        # Verify aspect ratio
+       
         assert result["aspect_ratio"]["ratio_string"] == "2:1"
         
-        # Verify format
+        
         assert result["format"]["format"] == "PNG"
         
-        # Verify timestamp
+        
         datetime.fromisoformat(result["analysis_timestamp"])
     
     def test_analyze_image_jpeg(self, processor, sample_jpeg):
@@ -332,11 +330,11 @@ class TestImageProcessor:
         
         assert len(results) == 2
         
-        # First result should be PNG
+        
         assert results[0]["format"]["format"] == "PNG"
         assert results[0]["resolution"]["width"] == 100
         
-        # Second result should be JPEG
+        
         assert results[1]["format"]["format"] == "JPEG"
         assert results[1]["resolution"]["width"] == 200
     
@@ -349,11 +347,11 @@ class TestImageProcessor:
         
         assert len(results) == 2
         
-        # First should succeed
+        
         assert "error" not in results[0]
         assert results[0]["format"]["format"] == "PNG"
         
-        # Second should have error
+        
         assert "error" in results[1]
         assert results[1]["file_path"] == "/nonexistent/image.png"
     
@@ -382,7 +380,7 @@ class TestImageProcessor:
     
     def test_brightness_extremes(self, processor, tmp_path):
         """Test brightness calculation for black and white images."""
-        # Black image
+       
         black_path = tmp_path / "black.png"
         black_img = Image.new('RGB', (50, 50), color=(0, 0, 0))
         black_img.save(black_path, 'PNG')
@@ -393,7 +391,7 @@ class TestImageProcessor:
         assert brightness["average_brightness"] < 10
         assert brightness["brightness_percentage"] < 5
         
-        # White image
+        
         white_path = tmp_path / "white.png"
         white_img = Image.new('RGB', (50, 50), color=(255, 255, 255))
         white_img.save(white_path, 'PNG')
@@ -406,7 +404,7 @@ class TestImageProcessor:
     
     def test_color_modes(self, processor, tmp_path):
         """Test handling of different color modes."""
-        # RGBA image
+        
         rgba_path = tmp_path / "rgba.png"
         rgba_img = Image.new('RGBA', (50, 50), color=(255, 0, 0, 128))
         rgba_img.save(rgba_path, 'PNG')
@@ -414,7 +412,7 @@ class TestImageProcessor:
         result = processor.analyze_image(str(rgba_path))
         assert result["format"]["mode"] == "RGBA"
         
-        # Grayscale image
+        
         gray_path = tmp_path / "gray.png"
         gray_img = Image.new('L', (50, 50), color=128)
         gray_img.save(gray_path, 'PNG')

@@ -1,9 +1,6 @@
 """
 Image processor for analyzing PNG/JPEG files and extracting metrics.
 
-This module provides functionality to analyze image files and extract various
-metrics including resolution, aspect ratio, file format, file size, timestamps,
-color analysis, EXIF metadata, and edit frequency.
 """
 
 import os
@@ -71,7 +68,7 @@ class ImageProcessor:
         
         ratio = width / height
         
-        # Calculate GCD for simplified ratio
+        
         from math import gcd
         divisor = gcd(width, height)
         simplified_width = width // divisor
@@ -134,7 +131,7 @@ class ImageProcessor:
         Returns:
             Dictionary with brightness information
         """
-        # Convert to grayscale
+        
         grayscale = image.convert('L')
         pixels = np.array(grayscale)
         
@@ -157,11 +154,11 @@ class ImageProcessor:
         Returns:
             Dictionary with average color information
         """
-        # Convert to RGB if not already
+        
         rgb_image = image.convert('RGB')
         pixels = np.array(rgb_image)
         
-        # Calculate average for each channel
+        
         avg_r = np.mean(pixels[:, :, 0])
         avg_g = np.mean(pixels[:, :, 1])
         avg_b = np.mean(pixels[:, :, 2])
@@ -186,17 +183,17 @@ class ImageProcessor:
         Returns:
             Dictionary with dominant color information
         """
-        # Resize image for faster processing
+        
         small_image = image.convert('RGB').resize((150, 150))
         pixels = np.array(small_image)
         
-        # Reshape to list of RGB values
+        
         pixels_list = pixels.reshape(-1, 3)
         
-        # Convert to tuples for counting
+       
         pixel_tuples = [tuple(pixel) for pixel in pixels_list]
         
-        # Count occurrences
+     
         color_counts = Counter(pixel_tuples)
         most_common = color_counts.most_common(num_colors)
         
@@ -235,7 +232,7 @@ class ImageProcessor:
             for tag_id, value in exif.items():
                 tag = TAGS.get(tag_id, tag_id)
                 
-                # Handle GPS data separately
+                
                 if tag == "GPSInfo":
                     gps_data = {}
                     for gps_tag_id in value:
@@ -243,7 +240,7 @@ class ImageProcessor:
                         gps_data[gps_tag] = value[gps_tag_id]
                     exif_data["GPSInfo"] = gps_data
                 else:
-                    # Convert bytes to string for readability
+                   
                     if isinstance(value, bytes):
                         try:
                             value = value.decode()
@@ -284,7 +281,7 @@ class ImageProcessor:
         time_diff = modified - created
         days_since_creation = time_diff.total_seconds() / 86400
         
-        # Check if file has been modified since creation
+       
         was_edited = abs(stats.st_mtime - stats.st_ctime) > 1  # 1 second tolerance
         
         return {
@@ -312,7 +309,7 @@ class ImageProcessor:
             raise ValueError(f"Unsupported file format: {Path(file_path).suffix}")
         
         try:
-            # Open image
+            
             with Image.open(file_path) as image:
                 # Get resolution
                 resolution = self.get_resolution(image)
@@ -338,7 +335,7 @@ class ImageProcessor:
                 # Get EXIF metadata
                 exif = self.get_exif_metadata(image)
                 
-                # Calculate edit frequency
+                
                 edit_frequency = self.calculate_edit_frequency(file_path)
                 
                 return {
