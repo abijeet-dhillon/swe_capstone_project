@@ -2,6 +2,8 @@
 1. [Week 3](#week-3)
 1. [Week 4](#week-4)
 1. [Week 5](#week-5)
+1. [Week 6](#week-6)
+1. [Week 7](#week-7)
 
 ## Week 3 
 
@@ -153,3 +155,67 @@ My main contributions included:
 
 
 - Continued documenting and refining the module for clarity and maintainability.
+
+
+
+## Week 8
+This section outlines the individual log for week 7
+
+### October 20 - October 26
+
+### Tasks
+![](images/abdur-week8.png)
+
+
+### Weekly Goals
+
+1. My Features:
+    - Implement a comprehensive PNG/JPEG Image Processor capable of extracting detailed metrics from image files
+    - Build full unit test coverage and documentation
+    - Integrate batch image analysis functionality
+    - Improve code performance for color and brightness analysis
+
+2. Associated Tasks
+    - Develop ImageProcessor class with all metric extraction methods
+    - Implement methods for:
+        - Resolution, aspect ratio, file stats, brightness, and color analysis
+        - EXIF metadata extraction and edit frequency tracking
+    - Create automated tests covering all major and edge cases
+    - Write complete API documentation and example usage scripts
+    - Update requirements.txt with necessary dependencies (Pillow, NumPy)
+
+3. Completed/In-Progress
+    - src/image_processor.py 
+        - Implemented ImageProcessor class with all core metric extraction features
+        - Added full error handling, logging, and validation
+    - tests/test_image_processor.py 
+        - Added 24 comprehensive unit tests
+        - Verified edge cases and error conditions
+        - All tests passing 
+    - docs/IMAGE_PROCESSOR.md 
+        - Full API documentation
+        - Usage examples, return structures, and detailed metric descriptions
+    - src/image_processor_example.py 
+        - Demonstrates single and batch image analysis
+    
+
+### Reflection Points
+
+**What went well:**
+- Successfully implemented a fully functional and modular image processor
+- Achieved 100% test coverage with well-structured, maintainable tests
+- Documentation provides clear guidance for both users and developers
+- Batch processing feature optimized for speed and memory efficiency
+
+**What didn't go well:**
+- Initial dominant color extraction was slow — required optimization using image resizing
+- Documentation took longer than planned due to scope and completeness goals
+- Some EXIF data parsing inconsistencies between image formats
+
+### Planning Activities for Next Cycle
+
+**Week 9 Goals:**
+- Most likely will take on more of a dev role next week to start implementing features.
+- Review and refine issue descriptions based on team feedback
+- Begin sprint planning with team for Milestone #1 deliverables
+- Focus on core infrastructure components that other features depend on
