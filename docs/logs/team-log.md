@@ -33,7 +33,7 @@
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishgGavura         | Misha Gavura    |
+| mishgGavura     | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -82,7 +82,7 @@ Future weeks will include more detailed documentation of tasks as work progresse
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishgGavura         | Misha Gavura    |
+| mishgGavura     | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -129,7 +129,7 @@ This week the team focused on defining the scope of the project and capturing th
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishgGavura         | Misha Gavura    |
+| mishgGavura     | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -180,7 +180,7 @@ This week the team focused on researching and learning about data flow diagrams,
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishgGavura         | Misha Gavura    |
+| mishgGavura     | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -231,7 +231,7 @@ The goal was to extend the parsing layer so that all team members can validate a
 | kmerchant1      | Kaiden Merchant |
 | Malik-Abhinav   | Abhinav Malik   |
 | abdur026        | Abdur Rehman    |
-| mishgGavura         | Misha Gavura    |
+| mishgGavura     | Misha Gavura    |
 
 ### 4. Completed Tasks
 
@@ -276,21 +276,20 @@ How this informs next cycle:
 
 - To maintain steady momentum, the next cycle’s plan includes subdividing large tasks and setting clearer priorities early in the week. This will ensure that high-priority features receive consistent progress even during heavier academic weeks.
 
-
 ## Week 8
 
 ### October 20 2025 to October 26 2025
 
 ### 1. Milestone Goals Recap
 
-This week’s milestone focused on expanding the Local Analysis Pipeline with specialized analyzers for multiple file types.  
-Each team member developed and tested one module as part of the unified local analyzer framework.
+This week’s milestone focused on expanding the Local Analysis Pipeline with specialized analyzers for multiple file types. Team members developed and tested modules as part of the unified local analyzer framework.
 
-- (#72) Local Analysis Pipeline – Code Analyzer  
-- (#71) Local Analyzer – Video Processor  
-- (#70) Local Analyzer – PNG/JPEG Processor  
-- (#69) Local Analyzer – TXT File Processor  
-- (#75) Connect Zip Folder Parser to Categorizer  
+- (#72) Local Analysis Pipeline – Code Analyzer
+- (#71) Local Analyzer – Video Processor
+- (#70) Local Analyzer – PNG/JPEG Processor
+- (#69) Local Analyzer – TXT File Processor
+- (#75) Connect Zip Folder Parser to Categorizer
+- (#22) Store/Load User Configurations
 
 The goal for this milestone was to implement standalone analyzers capable of scanning local artifacts, extracting metadata, and preparing structured outputs for later integration into the full analysis pipeline.
 
@@ -319,26 +318,27 @@ The goal for this milestone was to implement standalone analyzers capable of sca
 
 ![Kanban Board for Week 8](images/week8-kanban.png)
 
-| Task ID | Issue Title | Username | Associated Feature | Status |
-| ------- | ------------ | -------- | ------------------ | ------- |
-| 22      | Store/Load User Configurations | abijeet-dhillon | Store User Configurations for Future Use | In Progress |
-| 72 | Local Analysis Pipeline – Code Analyzer | tahsinj | Code Analyzer | In Progress |
-| 71 | Local Analyzer – Video Processor | Malik-Abhinav | Video Analyzer | In Progress |
-| 70 | Local Analyzer – PNG/JPEG Processor | abdur026 | Image Analyzer | In Progress |
-| 69 | Local Analyzer – TXT File Processor | kmerchant1 | Text Analyzer | In Progress |
-| 75 | Connect Zip Folder Parser to Categorizer | abijeet-dhillon | Parser Integration | In Progress |
+| Task ID | Issue Title                              | Username        | Associated Feature                       | Status    |
+| ------- | ---------------------------------------- | --------------- | ---------------------------------------- | --------- |
+| 22      | Store/Load User Configurations           | abijeet-dhillon | Store User Configurations for Future Use | Completed |
+| 72      | Local Analysis Pipeline – Code Analyzer  | tahsinj         | Code Analyzer                            | Completed |
+| 71      | Local Analyzer – Video Processor         | Malik-Abhinav   | Video Analyzer                           | Completed |
+| 70      | Local Analyzer – PNG/JPEG Processor      | abdur026        | Image Analyzer                           | Completed |
+| 69      | Local Analyzer – TXT File Processor      | kmerchant1      | Text Analyzer                            | Completed |
+| 75      | Connect Zip Folder Parser to Categorizer | abijeet-dhillon | Parser Integration                       | Completed |
 
 ---
 
 ### 5. Test Report
 
-All automated tests for the new analyzer modules passed successfully.  
+All automated tests for the new analyzer modules passed successfully.
 
-- ✅ Code Analyzer — 97% test coverage with comprehensive unit tests  
-- ✅ Video Analyzer — 97% test coverage, validated with CLI output  
-- ✅ Image Analyzer — verified image metadata extraction and format detection  
-- ✅ Text Analyzer — validated text parsing and tokenization  
-- ✅ Integration with categorizer under active development  
+- ✅ Code Analyzer — 97% test coverage with comprehensive unit tests
+- ✅ Video Analyzer — 97% test coverage, validated with CLI output
+- ✅ Image Analyzer — verified image metadata extraction and format detection
+- ✅ Text Analyzer — validated text parsing and tokenization
+- ✅ Integration with categorizer under active development
+- ✅ Storing and loading user configurations
 
 Each analyzer was tested using pytest with coverage reports, and manual CLI validation was performed where applicable.
 
@@ -347,7 +347,7 @@ Each analyzer was tested using pytest with coverage reports, and manual CLI vali
 ### 6. Additional Context
 
 This week marked a major milestone — completing the core components of the Local Analysis Layer, which now supports multiple file formats.  
-The analyzers share a consistent design pattern, making future integration into the categorization and visualization modules straightforward.
+The analyzers share a consistent design pattern, making future integration into the categorization and visualization modules straightforward. We also connected the parser to the categorizer and implemented a user configuration storage system.
 
 The team also worked on documenting testing procedures and improving module readability to support easier collaboration and merging.
 
@@ -355,9 +355,9 @@ The team also worked on documenting testing procedures and improving module read
 
 ### 7. Future Cycle Plans
 
-- Begin integrating all analyzers into a unified local pipeline that communicates with the central categorizer.  
-- Implement JSON serialization for analysis results to prepare for database connection.  
-- Conduct end-to-end testing across analyzers to ensure consistent output schemas.  
+- Begin integrating all analyzers into a unified local pipeline that communicates with the central categorizer.
+- Implement JSON serialization for analysis results to prepare for database connection.
+- Conduct end-to-end testing across analyzers to ensure consistent output schemas.
 - Prepare documentation and example demonstrations for milestone review.
 
 ---
@@ -365,13 +365,16 @@ The team also worked on documenting testing procedures and improving module read
 ### 8. Reflection on This Cycle
 
 What went well:
-- Strong progress across all assigned analyzers, every module compiles, runs, and passes tests.  
-- Team members followed a consistent structure and naming convention, which simplifies future integration.  
-- CLI testing confirmed that the analyzers handle both valid and invalid files gracefully.  
+
+- Strong progress across all assigned analyzers, every module compiles, runs, and passes tests.
+- Team members followed a consistent structure and naming convention, which simplifies future integration.
+- CLI testing confirmed that the analyzers handle both valid and invalid files gracefully.
 
 What could be improved:
-- Cross-analyzer integration needs more coordination, next sprint will focus on ensuring interoperability and consistent metrics formats.  
 
-Overall, this sprint was productive — we now have a basic foundation for the Local Analysis Pipeline. The core analyzers for different file types are in place and functioning individually.  
-In the next cycle, we plan to connect these modules together, introduce a database layer, and expand the analysis capabilities to provide deeper, more integrated insights across all local artifacts.
+- Cross-analyzer integration needs more coordination, next sprint will focus on ensuring interoperability and consistent metrics formats.
 
+How this informs us for the next cycle:
+
+- Overall, this sprint was productive — we now have a basic foundation for the Local Analysis Pipeline. The core analyzers for different file types are in place and functioning individually. We also have an initial user configuration storage system.
+- In the next cycle, we plan to connect these modules together, introduce a database layer, and expand the analysis capabilities to provide deeper, more integrated insights across all local artifacts.
