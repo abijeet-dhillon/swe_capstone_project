@@ -45,10 +45,11 @@ Additionally, I developed unit tests and coverage tests for both modules to veri
 
 ### 5. Tasks Completed / In Progress in the Last 2 Weeks
 
-| Task ID | Issue Title                              | Status    | Notes                                                                                                                                                                                                                                                                          |
-| ------- | ---------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| #75     | Connect Zip Folder Parser to Categorizer | Completed | Implemented unified `categorize_parse_zip()` function in `ingest/zip_parser.py` that chains folder parsing and file categorization. Added structured JSON output and ensured correct handling of nested directories. Included unit tests for validation and coverage tracking. |
-| #22     | Store/Load User Configurations           | Completed | Created `config_manager.py` under `src/config/` to handle saving and loading of user configuration JSON files. Integrated LLM and directory consent settings.                                                                                                                  |
+| Task ID | Issue Title                              | Status      | Notes                                                                                                                                                                                                                                                                          |
+| ------- | ---------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #75     | Connect Zip Folder Parser to Categorizer | Completed   | Implemented unified `categorize_parse_zip()` function in `ingest/zip_parser.py` that chains folder parsing and file categorization. Added structured JSON output and ensured correct handling of nested directories. Included unit tests for validation and coverage tracking. |
+| #22     | Store/Load User Configurations           | Completed   | Created `config_manager.py` under `src/config/` to handle saving and loading of user configuration JSON files. Integrated LLM and directory consent settings.                                                                                                                  |
+| #36     | Generate Chronological Skill List        | In Progress | Will implement logic to extract and chronologically order skills based on project data. Includes skill categorization by type, proficiency indicators, and multi-format output support (JSON, CSV, text). Also plans to include time-based filtering and confidence scoring.   |
 
 ---
 
@@ -96,7 +97,7 @@ This week, I extended the backend parsing functionality by implementing a new fi
 | ------- | --------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 50      | Categorize Files & Create Structured Representation | Completed   | Implemented file_categorizer.py to walk through project folders, classify files by type, and store the output in a structured JSON format. Also tested tests cases via pytest. |
 | 22      | Store/Load User Configurations                      | In Progress | N/A                                                                                                                                                                            |
-| 15      | Project Environment Setup | Completed | N/A   |
+| 15      | Project Environment Setup                           | Completed   | N/A                                                                                                                                                                            |
 
 ---
 
