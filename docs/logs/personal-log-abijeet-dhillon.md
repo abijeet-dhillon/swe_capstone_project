@@ -4,7 +4,61 @@
 [Week 4 Individual Logs](#week-4)<br>
 [Week 5 Individual Logs](#week-5)<br>
 [Week 6 Individual Logs](#week-6)<br>
-[Week 7 Individual Logs](#week-7)
+[Week 7 Individual Logs](#week-7)<br>
+[Week 8 Individual Logs](#week-8)
+
+---
+
+## Week 8
+
+### October 20 2025 to October 26 2025
+
+### 1. Type of Tasks Worked On
+
+![Abijeet Dhillon Week 7 Task Types Screenshot](images/)
+
+---
+
+### 2. Recap of Weekly Goals
+
+This week, I focused on integrating the zip parser and file categorizer components into a unified workflow using the categorize_parse_zip() function. This integration enables uploaded zip files to be automatically parsed, validated, and categorized into structured JSON output for consistent downstream processing.
+
+I also implemented a user configuration management system that saves and loads user preferences — including directory paths and consent settings — in a local JSON format. This ensures persistence across sessions and integrates with the existing consent logic in src/consent/.
+
+Additionally, I developed unit tests and coverage tests for both modules to verify correct behavior under different conditions (e.g., missing files, invalid input, nested folder structures), ensuring robustness and measurable test coverage across the new code.
+
+---
+
+### 3. Features Owned in Project Plan
+
+- Store/Load User Configurations (#22)
+- Connect Zip Folder Parser to Categorizer (#75)
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+
+- Store/Load User Configurations (#22)
+- Connect Zip Folder Parser to Categorizer (#75)
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+
+| Task ID | Issue Title                              | Status                | Notes                                                                                                                                                                                                                                                                          |
+| ------- | ---------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #75     | Connect Zip Folder Parser to Categorizer | Completed             | Implemented unified `categorize_parse_zip()` function in `ingest/zip_parser.py` that chains folder parsing and file categorization. Added structured JSON output and ensured correct handling of nested directories. Included unit tests for validation and coverage tracking. |
+| #22     | Store/Load User Configurations           | In Progress / Testing | Created `config_manager.py` under `src/config/` to handle saving and loading of user configuration JSON files. Integrated LLM and directory consent settings. Added early test coverage for missing/corrupted config handling; refining test cases next cycle.                 |
+
+---
+
+### 6. Future Cycle Plans & Reflection On This Week
+
+In the upcoming cycle, I plan to:
+
+- TO DO...
+
+---
 
 ## Week 7
 
