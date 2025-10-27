@@ -196,3 +196,55 @@ My main contributions included:
 - Code was structured to integrate easily with future directory access consent and external LLM analysis features.  
 - Preparing to begin work on the External LLM Analysis module in the next sprint.  
 - Continued documenting and refining the module for clarity and maintainability.  
+
+
+## Week 8 – October 20 to October 26
+
+### 1. Type of Tasks Worked On
+![Week 8 Task Screenshot](images/week8-abhinavmalik.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week focused on implementing and testing the Video Analyzer feature, which automates metadata extraction and statistical analysis from local video files and directories.  
+My main contributions included:  
+- developing the VideoAnalyzer module with methods for analyzing single files and directories  
+- implementing detailed metrics aggregation (total duration, average FPS, audio count, etc.)  
+- adding colorized CLI output via colorama for improved terminal feedback  
+- writing comprehensive automated tests achieving over 95% coverage  
+- performing manual validation with real video files to ensure correct metadata extraction  
+
+---
+
+### 4. Features Owned in Project Plan
+- Video Analyzer Module  
+- Local Video Metrics Extraction  
+- Testing and CLI Integration  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- local analyzer - video processor  
+
+---
+
+### 6. Tasks Completed 
+| Task ID | Issue Title                          | Status      | Notes |
+|----------|--------------------------------------|-------------|-------|
+| 21       | Local analyzer - video processor           | Completed   | Added functionality to extract metadata and compute collection metrics |
+
+
+---
+
+### 7. Additional Context
+- Ensured compatibility with moviepy and ffmpeg for video processing.  
+- Integrated robust error handling for corrupt or unsupported file formats.  
+- Verified that all CLI interactions worked across different operating systems (Windows + Git Bash).  
+- Documented the full testing process and created a dedicated Testing Guide (VIDEO_ANALYZER_TESTING_GUIDE.md).  
+
+---
+
+### 8. Next Week’s Focus
+- Begin integration of Video Analyzer results into the overall artifact collection pipeline.  
+- Implement optional JSON export for analyzed results to enable downstream data use.  
+- Work on connecting VideoAnalyzer outputs with the Consent Manager to ensure local-only privacy compliance
