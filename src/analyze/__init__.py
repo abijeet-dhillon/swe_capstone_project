@@ -1,14 +1,13 @@
-"""
-Analyze module - Local analysis components
-"""
+# src/analyze/__init__.py
+__all__ = []
+try:
+    from .code_analyzer import CodeAnalyzer, AnalysisResult, ContributionMetrics
+    __all__ += ["CodeAnalyzer", "AnalysisResult", "ContributionMetrics"]
+except Exception:
+    pass
 
-from .code_analyzer import CodeAnalyzer, AnalysisResult, ContributionMetrics
-from .text_analyzer import TextAnalyzer, TextMetrics
-
-__all__ = [
-    'CodeAnalyzer',
-    'AnalysisResult',
-    'ContributionMetrics',
-    'TextAnalyzer',
-    'TextMetrics'
-]
+try:  # optional, only if deps installed
+    from .text_analyzer import TextAnalyzer, TextMetrics
+    __all__ += ["TextAnalyzer", "TextMetrics"]
+except Exception:
+    pass
