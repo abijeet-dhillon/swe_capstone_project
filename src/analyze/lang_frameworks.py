@@ -7,6 +7,27 @@ from typing import List, Set, Optional
 # Set up logging
 logger = logging.getLogger(__name__)
 
+# Optional imports for improved parsing
+try:
+    from pygments.lexers import guess_lexer
+    from pygments.util import ClassNotFound as PygmentsClassNotFound
+except ImportError:
+    guess_lexer = None
+    PygmentsClassNotFound = Exception
+
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    try:
+        import toml as tomllib  # Fallback for older Python
+    except ImportError:
+        tomllib = None
+
+try:
+    from requirements_parser import RequirementsFile
+except ImportError:
+    RequirementsFile = None
+
 
 # Language mappings by file extension
 EXTENSION_TO_LANGUAGE = {
@@ -27,6 +48,11 @@ EXTENSION_TO_LANGUAGE = {
     '.php': 'php',
     '.kt': 'kotlin',
     '.swift': 'swift',
+    '.rs': 'rust',
+    '.r': 'r',
+    '.m': 'objective-c',
+    '.scala': 'scala',
+    '.dart': 'dart',
 }
 
 # Shebang patterns for language detection
@@ -81,9 +107,24 @@ FRAMEWORK_PATTERNS = {
 }
 
 
+def _normalize_pygments_name(name: str) -> str:
+    """Normalize Pygments lexer names to our standard language names."""
+    name = name.lower()
+    normalizations = {
+        'c++': 'cpp',
+        'objective-c': 'objective-c',
+        'js': 'javascript',
+        'typescript': 'typescript',
+        'c#': 'csharp',
+    }
+    return normalizations.get(name, name)
+
+
 def detect_language_by_ext_and_shebang(filename: str, content: str) -> str:
     """
-    Detect programming language based on file extension and shebang line.
+    Detect programming language based on file extension, shebang, and content analysis.
+    
+    Uses extension first (most reliable), then shebang, then Pygments as fallback.
     
     Args:
         filename: Name of the file (including extension)
@@ -103,6 +144,18 @@ def detect_language_by_ext_and_shebang(filename: str, content: str) -> str:
         for language, pattern in SHEBANG_PATTERNS.items():
             if re.search(pattern, first_line, re.IGNORECASE):
                 return language
+    
+    # Try Pygments as last resort for content-based detection
+    if guess_lexer and content:
+        try:
+            lexer = guess_lexer(content)
+            name = _normalize_pygments_name(lexer.name)
+            logger.debug(f"Pygments detected language: {name} for file: {filename}")
+            return name
+        except PygmentsClassNotFound:
+            logger.debug(f"Pygments could not detect language for: {filename}")
+        except Exception as e:
+            logger.debug(f"Pygments error for {filename}: {e}")
     
     return 'unknown'
 
@@ -170,26 +223,84 @@ def detect_frameworks_from_manifests(project_root: Path) -> Set[str]:
     # Parse requirements.txt for Python frameworks
     requirements_txt = project_root / "requirements.txt"
     if requirements_txt.exists():
-        try:
-            content = requirements_txt.read_text(encoding='utf-8').lower()
-            python_frameworks = ['django', 'flask', 'fastapi', 'sqlalchemy', 'pytest', 'pandas', 'numpy']
-            for fw in python_frameworks:
-                if fw in content:
-                    frameworks.add(fw)
-        except IOError:
-            pass
+        python_frameworks = ['django', 'flask', 'fastapi', 'sqlalchemy', 'pytest', 'pandas', 'numpy']
+        
+        if RequirementsFile:
+            # Use requirements-parser for robust parsing
+            try:
+                rf = RequirementsFile.from_file(str(requirements_txt))
+                for req in rf.requirements:
+                    name = req.name.lower() if req.name else ''
+                    if name in python_frameworks:
+                        frameworks.add(name)
+                logger.debug(f"Parsed requirements.txt with requirements-parser: {frameworks}")
+            except Exception as e:
+                logger.debug(f"requirements-parser failed, using fallback: {e}")
+                # Fallback to substring scan
+                try:
+                    content = requirements_txt.read_text(encoding='utf-8').lower()
+                    for fw in python_frameworks:
+                        if fw in content:
+                            frameworks.add(fw)
+                except IOError:
+                    pass
+        else:
+            # Fallback: simple substring scan
+            try:
+                content = requirements_txt.read_text(encoding='utf-8').lower()
+                for fw in python_frameworks:
+                    if fw in content:
+                        frameworks.add(fw)
+            except IOError:
+                pass
     
     # Parse pyproject.toml for Python frameworks
     pyproject_toml = project_root / "pyproject.toml"
     if pyproject_toml.exists():
-        try:
-            content = pyproject_toml.read_text(encoding='utf-8').lower()
-            python_frameworks = ['django', 'flask', 'fastapi', 'sqlalchemy', 'pytest', 'pandas', 'numpy']
-            for fw in python_frameworks:
-                if fw in content:
-                    frameworks.add(fw)
-        except IOError:
-            pass
+        python_frameworks = ['django', 'flask', 'fastapi', 'sqlalchemy', 'pytest', 'pandas', 'numpy']
+        
+        if tomllib:
+            # Use tomllib for proper TOML parsing
+            try:
+                content = pyproject_toml.read_text(encoding='utf-8')
+                data = tomllib.loads(content) if hasattr(tomllib, 'loads') else tomllib.load(content)
+                
+                # Check [project] dependencies (PEP 621)
+                if 'project' in data and 'dependencies' in data['project']:
+                    for dep in data['project']['dependencies']:
+                        # Extract package name (before any version specifier)
+                        pkg_name = re.split(r'[<>=!]', dep)[0].strip().lower()
+                        if pkg_name in python_frameworks:
+                            frameworks.add(pkg_name)
+                
+                # Check [tool.poetry.dependencies]
+                if 'tool' in data and 'poetry' in data['tool']:
+                    if 'dependencies' in data['tool']['poetry']:
+                        for dep_name in data['tool']['poetry']['dependencies'].keys():
+                            pkg_name = dep_name.lower()
+                            if pkg_name in python_frameworks:
+                                frameworks.add(pkg_name)
+                
+                logger.debug(f"Parsed pyproject.toml with tomllib: {frameworks}")
+            except Exception as e:
+                logger.debug(f"tomllib parsing failed, using fallback: {e}")
+                # Fallback to substring scan
+                try:
+                    content = pyproject_toml.read_text(encoding='utf-8').lower()
+                    for fw in python_frameworks:
+                        if fw in content:
+                            frameworks.add(fw)
+                except IOError:
+                    pass
+        else:
+            # Fallback: simple substring scan
+            try:
+                content = pyproject_toml.read_text(encoding='utf-8').lower()
+                for fw in python_frameworks:
+                    if fw in content:
+                        frameworks.add(fw)
+            except IOError:
+                pass
     
     # Parse pom.xml for Java frameworks
     pom_xml = project_root / "pom.xml"
