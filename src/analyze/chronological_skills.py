@@ -15,7 +15,6 @@ Usage (uncomment demo section at bottom):
 import numpy as np
 import json
 import csv
-from pprint import pprint
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Any
@@ -221,10 +220,8 @@ def make_json_serializable(obj):
     else:
         return obj
     
-# # Command-Line Entrypoint (Demo/Debugging, un-comment to run demo)
-# if __name__ == "__main__":
-#     analyzer = ChronologicalSkillList()
-#     events = analyzer.build_skill_timeline("tests/categorize/demo_projects2", None)
-#     analyzer.export_results(events)
-#     print("\n=== Timeline Preview ===")
-#     pprint(events[:5])
+# Command-Line Entrypoint (Demo/Debugging, un-comment to run demo)
+if __name__ == "__main__":
+    analyzer = ChronologicalSkillList()
+    events = analyzer.build_skill_timeline("tests/categorize/demo_projects2", None)
+    analyzer.export_results(events)
