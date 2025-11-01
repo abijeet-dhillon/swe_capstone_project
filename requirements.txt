@@ -32,6 +32,7 @@ pytest
 pandas
 moviepy==1.0.3
 ffmpeg-python
+coverage
 
 # Image Processing
 Pillow==10.1.0

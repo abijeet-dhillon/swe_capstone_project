@@ -1,0 +1,173 @@
+[
+  {
+    "file": "tests/categorize/demo_projects2/notes.txt",
+    "timestamp": "2025-10-29 01:40:43",
+    "category": "text",
+    "skills": [
+      "writing"
+    ],
+    "metadata": {
+      "word_count": 2,
+      "lexical_diversity": 1.0,
+      "avg_word_length": 6.5
+    }
+  },
+  {
+    "file": "tests/categorize/demo_projects2/Main.java",
+    "timestamp": "2025-10-29 01:40:43",
+    "category": "code",
+    "skills": [
+      "java"
+    ],
+    "metadata": {
+      "language": "java",
+      "frameworks": []
+    }
+  },
+  {
+    "file": "tests/categorize/demo_projects2/img.jpg",
+    "timestamp": "2025-11-01 21:28:00",
+    "category": "image",
+    "skills": [
+      "artistry"
+    ],
+    "metadata": {
+      "file_path": "/code/tests/categorize/demo_projects2/img.jpg",
+      "file_name": "img.jpg",
+      "resolution": {
+        "width": 1300,
+        "height": 854,
+        "total_pixels": 1110200
+      },
+      "aspect_ratio": {
+        "ratio": 1.5222482435597189,
+        "ratio_string": "650:427",
+        "decimal": 1.52
+      },
+      "format": {
+        "format": "JPEG",
+        "mode": "RGB",
+        "extension": ".jpg"
+      },
+      "file_stats": {
+        "size_bytes": 136075,
+        "size_kb": 132.89,
+        "size_mb": 0.13,
+        "created_timestamp": 1762032492.3405116,
+        "created_datetime": "2025-11-01T21:28:12.340512",
+        "modified_timestamp": 1762032480.9075575,
+        "modified_datetime": "2025-11-01T21:28:00.907557",
+        "accessed_timestamp": 1762033578.5937498,
+        "accessed_datetime": "2025-11-01T21:46:18.593750"
+      },
+      "brightness": {
+        "average_brightness": 143.51,
+        "brightness_percentage": 56.28,
+        "min_brightness": 0,
+        "max_brightness": 255
+      },
+      "average_color": {
+        "average_rgb": {
+          "r": 144.69,
+          "g": 143.3,
+          "b": 141.62
+        },
+        "average_hex": "#908f8d"
+      },
+      "dominant_color": {
+        "dominant_colors": [
+          {
+            "rgb": {
+              "r": 202,
+              "g": 201,
+              "b": 199
+            },
+            "hex": "#cac9c7",
+            "frequency": 194,
+            "percentage": 0.86
+          },
+          {
+            "rgb": {
+              "r": 197,
+              "g": 196,
+              "b": 194
+            },
+            "hex": "#c5c4c2",
+            "frequency": 186,
+            "percentage": 0.83
+          },
+          {
+            "rgb": {
+              "r": 204,
+              "g": 203,
+              "b": 201
+            },
+            "hex": "#cccbc9",
+            "frequency": 184,
+            "percentage": 0.82
+          },
+          {
+            "rgb": {
+              "r": 199,
+              "g": 198,
+              "b": 196
+            },
+            "hex": "#c7c6c4",
+            "frequency": 178,
+            "percentage": 0.79
+          },
+          {
+            "rgb": {
+              "r": 195,
+              "g": 194,
+              "b": 192
+            },
+            "hex": "#c3c2c0",
+            "frequency": 177,
+            "percentage": 0.79
+          }
+        ],
+        "most_dominant": {
+          "rgb": {
+            "r": 202,
+            "g": 201,
+            "b": 199
+          },
+          "hex": "#cac9c7",
+          "frequency": 194,
+          "percentage": 0.86
+        }
+      },
+      "exif_metadata": {
+        "has_exif": false,
+        "data": {}
+      },
+      "edit_frequency": {
+        "was_edited": true,
+        "created": "2025-11-01T21:28:12.340512",
+        "last_modified": "2025-11-01T21:28:00.907557",
+        "days_since_creation": -0.0,
+        "time_between_create_modify_seconds": -11.43
+      },
+      "analysis_timestamp": "2025-11-01T21:48:50.995918"
+    }
+  },
+  {
+    "file": "tests/categorize/demo_projects2/vid.mp4",
+    "timestamp": "2025-11-01 21:37:45",
+    "category": "video",
+    "skills": [
+      "videography"
+    ],
+    "metadata": {
+      "file_path": "/code/tests/categorize/demo_projects2/vid.mp4",
+      "duration_seconds": 15.27,
+      "resolution": "3840x2160",
+      "frame_rate": 30.0,
+      "total_frames": 458,
+      "has_audio": false,
+      "file_type": "video-only",
+      "format": "mp4"
+    }
+  }
+]

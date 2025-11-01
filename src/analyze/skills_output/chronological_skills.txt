@@ -1,0 +1,14 @@
+=== Skill & Media Timeline ===
+
+[2025-10-29 01:40:43] (TEXT) tests/categorize/demo_projects2/notes.txt
+  Skills: writing
+
+[2025-10-29 01:40:43] (CODE) tests/categorize/demo_projects2/Main.java
+  Skills: java
+
+[2025-11-01 21:28:00] (IMAGE) tests/categorize/demo_projects2/img.jpg
+  Skills: artistry
+
+[2025-11-01 21:37:45] (VIDEO) tests/categorize/demo_projects2/vid.mp4
+  Skills: videography
+
