@@ -14,6 +14,29 @@ from src.analyze.lang_frameworks import (
     get_supported_extensions
 )
 
+# Check if optional dependencies are available
+try:
+    import pygments
+    HAS_PYGMENTS = True
+except ImportError:
+    HAS_PYGMENTS = False
+
+try:
+    import tomllib
+    HAS_TOMLLIB = True
+except ImportError:
+    try:
+        import toml
+        HAS_TOMLLIB = True
+    except ImportError:
+        HAS_TOMLLIB = False
+
+try:
+    from requirements_parser import RequirementsFile
+    HAS_REQ_PARSER = True
+except ImportError:
+    HAS_REQ_PARSER = False
+
 
 class TestDetectLanguageByExtAndShebang:
     """Test suite for language detection by extension and shebang"""
@@ -141,9 +164,10 @@ class TestDetectLanguageByExtAndShebang:
         assert language == "python"
     
     def test_unknown_extension_no_shebang(self):
-        # Unknown file without shebang returns unknown
+        # Unknown file without shebang returns unknown (or text/plaintext if Pygments available)
         language = detect_language_by_ext_and_shebang("file.xyz", "some content")
-        assert language == "unknown"
+        # Without Pygments: "unknown", with Pygments: might detect "text only" or similar
+        assert language in ["unknown", "text only", "text", "plaintext"]
     
     def test_cc_extension(self):
         # .cc extension detected as cpp
@@ -482,4 +506,145 @@ class TestUtilityFunctions:
         assert ".js" in extensions
         assert ".java" in extensions
         assert len(extensions) > 0
+
+
+class TestImprovedParsing:
+    """Test suite for improved parsing with optional libraries"""
+    
+    @pytest.mark.skipif(not HAS_PYGMENTS, reason="pygments not installed")
+    def test_language_fallback_pygments(self):
+        # Python code without extension - Pygments should detect it
+        python_content = """import sys
+
+def main():
+    print("Hello, World!")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+"""
+        language = detect_language_by_ext_and_shebang("unknown_file", python_content)
+        # Pygments should detect Python (most reliable detection)
+        assert language != "unknown", f"Expected language detection via Pygments, got: {language}"
+        assert "python" in language.lower() or language == "python3"
+    
+    def test_language_fallback_python_known_extension(self):
+        # Python with known extension should use extension, not Pygments
+        python_content = "def hello():\n    print('world')"
+        language = detect_language_by_ext_and_shebang("test.py", python_content)
+        assert language == "python"
+    
+    @pytest.mark.skipif(not HAS_TOMLLIB, reason="tomllib/toml not available")
+    def test_pyproject_parsing_tomllib(self):
+        # Parse pyproject.toml with tomllib for robust detection
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            pyproject = project_root / "pyproject.toml"
+            pyproject.write_text("""[project]
+name = "test-project"
+version = "0.0.1"
+dependencies = [
+    "fastapi>=0.110.0",
+    "sqlalchemy>=2.0",
+    "pytest>=7.0"
+]
+""")
+            
+            frameworks = detect_frameworks_from_manifests(project_root)
+            assert "fastapi" in frameworks
+            assert "sqlalchemy" in frameworks
+            assert "pytest" in frameworks
+    
+    @pytest.mark.skipif(not HAS_TOMLLIB, reason="tomllib/toml not available")
+    def test_pyproject_poetry_parsing(self):
+        # Parse poetry-style pyproject.toml
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            pyproject = project_root / "pyproject.toml"
+            pyproject.write_text("""[tool.poetry]
+name = "poetry-project"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+django = "^4.2"
+pandas = "^2.0"
+""")
+            
+            frameworks = detect_frameworks_from_manifests(project_root)
+            assert "django" in frameworks
+            assert "pandas" in frameworks
+    
+    @pytest.mark.skipif(not HAS_REQ_PARSER, reason="requirements-parser not installed")
+    def test_requirements_parser(self):
+        # Parse requirements.txt with requirements-parser
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            requirements = project_root / "requirements.txt"
+            requirements.write_text("""Django==4.2.1
+numpy>=1.26.0
+pandas
+# Comment line
+flask>=2.3.0
+sqlalchemy~=2.0.0
+""")
+            
+            frameworks = detect_frameworks_from_manifests(project_root)
+            assert "django" in frameworks
+            assert "numpy" in frameworks
+            assert "pandas" in frameworks
+            assert "flask" in frameworks
+            assert "sqlalchemy" in frameworks
+    
+    def test_requirements_fallback_without_parser(self):
+        # Without requirements-parser, should still detect via substring
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            requirements = project_root / "requirements.txt"
+            requirements.write_text("django==4.2.1\nflask>=2.3.0")
+            
+            frameworks = detect_frameworks_from_manifests(project_root)
+            assert "django" in frameworks
+            assert "flask" in frameworks
+    
+    def test_package_json_parse(self):
+        # Parse package.json with dependencies and devDependencies
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            package_json = project_root / "package.json"
+            package_json.write_text("""{
+    "name": "test-app",
+    "version": "1.0.0",
+    "dependencies": {
+        "react": "^18.2.0",
+        "express": "^4.18.0"
+    },
+    "devDependencies": {
+        "jest": "^29.5.0",
+        "webpack": "^5.0.0"
+    }
+}""")
+            
+            frameworks = detect_frameworks_from_manifests(project_root)
+            assert "react" in frameworks
+            assert "jest" in frameworks
+            assert "express" in frameworks
+            assert "webpack" in frameworks
+    
+    def test_merge_file_and_project_frameworks_dedupe(self):
+        # Ensure deduplication when merging frameworks
+        file_fw = ["flask", "pytest"]
+        project_fw = {"pytest", "sqlalchemy", "django"}
+        
+        result = merge_file_and_project_frameworks(file_fw, project_fw)
+        
+        # File frameworks come first
+        assert result[0] == "flask"
+        assert result[1] == "pytest"
+        # Project frameworks added after (sorted)
+        assert "sqlalchemy" in result
+        assert "django" in result
+        # No duplicates
+        assert result.count("pytest") == 1
+        assert len(result) == 4
 
