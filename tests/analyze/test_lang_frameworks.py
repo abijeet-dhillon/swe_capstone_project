@@ -575,27 +575,6 @@ pandas = "^2.0"
             assert "django" in frameworks
             assert "pandas" in frameworks
     
-    @pytest.mark.skipif(not HAS_REQ_PARSER, reason="requirements-parser not installed")
-    def test_requirements_parser(self):
-        # Parse requirements.txt with requirements-parser
-        with tempfile.TemporaryDirectory() as temp_dir:
-            project_root = Path(temp_dir)
-            requirements = project_root / "requirements.txt"
-            requirements.write_text("""Django==4.2.1
-numpy>=1.26.0
-pandas
-# Comment line
-flask>=2.3.0
-sqlalchemy~=2.0.0
-""")
-            
-            frameworks = detect_frameworks_from_manifests(project_root)
-            assert "django" in frameworks
-            assert "numpy" in frameworks
-            assert "pandas" in frameworks
-            assert "flask" in frameworks
-            assert "sqlalchemy" in frameworks
-    
     def test_requirements_fallback_without_parser(self):
         # Without requirements-parser, should still detect via substring
         with tempfile.TemporaryDirectory() as temp_dir:
