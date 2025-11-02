@@ -6,6 +6,7 @@
 [Week 6 Personal Logs](#week-6)
 [Week 7 Personal Logs](#week-7)
 [Week 8 Personal Logs](#week-8)
+[Week 9 Personal Logs](#week-9)
 
 ## Week 3
 ### Date Range 
@@ -129,3 +130,30 @@
 - Integrate the code analyzer with git repository scanning using python libraries
 - Build aggregation logic for multi-project portfolio statistics
 - Storage and evaluation of the extracted contribution metrics for resume items
+
+## Week 9
+### Date Range 
+27th October 2025 - 2nd November 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 9](images/tahsin-week-9.png)
+
+### Weekly Goals
+**My features**:
+* Generalized and refactored the language and framework detection system into a dedicated module
+* Implemented improved parsing using optional libraries (Pygments, tomllib, requirements-parser) with fallbacks
+* Extended language support to 17 programming languages
+* Created comprehensive test suite for new changes with 71 tests
+* Integrated content-based language detection using Pygments as a fallback mechanism
+* Implemented robust manifest parsing for pyproject.toml and requirements.txt
+* Maintained full backward compatibility with existing code analyzer functionality
+
+**Task from project board**:
+* Identify Programming Languages and Framework
+
+**Completed/In-progress tasks**: 
+* Identify Programming Languages and Framework (Completed)
+
+**Future cycle plans**:
+- Integrate the enhanced code analyzer with git repository scanning (which can help with extracting individual contributions in collaboration projects)
+- Build the aggregation layer for multi-repository portfolio analysis
