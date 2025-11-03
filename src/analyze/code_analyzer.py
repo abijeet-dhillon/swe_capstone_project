@@ -1,7 +1,64 @@
+"""
+INPUTS:
+- File paths (str or Path): Individual files or directories to analyze
+- Project root (optional Path): Root directory for project-level framework detection
+- File content (str): Automatically read from file paths
+
+OUTPUTS:
+- AnalysisResult: Dataclass containing:
+    * file_path (str): Path to analyzed file
+    * language (str): Detected programming language
+    * frameworks (List[str]): Detected frameworks
+    * skills (List[str]): Extracted technical skills
+    * lines_of_code (int): Non-comment, non-blank lines
+    * file_type (str): 'code', 'test', or 'documentation'
+
+- ContributionMetrics: Aggregated metrics containing:
+    * total_files (int): Number of files analyzed
+    * total_lines (int): Total lines of code
+    * languages (List[str]): All detected languages
+    * frameworks (List[str]): All detected frameworks
+    * skills (List[str]): All extracted skills
+    * code_files (int): Count of code files
+    * test_files (int): Count of test files
+
+USAGE:
+    from pathlib import Path
+    from code_analyzer import CodeAnalyzer
+    
+    # Initialize analyzer (optional: provide project root for manifest parsing)
+    analyzer = CodeAnalyzer(project_root=Path('/path/to/project'))
+    
+    # Analyze a single file
+    result = analyzer.analyze_file('src/main.py')
+    print(f"Language: {result.language}")
+    print(f"Frameworks: {result.frameworks}")
+    print(f"Skills: {result.skills}")
+    
+    # Analyze entire directory
+    results = analyzer.analyze_directory('/path/to/project')
+    
+    # Calculate aggregated metrics
+    metrics = analyzer.calculate_contribution_metrics(results)
+    print(f"Total files: {metrics.total_files}")
+    print(f"Languages used: {metrics.languages}")
+    print(f"Frameworks: {metrics.frameworks}")
+    
+    # Convert to dictionary for JSON serialization
+    metrics_dict = metrics.to_dict()
+"""
+
 import re
 from pathlib import Path
 from typing import List, Dict, Optional, Union
 from dataclasses import dataclass
+
+from .lang_frameworks import (
+    detect_language_by_ext_and_shebang,
+    detect_frameworks_from_source,
+    detect_frameworks_from_manifests,
+    merge_file_and_project_frameworks
+)
 
 
 @dataclass
@@ -48,7 +105,18 @@ class ContributionMetrics:
 
 class CodeAnalyzer:
     
-    def __init__(self):
+    def __init__(self, project_root: Optional[Union[str, Path]] = None):
+        """
+        Initialize the CodeAnalyzer.
+        
+        Args:
+            project_root: Optional path to project root for manifest-based framework detection.
+                         If None, only source-based detection will be used.
+        """
+        self.project_root = Path(project_root) if project_root else None
+        self._project_frameworks = None  # Cached project frameworks
+        
+        # Legacy framework patterns - kept for backward compatibility
         self.frameworks = {
             'python': ['fastapi', 'django', 'flask', 'sqlalchemy', 'pytest', 'pandas', 'numpy'],
             'javascript': ['react', 'vue', 'angular', 'express', 'jest', 'node'],
@@ -56,40 +124,35 @@ class CodeAnalyzer:
             'cpp': ['boost', 'qt', 'opencv']
         }
     
+    def _get_project_frameworks(self) -> set:
+        """Get project-level frameworks, cached after first call."""
+        if self._project_frameworks is None:
+            if self.project_root:
+                self._project_frameworks = detect_frameworks_from_manifests(self.project_root)
+            else:
+                self._project_frameworks = set()
+        return self._project_frameworks
+    
     def detect_language(self, content: str, filename: str) -> str:
-        ext = Path(filename).suffix.lower()
+        """Detect programming language - delegates to lang_frameworks module."""
+        language = detect_language_by_ext_and_shebang(filename, content)
         
-        if ext == '.py':
-            return 'python'
-        elif ext in ['.js', '.jsx', '.ts', '.tsx']:
-            return 'javascript'
-        elif ext == '.java':
-            return 'java'
-        elif ext in ['.cpp', '.cc', '.c', '.h', '.hpp']:
-            return 'cpp'
+        # Map newer language names to legacy names for backward compatibility
+        if language == 'typescript':
+            return 'javascript'  # Treat TypeScript as JavaScript for compatibility
         
-        content_lower = content.lower()
-        if 'import ' in content_lower and 'def ' in content_lower:
-            return 'python'
-        elif 'function' in content_lower and ('const ' in content_lower or 'let ' in content_lower):
-            return 'javascript'
-        elif 'public class' in content_lower and 'import ' in content_lower:
-            return 'java'
-        
-        return 'unknown'
+        return language
     
     def detect_frameworks(self, content: str, language: str) -> List[str]:
-        if language not in self.frameworks:
-            return []
+        """Detect frameworks - delegates to lang_frameworks module and merges with project frameworks."""
+        # Get frameworks from source code
+        file_frameworks = detect_frameworks_from_source(language, content)
         
-        found = []
-        content_lower = content.lower()
+        # Get project-level frameworks
+        project_frameworks = self._get_project_frameworks()
         
-        for framework in self.frameworks[language]:
-            if framework in content_lower:
-                found.append(framework)
-        
-        return found
+        # Merge both sources
+        return merge_file_and_project_frameworks(file_frameworks, project_frameworks)
     
     def extract_skills(self, content: str, language: str) -> List[str]:
         skills = [language] if language != 'unknown' else []
