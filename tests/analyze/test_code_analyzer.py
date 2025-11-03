@@ -8,6 +8,10 @@ import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 import sys
+
+# Add src to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
+
 from src.analyze.code_analyzer import CodeAnalyzer, AnalysisResult, ContributionMetrics
 
 
