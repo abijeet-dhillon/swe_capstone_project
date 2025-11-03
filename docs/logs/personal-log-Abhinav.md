@@ -248,3 +248,54 @@ My main contributions included:
 - Begin integration of Video Analyzer results into the overall artifact collection pipeline.  
 - Implement optional JSON export for analyzed results to enable downstream data use.  
 - Work on connecting VideoAnalyzer outputs with the Consent Manager to ensure local-only privacy compliance
+
+
+## Week 9 – October 27 to November 2
+
+### 1. Type of Tasks Worked On
+![Week 9 Task Screenshot](images/week9-abhinavmalik.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week focused on extending the Video Analyzer module to support audio transcription and improving system robustness.  
+My main contributions included:  
+- integrating Whisper-based audio transcription to extract spoken content from video files with audio tracks  
+- updating unit tests to validate transcription logic and ensure accurate metadata-to-text pipeline coverage  
+- debugging runtime issues related to subprocess handling and ensuring the analyzer gracefully skips missing or invalid configurations  
+- verifying real-world test cases using local MP4 and MOV files for full functional validation  
+
+---
+
+### 4. Features Owned in Project Plan
+- Video Analyzer – Transcription Extension  
+- FFmpeg + Whisper Integration  
+- Video Analyzer Unit Tests Update  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- Video Analyzer – Transcription and Audio Processing  
+- Update Test Suite for VideoAnalyzer  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title                               | Status       | Notes |
+|----------|-------------------------------------------|--------------|-------|
+| 92       | local Analyzer – video transcriber | Completed    | Added Whisper model support for speech-to-text transcription |
+
+---
+
+### 7. Additional Context
+- Ensured Whisper models (`tiny`, `base`, etc.) run efficiently with automatic error handling for unavailable models.  
+- Verified cross-platform setup by documenting FFmpeg installation for Windows, macOS, and Linux users.  
+- Updated the project’s `README.md` to include system dependency setup and usage instructions for transcription.  
+- Conducted successful end-to-end runs of `video_example_usage.py` to validate real video input, transcription output, and JSON export pipeline.  
+
+---
+
+### 8. Next Week’s Focus
+- Begin integrating transcribed text data with the artifact collection and consent validation modules.  
+- Work on a method for storing analyzed metadata and transcription results in a structured database 
+- Explore how this data layer can connect to the broader artifact analysis pipeline for unified retrieval and reporting.
