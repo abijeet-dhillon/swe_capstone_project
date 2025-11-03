@@ -103,6 +103,7 @@ class TextAnalyzer:
         # Extract text based on file type
         if file_type == 'pdf':
             text, page_count = self._extract_from_pdf(file_path)
+            heading_info = None
         elif file_type == 'docx':
             text, page_count, heading_info = self._extract_from_docx(file_path)
         else:  # txt
