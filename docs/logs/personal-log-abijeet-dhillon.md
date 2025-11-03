@@ -5,7 +5,58 @@
 [Week 5 Individual Logs](#week-5)<br>
 [Week 6 Individual Logs](#week-6)<br>
 [Week 7 Individual Logs](#week-7)<br>
-[Week 8 Individual Logs](#week-8)
+[Week 8 Individual Logs](#week-8)<br>
+[Week 9 Individual Logs](#week-9)
+
+---
+
+## Week 9
+
+### October 27 2025 to November 2 2025
+
+### 1. Type of Tasks Worked On
+
+![Abijeet Dhillon Week 9 Task Types Screenshot](images/abijeetdhillon_week9_tasks.png)
+
+> Not available since peer evaluation for week 9 was closed early.
+
+---
+
+### 2. Recap of Weekly Goals
+
+This week, I implemented the chronological skills list generator that aggregates outputs from code, text, image, and video analyzers. It normalizes fields, orders detections by file modification timestamp, supports optional date filtering, and exports JSON/CSV/TXT to src/analyze/output/.
+
+I also wrote unit tests for ordering, filtering, and cross-format parity (including serialization edge cases). Additionally, I participated in team planning meetings and reviewed teammates’ PRs—code and tests—to ensure consistency and smooth integration.
+
+---
+
+### 3. Features Owned in Project Plan
+
+- Generate Chronological Skill List (#36)
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+
+- Generate Chronological Skill List (#36)
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+
+| Task ID | Issue Title                              | Status    | Notes                                                                                                                                                                                                                                                                                                                                     |
+| ------- | ---------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #75     | Connect Zip Folder Parser to Categorizer | Completed | Implemented unified `categorize_parse_zip()` function in `ingest/zip_parser.py` that chains folder parsing and file categorization. Added structured JSON output and ensured correct handling of nested directories. Included unit tests for validation and coverage tracking.                                                            |
+| #22     | Store/Load User Configurations           | Completed | Created `config_manager.py` under `src/config/` to handle saving and loading of user configuration JSON files. Integrated LLM and directory consent settings.                                                                                                                                                                             |
+| #36     | Generate Chronological Skill List        | Completed | Implemented cross-analyzer aggregation, chronological ordering by file mtime, optional date filtering, and export to JSON/CSV/TXT in src/analyze/output/. Added unit tests for ordering, serialization, and format parity; participated in review cycles for related analyzer updates and ensured consistent field naming across outputs. |
+
+---
+
+### 6. Future Cycle Plans & Reflection On This Week
+
+In the upcoming cycle, I plan to extend the chronological skills list generator to incorporate new fields and signals from teammates’ analyzer updates, and to research (and potentially implement) a more concrete storage method for user configurations.
+
+Upon reflecting on this week, this week went smooth. Everything is working as intended so far and starting my work on Monday noticeably improved time and stress management.
 
 ---
 
