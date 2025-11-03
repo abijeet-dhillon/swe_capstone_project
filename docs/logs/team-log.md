@@ -378,3 +378,111 @@ How this informs us for the next cycle:
 
 - Overall, this sprint was productive — we now have a basic foundation for the Local Analysis Pipeline. The core analyzers for different file types are in place and functioning individually. We also have an initial user configuration storage system.
 - In the next cycle, we plan to connect these modules together, introduce a database layer, and expand the analysis capabilities to provide deeper, more integrated insights across all local artifacts.
+
+## Week 9
+
+### October 27 2025 to November 2 2025
+
+### 1. Milestone Goals Recap
+
+This week’s milestone focused on improving the Local Analysis Pipeline by implementing libraries and fixing previous issues. Team members developed and tested modules as part of the unified local analyzer framework.
+
+- (#97) Rsearch how we are going to build the report
+- (#95) Fix local pipeline for analyzing pdf files
+- (#92) local analyzer- video transcribe
+- (#25) Identify Programming Languages and Framework
+- (#36) Generate Chronological Skill List
+
+---
+
+### 2. Burnup Chart
+
+![Burnup Chart For Week 9](images/week9-burnup-chart.png)
+
+---
+
+### 3. Username → Student Name Mapping
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| mishgGavura     | Misha Gavura    |
+
+---
+
+### 4. Completed / In Progress Tasks
+
+![Kanban Board for Week 9](images/week9-kanban.png)
+
+| Task ID | Issue Title                              | Username        | Associated Feature                       | Status    |
+| ------- | ---------------------------------------- | --------------- | ---------------------------------------- | --------- |
+| 92      | local analyzer- video transcribe           | Malik-Abhinav | Video Analyzer | Completed |
+| 25      | Identify Programming Languages and Framework | tahsinj | Code Analyzer                      | Completed |
+| 36      | Generate Chronological Skill List         | abijeet-dhillon |                       | Completed |
+| 97      | Rsearch how we are going to build the report | kmerchant1 |                      | Completed |
+| 95     | Fix local pipeline for analyzing pdf files | kmerchant1 | Text Analyzer                     | Completed |
+
+---
+
+### 5. Test Report
+
+All automated tests for the updated modules passed successfully.
+
+- Language and Framework Identification — 95 total tests passing with 71 new tests in a comprehensive unit tests
+- Video Analyzer — 17 tests passing for the new implementation
+- Generate Chronological Skill List — all tests implemented and passing
+
+Each code feature was tested using pytest with coverage reports, and manual testing where needed.
+
+---
+
+### 6. Additional Context
+
+This week focused on refining and extending the capabilities of the Local Analysis Pipeline through improved detection algorithms and enhanced video processing.
+
+- Generalized the detection system into a dedicated module (`lang_frameworks.py`) that now supports 17 programming languages. The module uses improved parsing with optional libraries (Pygments, tomllib, requirements-parser) while maintaining graceful fallback behavior.
+- Integrated Whisper-based audio transcription capabilities into the video analyzer, enabling extraction of spoken content from video files for richer artifact analysis.
+- Implemented a system to generate chronological skill lists that track skill development over time.
+- Resolved issues with PDF file analysis in the local pipeline, ensuring consistent handling of document artifacts.
+- Improved photo analyzer.
+
+The team maintained strong testing practices, with 95 total tests passing for the enhanced code analyzer (71 new tests) and 17 tests for the updated video analyzer. All new features follow TDD principles and integrate cleanly with existing modules.
+
+---
+
+### 7. Future Cycle Plans
+
+- Integrate the enhanced code analyzer with git repository scanning to enable commit-level analysis and contribution tracking.
+- Expand the pipeline to organize folder into distinct projects.
+- Implement the report generation pipeline based on this week's research, establishing templates and output formats.
+- Connect analyzer outputs to a unified data aggregation layer for cross-artifact insights.
+- Develop visualization components for skill progression and contribution metrics.
+- Begin database schema design for persistent storage of analysis results and user configurations.
+
+---
+
+### 8. Reflection on This Cycle
+
+What went well:
+
+- The team successfully enhanced core analysis capabilities while maintaining backward compatibility with existing code. The language/framework detection improvements significantly expand the range of projects we can analyze accurately.
+- Strong adherence to TDD principles resulted in comprehensive test coverage, which gives confidence in the robustness of new features.
+- Team coordination improved with successful merge resolution and integration of multiple concurrent feature branches without major conflicts.
+- Research on report generation provided clear direction for upcoming deliverables.
+
+What could be improved:
+
+- Merge conflicts did occur once when integrating with the develop branch, highlighting the need for more frequent syncing with the main branch during development.
+- Some features require additional optional dependencies, which adds complexity to the deployment and testing process — better documentation of dependencies is needed.
+- Cross-module integration testing remains limited; we're testing components individually but not yet validating the full pipeline end-to-end.
+
+How this informs us for the next cycle:
+
+- The Local Analysis Pipeline is now mature enough to begin full integration work. Next cycle should focus on connecting all analyzers through a unified interface and implementing the data aggregation layer.
+- We need to establish a consistent data schema across all analyzers to facilitate the report generation process and enable seamless integration.
+- The team should prioritize end-to-end testing and documentation as we move from individual module development to full system integration.
+- With the analysis foundation solid, we can shift focus toward user-facing features like report generation, visualization, and the frontend interface.
