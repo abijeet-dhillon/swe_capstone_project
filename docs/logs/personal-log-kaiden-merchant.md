@@ -224,9 +224,8 @@ This section outlines the individual log for week 9
 ### Planning Activities for Next Cycle
 
 **Week 10 Goals:**
-- Implement the pipeline orchestrator (`src/pipeline/orchestrator.py`) to connect ingest → categorize → analyze
-- Expose a FastAPI endpoint (`POST /api/v1/analyze`) that triggers the pipeline with a path input
-- Update Dockerfile and docker-compose to run the API container and accept local paths
+- Look into how we are going to faciliate the pipeline (maybe implement an orchestrator)
+- Define endpoint for API call to trigger the pipeline  
 - Optional: introduce a `PipelineConfig` to toggle categories (code/docs/media) and LLM usage
 
 
