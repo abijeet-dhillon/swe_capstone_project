@@ -4,6 +4,8 @@
 1. [Week 5](#week-5)
 1. [Week 6](#week-6)
 1. [Week 7](#week-7)
+1. [Week 8](#week-8)
+1. [Week 9](#week-9)
 
 ## Week 3 
 
@@ -219,3 +221,55 @@ This section outlines the individual log for week 7
 - Review and refine issue descriptions based on team feedback
 - Begin sprint planning with team for Milestone #1 deliverables
 - Focus on core infrastructure components that other features depend on
+
+## Week 9
+This section outlines the individual log for week 9
+
+### October 27 - November 2
+
+### Tasks
+![](images/abdur-week9.png)
+
+### Weekly Goals
+
+1. **My Features:**
+   - Transform the Image Processor into a full **content analysis system** capable of understanding and describing image contents.  
+   - Extend functionality to detect and classify faces, text, shapes, patterns, and textures.  
+   - Integrate OCR (Tesseract) and shape/edge analysis for enhanced content understanding.  
+   - Add classification logic for different image types such as portraits, documents, screenshots, and diagrams.  
+   - Ensure all features run locally with no external AI API dependencies.  
+
+2. **Associated Tasks**
+   - Implement new analysis methods in `src/image_processor.py`:  
+     - `detect_edges()`, `detect_shapes()`, `extract_text()`, `detect_faces()`, `analyze_texture()`, `detect_patterns()`, `classify_content_type()`, and `get_key_features()`.  
+   - Add new libraries: `opencv-python`, `pytesseract`, `scikit-image`, and `pyzbar`.  
+   - Create structured output returning both technical and content-based insights.  
+   - Develop and run example scripts to demonstrate single and batch image analysis.  
+
+3. **Completed/In-Progress**
+   - Enhanced `ImageProcessor` to analyze not just metrics but also **meaningful visual content** (faces, text, shapes, patterns).  
+   - Integrated **OCR-based text extraction**, **Haar Cascade face detection**, and **GLCM texture analysis**.  
+   - Implemented **edge and shape detection** to analyze composition and complexity.  
+   - Added **classification logic** to describe images in natural language (e.g., “group photo” or “document scan”).  
+   - Updated requirements and documentation with new dependencies and setup instructions.  
+
+### Reflection Points
+
+**What went well:**
+- The image processor was successfully upgraded into a full content understanding module.  
+- Integration of face detection, OCR, and texture analysis greatly improved the system’s descriptive power.  
+- Local-only implementation avoids reliance on cloud APIs while maintaining strong accuracy and speed.  
+- Testing and documentation were thorough, covering all major features and use cases.  
+
+**What didn’t go well:**
+- Some image types (especially complex diagrams) required parameter tuning for accurate shape detection.  
+- Tesseract OCR performance varied with image quality, requiring preprocessing improvements.  
+- Initial runs were slower before optimization of resizing and color analysis functions.  
+
+### Planning Activities for Next Cycle
+
+**Week 10 Goals:**
+- Begin integrating the **Image Processor** output with the unified reporting pipeline.  
+- Add visualization and summary metrics to reports (e.g., charts showing detected faces or color profiles).  
+- Optimize performance for batch image analysis.  
+- Prepare module for final milestone integration and peer testing.
