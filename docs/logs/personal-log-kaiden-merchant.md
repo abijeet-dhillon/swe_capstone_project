@@ -8,6 +8,7 @@
 1. [Week 6](#week-6)
 1. [Week 7](#week-7)
 1. [Week 8](#week-8)
+1. [Week 9](#week-9)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -183,5 +184,48 @@ This section outlines the individual log for week 8
         - Created comprehensive README for the text analyzer component
         - Wrote PR template with detailed description of changes
         - Documented usage examples for both CLI and Python API
+
+## Week 9
+This section outlines the individual log for week 9
+
+### October 27 - November 2
+
+### Tasks
+![](images/kaiden_week9_tasks.png)
+
+### Weekly Goals
+
+1. My Features:
+    - Fix PDF analysis bug in `TextAnalyzer` (initialize `heading_info` for PDF branch)
+    - Research and draft the user-facing analysis report structure (brainstormed `REPORT_TEMPLATE.md`)
+    - Plan how to connect standalone components into a pipeline (ingest → categorize → analyze)
+
+2. Associated Tasks
+    - Bugfix: PDF analyzer UnboundLocalError
+    - Report template brainstorming/documentation
+    - Pipeline architecture planning
+
+3. Completed/In-Progress
+    - Completed PDF bugfix by initializing `heading_info = None` in the PDF path to prevent `UnboundLocalError`
+    - Created a markdown report template outlining sections for code, documents, images, videos, activity, insights, and metrics summary
+    - Drafted an integration plan to route categorized files to the correct analyzers and aggregate results for API response
+
+### Reflection Points
+
+**What went well:**
+- Identified and fixed the PDF-specific error quickly without impacting TXT/DOCX/MD paths
+- The report template provides clarity on what the end-user will see and helps guide development
+- Clearer vision for the end-to-end pipeline after planning
+
+**What didn't go well:**
+- Some churn around script/module import paths when running analyzer from different directories
+- Time split across bugfix and documentation limited time for coding the orchestrator
+
+### Planning Activities for Next Cycle
+
+**Week 10 Goals:**
+- Look into how we are going to faciliate the pipeline (maybe implement an orchestrator)
+- Define endpoint for API call to trigger the pipeline  
+- Optional: introduce a `PipelineConfig` to toggle categories (code/docs/media) and LLM usage
 
 
