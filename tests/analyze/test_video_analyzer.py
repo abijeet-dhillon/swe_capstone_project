@@ -11,7 +11,7 @@ from pathlib import Path
 # Ensure src is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-from analyze.video_analyzer import VideoAnalyzer, VideoAnalysisResult, VideoCollectionMetrics
+from src.analyze.video_analyzer import VideoAnalyzer, VideoAnalysisResult, VideoCollectionMetrics
 
 
 # ----------------------------
