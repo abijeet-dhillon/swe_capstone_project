@@ -19,8 +19,21 @@ def analyze_single_video():
         print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} File not found: {file_path}")
         return
 
-    analyzer = VideoAnalyzer()
-    result = analyzer.analyze_file(file_path)
+    # Ask about transcription
+    transcribe = False
+    print(f"\n{Fore.YELLOW}Would you like to generate a transcript? (requires audio){Style.RESET_ALL}")
+    print(f"  {Fore.CYAN}Models:{Style.RESET_ALL} tiny (fastest) | base (recommended) | small | medium | large")
+    
+    transcribe_choice = input("Enter model name or 'n' to skip: ").strip().lower()
+    
+    if transcribe_choice not in ['n', 'no', '']:
+        transcribe = True
+        model_name = transcribe_choice if transcribe_choice in ['tiny', 'base', 'small', 'medium', 'large'] else 'base'
+        analyzer = VideoAnalyzer(whisper_model=model_name)
+    else:
+        analyzer = VideoAnalyzer()
+
+    result = analyzer.analyze_file(file_path, transcribe=transcribe)
 
     if result:
         print(f"\n{Fore.CYAN}File:{Style.RESET_ALL} {Path(result.file_path).name}")
@@ -31,6 +44,28 @@ def analyze_single_video():
         print(f"Audio: {(Fore.GREEN + 'Yes') if result.has_audio else (Fore.RED + 'No')}{Style.RESET_ALL}")
         print(f"Format: {Fore.CYAN}{result.format.upper()}{Style.RESET_ALL}")
         print(f"Type: {Fore.BLUE}{result.file_type}{Style.RESET_ALL}")
+        
+        if result.transcript:
+            print(f"\n{Fore.CYAN}=== Transcript ==={Style.RESET_ALL}")
+            print(f"Language: {Fore.YELLOW}{result.transcript_language}{Style.RESET_ALL}")
+            print(f"\n{result.transcript}\n")
+
+        # Ask to save results
+        save_choice = input(f"\nSave results to JSON? (y/n): ").strip().lower()
+        if save_choice == "y":
+            outputs_dir = Path("outputs")
+            outputs_dir.mkdir(exist_ok=True)
+            
+            output_path = outputs_dir / f"{file_path.stem}_analysis.json"
+            
+            if result.transcript:
+                separate = input("Save transcript in separate file? (y/n): ").strip().lower()
+                analyzer.save_to_json([result], output_path, separate_transcripts=(separate == 'y'))
+            else:
+                analyzer.save_to_json([result], output_path)
+            
+            print(f"{Fore.GREEN}[SAVED]{Style.RESET_ALL} Results exported to {output_path}")
+
         print(f"\n{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Video analyzed successfully!\n")
     else:
         print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Failed to analyze the video file.")
@@ -47,8 +82,22 @@ def analyze_video_directory():
         print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Directory not found: {directory}")
         return
 
-    analyzer = VideoAnalyzer()
-    results = analyzer.analyze_directory(directory)
+    # Ask about transcription
+    transcribe = False
+    print(f"\n{Fore.YELLOW}Would you like to transcribe all videos with audio?{Style.RESET_ALL}")
+    print(f"  {Fore.CYAN}Models:{Style.RESET_ALL} tiny (fastest) | base (recommended) | small | medium | large")
+    print(f"  {Fore.YELLOW}Note:{Style.RESET_ALL} This may take time for multiple/long videos")
+    
+    transcribe_choice = input("Enter model name or 'n' to skip: ").strip().lower()
+    
+    if transcribe_choice not in ['n', 'no', '']:
+        transcribe = True
+        model_name = transcribe_choice if transcribe_choice in ['tiny', 'base', 'small', 'medium', 'large'] else 'base'
+        analyzer = VideoAnalyzer(whisper_model=model_name)
+    else:
+        analyzer = VideoAnalyzer()
+
+    results = analyzer.analyze_directory(directory, transcribe=transcribe)
 
     if not results:
         print(f"{Fore.YELLOW}[WARNING]{Style.RESET_ALL} No valid video files found in {directory}")
@@ -56,27 +105,40 @@ def analyze_video_directory():
 
     metrics = analyzer.calculate_collection_metrics(results)
 
-    print(f"\n{Fore.CYAN}Found {Fore.YELLOW}{metrics.total_videos}{Style.RESET_ALL} video file(s)")
+    print(f"\n{Fore.CYAN}=== Analysis Summary ==={Style.RESET_ALL}")
+    print(f"Found {Fore.YELLOW}{metrics.total_videos}{Style.RESET_ALL} video file(s)")
     print(f"Total Duration: {Fore.YELLOW}{metrics.total_duration:.2f}s{Style.RESET_ALL}")
     print(f"Average FPS: {Fore.MAGENTA}{metrics.average_fps:.2f}{Style.RESET_ALL}")
     print(f"Resolutions: {Fore.CYAN}{', '.join(metrics.resolutions) if metrics.resolutions else 'N/A'}{Style.RESET_ALL}")
     print(f"Formats: {Fore.CYAN}{', '.join(metrics.formats) if metrics.formats else 'N/A'}{Style.RESET_ALL}")
     print(f"Videos with Audio: {Fore.GREEN}{metrics.audio_videos}{Style.RESET_ALL}")
     print(f"Video-only Files: {Fore.RED}{metrics.video_only_files}{Style.RESET_ALL}")
+    
+    if transcribe:
+        print(f"Transcribed Videos: {Fore.GREEN}{metrics.transcribed_videos}{Style.RESET_ALL}")
 
-    # Optional: Save results to JSON
+    # Save results to JSON
     save_choice = input(f"\nWould you like to save results to JSON? (y/n): ").strip().lower()
     if save_choice == "y":
-        output_path = directory / "video_analysis.json"
-        analyzer.save_to_json(results, output_path)
-        print(f"{Fore.GREEN}[SAVED]{Style.RESET_ALL} Results exported to {output_path}")
+        outputs_dir = Path("outputs")
+        outputs_dir.mkdir(exist_ok=True)
+        
+        output_path = outputs_dir / f"{directory.name}_analysis.json"
+        
+        if transcribe and any(r.transcript for r in results):
+            separate = input("Save transcripts in separate file? (y/n): ").strip().lower()
+            analyzer.save_to_json(results, output_path, separate_transcripts=(separate == 'y'))
+        else:
+            analyzer.save_to_json(results, output_path)
+        
+        print(f"{Fore.GREEN}[SAVED]{Style.RESET_ALL} Results exported to outputs/ folder")
 
     print(f"\n{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Directory analyzed successfully!\n")
 
 
 def main():
     """Entry point for CLI-based video analyzer."""
-    print(f"{Fore.CYAN}=== Video Analyzer Example ==={Style.RESET_ALL}")
+    print(f"{Fore.CYAN}=== Video Analyzer with Transcription ==={Style.RESET_ALL}")
     print(f"{Fore.YELLOW}1.{Style.RESET_ALL} Analyze a single video file")
     print(f"{Fore.YELLOW}2.{Style.RESET_ALL} Analyze all videos in a directory")
 
