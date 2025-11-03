@@ -16,7 +16,7 @@
 
 ### 1. Type of Tasks Worked On
 
-![Abijeet Dhillon Week 9 Task Types Screenshot]()
+![Abijeet Dhillon Week 9 Task Types Screenshot](images/abijeetdhillon_week9_tasks.png)
 
 > Not available since peer evaluation for week 9 was closed early.
 
