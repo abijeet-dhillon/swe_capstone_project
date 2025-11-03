@@ -1,3 +1,49 @@
+"""
+INPUTS:
+- File paths (str or Path objects)
+- File content (str)
+- Project root directory (Path)
+
+OUTPUTS:
+- Language names (str): lowercase language identifiers (e.g., 'python', 'javascript')
+- Framework lists (List[str]): detected frameworks (e.g., ['django', 'fastapi'])
+- Framework sets (Set[str]): unique frameworks from manifest files
+
+USAGE:
+    from pathlib import Path
+    from lang_frameworks import (
+        detect_language_by_ext_and_shebang,
+        detect_frameworks_from_source,
+        detect_frameworks_from_manifests,
+        merge_file_and_project_frameworks
+    )
+    
+    # Detect language from file
+    content = Path('app.py').read_text()
+    language = detect_language_by_ext_and_shebang('app.py', content)
+    # Returns: 'python'
+    
+    # Detect frameworks from source code
+    frameworks = detect_frameworks_from_source(language, content)
+    # Returns: ['fastapi', 'sqlalchemy', 'pytest']
+    
+    # Detect frameworks from project manifests
+    project_root = Path('/path/to/project')
+    project_frameworks = detect_frameworks_from_manifests(project_root)
+    # Returns: {'django', 'pytest', 'pandas'}
+    
+    # Merge file and project frameworks
+    all_frameworks = merge_file_and_project_frameworks(frameworks, project_frameworks)
+    # Returns: ['fastapi', 'sqlalchemy', 'pytest', 'django', 'pandas']
+
+OPTIONAL DEPENDENCIES:
+- pygments: Enhanced content-based language detection
+- tomllib/toml: Proper TOML parsing for pyproject.toml
+- requirements-parser: Robust requirements.txt parsing
+
+Note: All functions gracefully degrade if optional dependencies are unavailable.
+"""
+
 import re
 import json
 import logging

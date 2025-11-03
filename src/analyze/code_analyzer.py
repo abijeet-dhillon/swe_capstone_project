@@ -1,3 +1,53 @@
+"""
+INPUTS:
+- File paths (str or Path): Individual files or directories to analyze
+- Project root (optional Path): Root directory for project-level framework detection
+- File content (str): Automatically read from file paths
+
+OUTPUTS:
+- AnalysisResult: Dataclass containing:
+    * file_path (str): Path to analyzed file
+    * language (str): Detected programming language
+    * frameworks (List[str]): Detected frameworks
+    * skills (List[str]): Extracted technical skills
+    * lines_of_code (int): Non-comment, non-blank lines
+    * file_type (str): 'code', 'test', or 'documentation'
+
+- ContributionMetrics: Aggregated metrics containing:
+    * total_files (int): Number of files analyzed
+    * total_lines (int): Total lines of code
+    * languages (List[str]): All detected languages
+    * frameworks (List[str]): All detected frameworks
+    * skills (List[str]): All extracted skills
+    * code_files (int): Count of code files
+    * test_files (int): Count of test files
+
+USAGE:
+    from pathlib import Path
+    from code_analyzer import CodeAnalyzer
+    
+    # Initialize analyzer (optional: provide project root for manifest parsing)
+    analyzer = CodeAnalyzer(project_root=Path('/path/to/project'))
+    
+    # Analyze a single file
+    result = analyzer.analyze_file('src/main.py')
+    print(f"Language: {result.language}")
+    print(f"Frameworks: {result.frameworks}")
+    print(f"Skills: {result.skills}")
+    
+    # Analyze entire directory
+    results = analyzer.analyze_directory('/path/to/project')
+    
+    # Calculate aggregated metrics
+    metrics = analyzer.calculate_contribution_metrics(results)
+    print(f"Total files: {metrics.total_files}")
+    print(f"Languages used: {metrics.languages}")
+    print(f"Frameworks: {metrics.frameworks}")
+    
+    # Convert to dictionary for JSON serialization
+    metrics_dict = metrics.to_dict()
+"""
+
 import re
 from pathlib import Path
 from typing import List, Dict, Optional, Union
