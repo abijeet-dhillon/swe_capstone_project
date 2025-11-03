@@ -49,3 +49,7 @@ coverage
 # Image Processing
 Pillow==10.1.0
 numpy==1.26.2
+opencv-python==4.8.1.78
+pytesseract==0.3.10
+scikit-image==0.22.0
+pyzbar==0.1.9
