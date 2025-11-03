@@ -1,5 +1,0 @@
-timestamp,category,file,skills
-2025-10-29 01:40:43,text,tests/categorize/demo_projects2/notes.txt,writing
-2025-10-29 01:40:43,code,tests/categorize/demo_projects2/Main.java,java
-2025-11-01 21:28:00,image,tests/categorize/demo_projects2/img.jpg,artistry
-2025-11-01 21:37:45,video,tests/categorize/demo_projects2/vid.mp4,videography

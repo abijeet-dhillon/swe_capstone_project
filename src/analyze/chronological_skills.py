@@ -220,8 +220,8 @@ def make_json_serializable(obj):
     else:
         return obj
     
-# Command-Line Entrypoint (Demo/Debugging, un-comment to run demo)
-if __name__ == "__main__":
-    analyzer = ChronologicalSkillList()
-    events = analyzer.build_skill_timeline("tests/categorize/demo_projects2", None)
-    analyzer.export_results(events)
+# # Command-Line Entrypoint (Demo/Debugging, un-comment to run demo)
+# if __name__ == "__main__":
+#     analyzer = ChronologicalSkillList()
+#     events = analyzer.build_skill_timeline("tests/categorize/demo_projects2", None)
+#     analyzer.export_results(events)
