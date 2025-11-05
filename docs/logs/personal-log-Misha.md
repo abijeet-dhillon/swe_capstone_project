@@ -53,7 +53,7 @@ Result: Team can now use AI to analyze artifacts, extract skills, and generate p
 
 
 ## Week 9
-This section outlines the individual log for week 7
+This section outlines the individual log for week 9
 
 ### 27th October 2025 - 2 November 2025
 
