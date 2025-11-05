@@ -50,3 +50,30 @@ Result: Team can now use AI to analyze artifacts, extract skills, and generate p
 #### Impact / Next
 - Connect the integration with the file separator
 - Ensure that conscent screen is present before running the LLM access and sending requests
+
+
+## Week 9
+This section outlines the individual log for week 7
+
+### 27th October 2025 - 2 November 2025
+
+### Tasks
+![Misha Gavura Week 7 Task Type Screenshot](images/week7-misha-tasks.png)
+
+### Weekly Goals
+
+#### What I did
+Creates a summary using OpenAI API for the docx, pptx, text files, ready to use.
+Planning on expanding it and working for more file types.
+
+#### Project board
+- **Task:** 
+External LLM Analysis #20: https://github.com/COSC-499-W2025/capstone-project-team-14/issues/20
+
+#### Status
+Creates a summary using OpenAI API for the docx, pptx, text files, ready to use.
+Planning on expanding it and working for more file types.
+
+#### Impact / Next
+- Work on image summary
+- Work on code summary
