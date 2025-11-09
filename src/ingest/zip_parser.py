@@ -51,6 +51,9 @@ def parse_zip(zip_path: Union[str, Path]) -> ZipIndex:
                 if rel_path.startswith('/'):
                     rel_path = rel_path[1:]
                 
+                # Absolute path
+                abs_path = str((zip_path.parent / rel_path).resolve())
+                
                 # Calculate depth
                 depth = len(Path(rel_path).parts) - 1
                 
@@ -74,6 +77,7 @@ def parse_zip(zip_path: Union[str, Path]) -> ZipIndex:
                 
                 # Create file entry
                 entry = ZipEntry(
+                    abs_path=abs_path,
                     rel_path=rel_path,
                     size=info.file_size,
                     compressed_size=info.compress_size,
@@ -146,10 +150,24 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
         # Categorize extracted files
         categorized_structure = categorize_folder_structure(temp_dir)
 
-        # Build file info list from ZipIndex
+        # Build file info list from ZipIndex, but only for actually extracted files
         file_info = []
+
         for entry in zip_index.files:
+            # Skip macOS system files and duplicates
+            if "__MACOSX" in entry.rel_path or Path(entry.rel_path).name.startswith("._"):
+                continue
+
+            # Compute where this file was extracted to
+            extracted_path = temp_dir / entry.rel_path
+            if not extracted_path.exists():
+                # Skip entries that don't exist in the extracted folder
+                continue
+
+            abs_extracted_path = str(extracted_path.resolve())
+
             file_info.append({
+                "abs_path": abs_extracted_path,
                 "rel_path": entry.rel_path,
                 "size": entry.size,
                 "compressed_size": entry.compressed_size,
@@ -157,7 +175,7 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
                 "sha256": entry.sha256,
                 "depth": entry.depth,
                 "ext": entry.ext,
-                "is_text_guess": entry.is_text_guess
+                "is_text_guess": entry.is_text_guess,
             })
 
         # Combine all components
@@ -185,3 +203,7 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
             shutil.rmtree(temp_dir, ignore_errors=True)
         except Exception:
             pass
+
+# if __name__ == "__main__":
+#     result = categorize_parse_zip("./tests/categorize/demo_projects.zip")
+#     print(json.dumps(result, indent=2))
