@@ -14,7 +14,7 @@ Run from root directory with:
     python3 -m pytest tests/ingest/test_zip_parser.py -v
     (Optional) Test coverage with:
         docker compose run --rm backend pytest tests/ingest/test_zip_parser.py --cov=src/ingest --cov=src/categorize --cov-report=term-missing -v
-        * 89% coverage *
+        * 87% coverage *
 """
 
 

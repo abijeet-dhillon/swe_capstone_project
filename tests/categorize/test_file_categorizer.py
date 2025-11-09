@@ -2,13 +2,11 @@
 test_file_categorizer.py
 ------------------------
 Tests for file_categorizer.py using pytest.
-Ensures categorized folder structure is correctly returned as JSON-style dict,
-and now also verifies language-based categorization (code_by_language).
+Updated for the flattened categorization output (single-level structure).
 
 Run from root directory with:
     docker compose run --rm backend python3 -m pytest tests/categorize/test_file_categorizer.py -v
-    or 
-    python3 -m pytest tests/categorize/test_file_categorizer.py -v
+    (coverage) docker compose run --rm -e PYTHONPATH=/code backend sh -lc 'coverage run --source=src -m pytest tests/categorize/test_file_categorizer.py && coverage report -m'
 """
 
 import pytest
@@ -18,6 +16,7 @@ from src.categorize.file_categorizer import (
     categorize_folder_structure,
     categorize_file,
 )
+
 
 @pytest.fixture
 def temp_project_dir():
@@ -42,62 +41,72 @@ def temp_project_dir():
 
         yield base
 
+
 def test_categorize_file_by_extension():
-    """Test Scenario: Verify correct category is assigned based on file extension."""
+    """Verify correct category is assigned based on file extension."""
     assert categorize_file("script.py") == "code"
     assert categorize_file("notes.txt") == "documentation"
     assert categorize_file("diagram.png") == "images"
     assert categorize_file("design.drawio") == "sketches"
     assert categorize_file("random.bin") == "other"
 
-def test_structure_keys_and_categories(temp_project_dir):
-    """Test Scenario: Ensure output contains correct folder keys and categories."""
+
+def test_flattened_structure_keys_and_categories(temp_project_dir):
+    """Ensure flattened structure contains correct global categories and language breakdown."""
     result = categorize_folder_structure(temp_project_dir)
-    # Verify expected directories
-    assert "." in result
-    assert "project1" in result
-    assert "project1/docs" in result
-    assert "project1/images" in result
-    assert "emptydir" in result
-    # Check required keys exist in every folder
-    for data in result.values():
-        for key in ["code", "documentation", "images", "sketches", "other", "code_by_language"]:
-            assert key in data
-    # Check correct categorization of files
-    proj1 = result["project1"]
-    assert "main.py" in proj1["code"]
-    assert "README.md" in proj1["documentation"]
-    assert "helper.cpp" in proj1["code"]
-    assert "App.java" in proj1["code"]
-    assert "script.sh" in proj1["code"]
-    assert "design.pdf" in result["project1/docs"]["documentation"]
-    assert "diagram.png" in result["project1/images"]["images"]
-    assert "notes.txt" in result["."]["documentation"]
-    # --- Verify code_by_language breakdown ---
-    code_langs = proj1["code_by_language"]
-    assert "python" in code_langs
-    assert "cpp" in code_langs
-    assert "java" in code_langs
-    assert "shell" in code_langs
-    assert "main.py" in code_langs["python"]
-    assert "helper.cpp" in code_langs["cpp"]
-    assert "App.java" in code_langs["java"]
-    assert "script.sh" in code_langs["shell"]
+
+    # --- Core keys must exist ---
+    for key in ["code", "documentation", "images", "sketches", "other", "code_by_language"]:
+        assert key in result
+
+    # --- Validate file presence in correct categories ---
+    # Code files
+    code_files = result["code"]
+    assert any("main.py" in f for f in code_files)
+    assert any("helper.cpp" in f for f in code_files)
+    assert any("App.java" in f for f in code_files)
+    assert any("script.sh" in f for f in code_files)
+
+    # Documentation
+    docs = result["documentation"]
+    assert any("README.md" in f for f in docs)
+    assert any("design.pdf" in f for f in docs)
+    assert any("notes.txt" in f for f in docs)
+
+    # Images
+    imgs = result["images"]
+    assert any("diagram.png" in f for f in imgs)
+
+    # --- Check language mapping ---
+    langs = result["code_by_language"]
+    for expected_lang in ["python", "cpp", "java", "shell"]:
+        assert expected_lang in langs
+
+    # Confirm specific files per language
+    assert any("main.py" in f for f in langs["python"])
+    assert any("helper.cpp" in f for f in langs["cpp"])
+    assert any("App.java" in f for f in langs["java"])
+    assert any("script.sh" in f for f in langs["shell"])
+
 
 def test_invalid_path_raises_valueerror():
-    """Test Scenario: Invalid folder path should raise ValueError."""
+    """Invalid folder path should raise ValueError."""
     with pytest.raises(ValueError):
         categorize_folder_structure("/non/existent/path")
 
+
 def test_empty_directory_returns_empty_categories(temp_project_dir):
-    """Test Scenario: Empty folder should still produce category keys with empty lists."""
-    result = categorize_folder_structure(temp_project_dir)
-    empty_dir = result["emptydir"]
+    """Empty directory should still produce empty category lists and dicts."""
+    # Create an empty folder for this test
+    empty_dir = temp_project_dir / "completely_empty"
+    empty_dir.mkdir()
+
+    result = categorize_folder_structure(empty_dir)
+
     for key in ["code", "documentation", "images", "sketches", "other", "code_by_language"]:
-        assert key in empty_dir
-        # code_by_language should be dict, others are lists
+        assert key in result
         if key == "code_by_language":
-            assert isinstance(empty_dir[key], dict)
-            assert empty_dir[key] == {}
+            assert isinstance(result[key], dict)
+            assert result[key] == {}
         else:
-            assert empty_dir[key] == []
+            assert result[key] == []
