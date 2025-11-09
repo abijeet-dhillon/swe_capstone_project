@@ -1,8 +1,4 @@
-"""
-Advanced Skill Extractor - Local Analysis Only
-Extracts deep technical skills from code using AST parsing and pattern detection.
-No AI/LLM calls - purely library-based analysis.
-"""
+"""Advanced Skill Extractor - Local AST-based analysis"""
 
 import ast
 import re
@@ -14,17 +10,15 @@ from collections import defaultdict
 
 @dataclass
 class SkillEvidence:
-    """Evidence of a specific skill with location and reasoning"""
     skill: str
     evidence_type: str
     location: str
     reasoning: str
-    confidence: float  # 0.0 to 1.0
+    confidence: float
 
 
 @dataclass
 class DeepSkillAnalysis:
-    """Results of deep skill analysis"""
     file_path: str
     basic_skills: List[str] = field(default_factory=list)
     advanced_skills: List[str] = field(default_factory=list)
@@ -34,19 +28,11 @@ class DeepSkillAnalysis:
 
 
 class AdvancedSkillExtractor:
-    """
-    Extracts technical skills from code using local analysis techniques:
-    - AST parsing for structural analysis
-    - Pattern matching for design patterns
-    - Complexity analysis for algorithmic awareness
-    - Import analysis for framework detection
-    """
     
     def __init__(self):
         self.skill_patterns = self._initialize_patterns()
     
     def _initialize_patterns(self) -> Dict[str, Any]:
-        """Initialize detection patterns for various skills"""
         return {
             'caching': {
                 'keywords': ['cache', 'memoize', 'cached', '_cached'],
@@ -91,13 +77,11 @@ class AdvancedSkillExtractor:
         }
     
     def analyze_file(self, file_path: Path) -> DeepSkillAnalysis:
-        """Analyze a Python file for deep technical skills"""
         try:
             content = file_path.read_text(encoding='utf-8')
         except UnicodeDecodeError:
             content = file_path.read_text(encoding='latin-1')
         
-        # Parse AST
         try:
             tree = ast.parse(content)
         except SyntaxError:
@@ -107,8 +91,6 @@ class AdvancedSkillExtractor:
             )
         
         analysis = DeepSkillAnalysis(file_path=str(file_path))
-        
-        # Run various analyses
         self._detect_caching_patterns(tree, content, analysis)
         self._detect_design_patterns(tree, content, analysis)
         self._detect_complexity_awareness(tree, content, analysis)
@@ -119,12 +101,9 @@ class AdvancedSkillExtractor:
         return analysis
     
     def _detect_caching_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        """Detect caching and lazy evaluation patterns"""
         
-        # Look for lazy initialization pattern
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
-                # Check for pattern: if self._cache is None: self._cache = ...
                 for stmt in ast.walk(node):
                     if isinstance(stmt, ast.If):
                         test_str = ast.unparse(stmt.test) if hasattr(ast, 'unparse') else ''
@@ -138,8 +117,6 @@ class AdvancedSkillExtractor:
                                 confidence=0.9
                             ))
                             break
-        
-        # Check for @lru_cache or @cache decorators
         if '@lru_cache' in content or '@cache' in content:
             analysis.advanced_skills.append('memoization')
             analysis.evidence.append(SkillEvidence(
@@ -151,17 +128,14 @@ class AdvancedSkillExtractor:
             ))
     
     def _detect_design_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        """Detect design patterns in code"""
         
-        # Strategy Pattern via Enum + Dictionary
         has_enum = 'Enum' in content or 'from enum import' in content
         has_dict_dispatch = False
         
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
-                # Look for dictionary assignments that might be strategy mappings
                 if isinstance(node.value, ast.Dict):
-                    if len(node.value.keys) > 2:  # Multiple strategies
+                    if len(node.value.keys) > 2:
                         has_dict_dispatch = True
         
         if has_enum and has_dict_dispatch:
@@ -174,11 +148,9 @@ class AdvancedSkillExtractor:
                 confidence=0.8
             ))
         
-        # Dependency Injection Pattern
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == '__init__':
-                # Check for Optional parameters
-                for arg in node.args.args[1:]:  # Skip 'self'
+                for arg in node.args.args[1:]:
                     if arg.annotation:
                         annotation_str = ast.unparse(arg.annotation) if hasattr(ast, 'unparse') else ''
                         if 'Optional' in annotation_str or 'Union' in annotation_str:
@@ -191,8 +163,6 @@ class AdvancedSkillExtractor:
                                 confidence=0.85
                             ))
                             break
-        
-        # Custom Exception Hierarchy
         custom_exceptions = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
@@ -212,17 +182,13 @@ class AdvancedSkillExtractor:
             ))
     
     def _detect_complexity_awareness(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        """Detect awareness of algorithmic complexity"""
         
-        # Detect set usage for deduplication (O(n) vs O(n²))
         set_usage_count = 0
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func_name = ''
                 if isinstance(node.func, ast.Name):
                     func_name = node.func.id
-                
-                # Pattern: list(set(...))
                 if func_name == 'list' and len(node.args) > 0:
                     if isinstance(node.args[0], ast.Call):
                         if isinstance(node.args[0].func, ast.Name):
@@ -239,8 +205,6 @@ class AdvancedSkillExtractor:
                 reasoning='Uses set for O(n) deduplication instead of O(n²) list iteration',
                 confidence=0.95
             ))
-        
-        # Detect hash-based operations
         if 'hashlib' in content or 'sha256' in content or 'md5' in content:
             analysis.advanced_skills.append('cryptographic-hashing')
             analysis.evidence.append(SkillEvidence(
@@ -252,7 +216,6 @@ class AdvancedSkillExtractor:
             ))
     
     def _detect_error_handling(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        """Detect sophisticated error handling"""
         
         try_except_count = 0
         graceful_degradation = False
@@ -260,11 +223,8 @@ class AdvancedSkillExtractor:
         for node in ast.walk(tree):
             if isinstance(node, ast.Try):
                 try_except_count += 1
-                
-                # Check for graceful degradation (fallback in except)
                 if len(node.handlers) > 0:
                     for handler in node.handlers:
-                        # If except block has meaningful code (not just pass/raise)
                         if len(handler.body) > 1 or (
                             len(handler.body) == 1 and 
                             not isinstance(handler.body[0], (ast.Pass, ast.Raise))
@@ -285,19 +245,15 @@ class AdvancedSkillExtractor:
             ))
     
     def _detect_type_safety(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        """Detect type safety practices"""
         
         type_hint_count = 0
         return_type_count = 0
         
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
-                # Check for parameter type hints
                 for arg in node.args.args:
                     if arg.annotation:
                         type_hint_count += 1
-                
-                # Check for return type hints
                 if node.returns:
                     return_type_count += 1
         
@@ -310,8 +266,6 @@ class AdvancedSkillExtractor:
                 reasoning='Comprehensive type hints enable static analysis and IDE support',
                 confidence=0.9
             ))
-        
-        # Check for dataclasses
         if '@dataclass' in content:
             analysis.advanced_skills.append('modern-python-features')
             analysis.evidence.append(SkillEvidence(
@@ -323,9 +277,7 @@ class AdvancedSkillExtractor:
             ))
     
     def _detect_data_structures(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        """Detect sophisticated data structure usage"""
         
-        # Detect comprehensions (more efficient than loops)
         comprehension_count = 0
         for node in ast.walk(tree):
             if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp)):
@@ -340,8 +292,6 @@ class AdvancedSkillExtractor:
                 reasoning='Uses comprehensions for concise, efficient iteration',
                 confidence=0.8
             ))
-        
-        # Detect context managers
         with_count = 0
         for node in ast.walk(tree):
             if isinstance(node, ast.With):
@@ -358,11 +308,9 @@ class AdvancedSkillExtractor:
             ))
     
     def analyze_directory(self, directory: Path) -> Dict[str, DeepSkillAnalysis]:
-        """Analyze all Python files in a directory"""
         results = {}
         
         for py_file in directory.rglob('*.py'):
-            # Skip common directories
             if any(skip in py_file.parts for skip in ['__pycache__', '.venv', 'venv', 'node_modules']):
                 continue
             
@@ -375,7 +323,6 @@ class AdvancedSkillExtractor:
         return results
     
     def aggregate_skills(self, analyses: Dict[str, DeepSkillAnalysis]) -> Dict[str, Any]:
-        """Aggregate skills across multiple files"""
         all_basic = set()
         all_advanced = set()
         all_patterns = set()
