@@ -31,6 +31,29 @@ class AdvancedSkillExtractor:
     
     def __init__(self):
         self.skill_patterns = self._initialize_patterns()
+        self.language_extensions = {
+            '.py': 'python',
+            '.java': 'java',
+            '.c': 'c',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.jsx': 'javascript',
+            '.tsx': 'typescript',
+            '.cs': 'csharp',
+            '.go': 'go',
+            '.rs': 'rust',
+            '.rb': 'ruby',
+            '.php': 'php'
+        }
+    
+    def _detect_language(self, file_path: Path) -> str:
+        ext = file_path.suffix.lower()
+        return self.language_extensions.get(ext, 'unknown')
     
     def _initialize_patterns(self) -> Dict[str, Any]:
         return {
@@ -82,21 +105,23 @@ class AdvancedSkillExtractor:
         except UnicodeDecodeError:
             content = file_path.read_text(encoding='latin-1')
         
-        try:
-            tree = ast.parse(content)
-        except SyntaxError:
-            return DeepSkillAnalysis(
-                file_path=str(file_path),
-                basic_skills=['syntax-error-detected']
-            )
-        
+        language = self._detect_language(file_path)
         analysis = DeepSkillAnalysis(file_path=str(file_path))
-        self._detect_caching_patterns(tree, content, analysis)
-        self._detect_design_patterns(tree, content, analysis)
-        self._detect_complexity_awareness(tree, content, analysis)
-        self._detect_error_handling(tree, content, analysis)
-        self._detect_type_safety(tree, content, analysis)
-        self._detect_data_structures(tree, content, analysis)
+        analysis.basic_skills.append(language)
+        
+        if language == 'python':
+            try:
+                tree = ast.parse(content)
+                self._detect_caching_patterns(tree, content, analysis)
+                self._detect_design_patterns(tree, content, analysis)
+                self._detect_complexity_awareness(tree, content, analysis)
+                self._detect_error_handling(tree, content, analysis)
+                self._detect_type_safety(tree, content, analysis)
+                self._detect_data_structures(tree, content, analysis)
+            except SyntaxError:
+                pass
+        else:
+            self._analyze_generic(content, language, analysis)
         
         return analysis
     
@@ -307,18 +332,79 @@ class AdvancedSkillExtractor:
                 confidence=0.9
             ))
     
+    def _analyze_generic(self, content: str, language: str, analysis: DeepSkillAnalysis):
+        patterns = {
+            'java': {
+                'generics': r'<[A-Z][a-zA-Z0-9,\s<>]*>',
+                'interface': r'interface\s+\w+',
+                'abstract': r'abstract\s+class',
+                'stream': r'\.stream\(\)',
+                'lambda': r'->',
+                'annotation': r'@\w+',
+                'exception': r'class\s+\w+Exception\s+extends'
+            },
+            'cpp': {
+                'template': r'template\s*<',
+                'smart_ptr': r'(unique_ptr|shared_ptr|weak_ptr)',
+                'raii': r'(std::lock_guard|std::unique_lock)',
+                'move': r'std::move',
+                'constexpr': r'constexpr',
+                'namespace': r'namespace\s+\w+'
+            },
+            'c': {
+                'pointer': r'\*\w+',
+                'malloc': r'(malloc|calloc|realloc|free)',
+                'struct': r'struct\s+\w+',
+                'typedef': r'typedef\s+'
+            },
+            'javascript': {
+                'arrow': r'=>',
+                'async': r'async\s+',
+                'promise': r'Promise',
+                'destructure': r'(const|let)\s*\{[^}]+\}\s*=',
+                'spread': r'\.\.\.\w+'
+            },
+            'typescript': {
+                'interface': r'interface\s+\w+',
+                'type_alias': r'type\s+\w+\s*=',
+                'generic': r'<[A-Z][a-zA-Z0-9,\s]*>',
+                'readonly': r'readonly\s+'
+            }
+        }
+        
+        lang_patterns = patterns.get(language, {})
+        for skill, pattern in lang_patterns.items():
+            if re.search(pattern, content):
+                analysis.advanced_skills.append(f'{language}-{skill}')
+        
+        if re.search(r'(HashMap|HashSet|unordered_map|unordered_set|dict|Map|Set)', content):
+            analysis.advanced_skills.append('hash-based-structures')
+            analysis.evidence.append(SkillEvidence(
+                skill='hash-based-structures',
+                evidence_type='data-structure',
+                location='File-level',
+                reasoning='Uses hash-based data structures for O(1) operations',
+                confidence=0.85
+            ))
+        
+        if re.search(r'(try|catch|except|throw|throws)', content, re.IGNORECASE):
+            analysis.basic_skills.append('exception-handling')
+    
     def analyze_directory(self, directory: Path) -> Dict[str, DeepSkillAnalysis]:
         results = {}
+        extensions = tuple(self.language_extensions.keys())
         
-        for py_file in directory.rglob('*.py'):
-            if any(skip in py_file.parts for skip in ['__pycache__', '.venv', 'venv', 'node_modules']):
+        for code_file in directory.rglob('*'):
+            if code_file.suffix.lower() not in self.language_extensions:
+                continue
+            if any(skip in code_file.parts for skip in ['__pycache__', '.venv', 'venv', 'node_modules', 'build', 'dist']):
                 continue
             
             try:
-                analysis = self.analyze_file(py_file)
-                results[str(py_file)] = analysis
+                analysis = self.analyze_file(code_file)
+                results[str(code_file)] = analysis
             except Exception as e:
-                print(f"Error analyzing {py_file}: {e}")
+                print(f"Error analyzing {code_file}: {e}")
         
         return results
     

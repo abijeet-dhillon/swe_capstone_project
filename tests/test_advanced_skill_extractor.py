@@ -218,3 +218,120 @@ def hash_file(content):
     analysis = extractor.analyze_file(test_file)
     
     assert 'cryptographic-hashing' in analysis.advanced_skills
+
+
+def test_java_language_detection(extractor, tmp_path):
+    java_code = '''
+public class Example {
+    private List<String> items;
+    
+    public void process() {
+        items.stream()
+            .filter(x -> x.length() > 5)
+            .collect(Collectors.toList());
+    }
+}
+'''
+    test_file = tmp_path / "Example.java"
+    test_file.write_text(java_code)
+    
+    analysis = extractor.analyze_file(test_file)
+    
+    assert 'java' in analysis.basic_skills
+    assert any('java-' in skill for skill in analysis.advanced_skills)
+
+
+def test_cpp_language_detection(extractor, tmp_path):
+    cpp_code = '''
+#include <memory>
+#include <vector>
+
+template<typename T>
+class Container {
+    std::unique_ptr<T> data;
+    
+    void move_data() {
+        auto moved = std::move(data);
+    }
+};
+'''
+    test_file = tmp_path / "container.cpp"
+    test_file.write_text(cpp_code)
+    
+    analysis = extractor.analyze_file(test_file)
+    
+    assert 'cpp' in analysis.basic_skills
+    assert any('cpp-' in skill for skill in analysis.advanced_skills)
+
+
+def test_javascript_language_detection(extractor, tmp_path):
+    js_code = '''
+const processData = async (items) => {
+    const {name, age} = person;
+    const result = await Promise.all(items);
+    return [...result, ...newItems];
+};
+'''
+    test_file = tmp_path / "script.js"
+    test_file.write_text(js_code)
+    
+    analysis = extractor.analyze_file(test_file)
+    
+    assert 'javascript' in analysis.basic_skills
+    assert any('javascript-' in skill for skill in analysis.advanced_skills)
+
+
+def test_c_language_detection(extractor, tmp_path):
+    c_code = '''
+#include <stdlib.h>
+
+typedef struct Node {
+    int data;
+    struct Node* next;
+} Node;
+
+Node* create_node(int value) {
+    Node* node = (Node*)malloc(sizeof(Node));
+    node->data = value;
+    return node;
+}
+'''
+    test_file = tmp_path / "linked_list.c"
+    test_file.write_text(c_code)
+    
+    analysis = extractor.analyze_file(test_file)
+    
+    assert 'c' in analysis.basic_skills
+
+
+def test_hash_based_structures_detection(extractor, tmp_path):
+    java_code = '''
+import java.util.HashMap;
+
+public class Cache {
+    private HashMap<String, Object> cache = new HashMap<>();
+}
+'''
+    test_file = tmp_path / "Cache.java"
+    test_file.write_text(java_code)
+    
+    analysis = extractor.analyze_file(test_file)
+    
+    assert 'hash-based-structures' in analysis.advanced_skills
+
+
+def test_multi_language_directory(extractor, tmp_path):
+    (tmp_path / "script.py").write_text("def test(): pass")
+    (tmp_path / "Main.java").write_text("public class Main {}")
+    (tmp_path / "app.js").write_text("const x = 5;")
+    
+    results = extractor.analyze_directory(tmp_path)
+    
+    assert len(results) == 3
+    languages = set()
+    for analysis in results.values():
+        languages.update(analysis.basic_skills)
+    
+    assert 'python' in languages
+    assert 'java' in languages
+    assert 'javascript' in languages
