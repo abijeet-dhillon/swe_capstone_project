@@ -130,14 +130,12 @@ def run_cli():
         if not cfg:
             print(f"No config found for user_id={args.user_id}")
         else:
-            print(json.dumps(cfg, indent=4 if args.pretty else None))
+            print(f"Config found for user_id={args.user_id}")
     else:
         cfg = build_user_config(args.user_id)
         if args.save:
             ok = save_config_to_db(cfg, args.user_id)
-            print(f"Saved to DB: {ok}")
-        print(json.dumps(cfg, indent=4 if args.pretty else None))
-
+            print(f"Config saved to DB for user_id={args.user_id}")
 
 if __name__ == "__main__":
     run_cli()
