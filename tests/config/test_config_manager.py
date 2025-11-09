@@ -11,9 +11,6 @@ These tests verify:
 
 Run from root directory with:
     docker compose run --rm backend python3 -m pytest tests/config/test_config_manager.py -v
-    or 
-    python3 -m pytest tests/config/test_config_manager.py -v
-
 (Optional) Test coverage with:
     docker compose run --rm backend pytest tests/config/test_config_manager.py --cov=src/config --cov-report=term-missing -v
 """
