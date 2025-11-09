@@ -2,7 +2,6 @@ services:
   backend:
     build: .
     working_dir: /code          
-    command: python -m src.main
     volumes:
       - .:/code
     environment:
