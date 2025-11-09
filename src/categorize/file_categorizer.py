@@ -6,8 +6,6 @@ and producing a structured JSON representation of the directory hierarchy.
 
 Run from root directory with:
     docker compose run --rm backend python3 -m src.categorize.file_categorizer 
-    or 
-    python3 -m src.categorize.file_categorizer 
 """
 
 from pathlib import Path
@@ -73,40 +71,47 @@ def categorize_file(filename: str) -> str:
 
 def categorize_folder_structure(folder_path: str) -> dict:
     """
-    Walk through a folder hierarchy and produce a structured, categorized representation.
+    Walk through a folder hierarchy and produce a flattened, categorized representation.
+    Filters out macOS metadata folders and files (like __MACOSX, ._*, .DS_Store).
     """
     root_folder = Path(folder_path)
     if not root_folder.exists() or not root_folder.is_dir():
         raise ValueError(f"ERROR: Invalid path: {root_folder}")
 
-    structured_representation = {}
+    categorized = {
+        "code": [],
+        "code_by_language": {},
+        "documentation": [],
+        "images": [],
+        "sketches": [],
+        "other": [],
+    }
 
     for current_path, subdirs, files in os.walk(root_folder, topdown=True):
-        subdirs[:] = [d for d in subdirs if d not in ignore_dirs]
-
-        relative_path = str(Path(current_path).relative_to(root_folder)) or "."
-
-        categorized = {
-            "code": [],                 
-            "code_by_language": {},     
-            "documentation": [],
-            "images": [],
-            "sketches": [],
-            "other": []
-        }
+        # Skip unwanted folders entirely
+        subdirs[:] = [d for d in subdirs if d not in ignore_dirs and not d.startswith("__MACOSX")]
 
         for filename in files:
+            # Skip macOS metadata and hidden junk files
+            if filename.startswith("._") or filename == ".DS_Store":
+                continue
+
+            file_path = Path(current_path) / filename
             category = categorize_file(filename)
 
             if category == "code":
                 lang = _get_language(filename) or "unknown"
-                categorized["code"].append(filename)
-                if lang not in categorized["code_by_language"]:
-                    categorized["code_by_language"][lang] = []
-                categorized["code_by_language"][lang].append(filename)
+                categorized["code"].append(str(file_path))
+                categorized["code_by_language"].setdefault(lang, []).append(str(file_path))
             else:
-                categorized[category].append(filename)
+                categorized[category].append(str(file_path))
 
-        structured_representation[relative_path] = categorized
+    # Deduplicate results
+    for key in categorized:
+        if isinstance(categorized[key], list):
+            categorized[key] = list(dict.fromkeys(categorized[key]))
+        elif isinstance(categorized[key], dict):
+            for lang in categorized[key]:
+                categorized[key][lang] = list(dict.fromkeys(categorized[key][lang]))
 
-    return structured_representation
+    return categorized
