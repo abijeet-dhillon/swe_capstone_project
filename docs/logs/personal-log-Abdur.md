@@ -273,3 +273,48 @@ This section outlines the individual log for week 9
 - Add visualization and summary metrics to reports (e.g., charts showing detected faces or color profiles).  
 - Optimize performance for batch image analysis.  
 - Prepare module for final milestone integration and peer testing.
+
+
+## Week 10
+This section outlines the individual log for week 10
+
+### November 3 – November 9
+
+### Tasks
+![](images/abdur-week10.png)
+
+### Weekly Goals
+
+1. **My Features:**
+   - Extend the **Skill Extraction System** to perform deep analysis of code artifacts across multiple languages.  
+   - Move beyond surface-level detection to infer developer reasoning, optimization awareness, and design principles.   
+   - Implement a unified, multi-language skill detector capable of analyzing **Python, Java, C, C++, JavaScript**, and others.  
+
+2. **Associated Tasks:**
+   - Enhance `advanced_skill_extractor.py` to support structural and regex-based code analysis.  
+   - Implement detection of:  
+     - **Design patterns** (Strategy, Dependency Injection, Custom Exception Hierarchies)  
+     - **Algorithmic optimizations** (e.g., O(n²) → O(n), set-based lookups)  
+     - **Type safety and resource management** (type hints, RAII, smart pointers)  
+   - Add test coverage for all supported languages in `test_advanced_skill_extractor.py`.  
+   - Maintain total line additions under 500 while improving coverage and accuracy.  
+
+### Reflection Points
+
+**What went well:**
+- Successfully implemented deep, multi-language skill detection while staying under the code limit.  
+- Maintained strong test coverage and structured design.  
+- Achieved full local analysis—no external dependencies required.  
+- Clear commit history and clean branch ready for integration.  
+
+**What didn’t go well:**
+- Regex based detection for C and C++ required fine tuning to avoid false positives.  
+- Balancing detection accuracy across languages introduced some complexity in test maintenance.   
+
+### Planning Activities for Next Cycle
+
+**Week 11 Goals:**
+- Integrate the **Skill Extraction System** with the **report generation module** for combined analytics.  
+- Add visualization tools to represent detected skills and code quality metrics.  
+- Enhance configuration flexibility (language detection thresholds, rule customization).  
+- Prepare branch for peer review and merge into the main development pipeline.
