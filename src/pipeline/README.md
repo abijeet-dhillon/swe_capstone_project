@@ -13,8 +13,8 @@ The orchestrator performs two main steps:
 ### From Command Line
 
 ```bash
-# Using the module directly
-python3 -m src.pipeline.orchestrator ./test_data/project.zip
+# Using the module directly (from root dir)
+python3 -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
 ```
 
 ## Output Format
@@ -113,8 +113,8 @@ This orchestrator will be extended to:
 ## Testing
 
 ```bash
-# Test with a sample ZIP file
-python3 -m src.pipeline.orchestrator ./test_data/project.zip
+# Test with a sample ZIP file (from root dir)
+python3 -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
 
 # Output will be saved to orchestrator_output.json
 ```
