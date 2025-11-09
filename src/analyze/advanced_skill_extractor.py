@@ -119,7 +119,7 @@ class AdvancedSkillExtractor:
                 self._detect_type_safety(tree, content, analysis)
                 self._detect_data_structures(tree, content, analysis)
             except SyntaxError:
-                pass
+                analysis.basic_skills.append('syntax-error-detected')
         else:
             self._analyze_generic(content, language, analysis)
         
