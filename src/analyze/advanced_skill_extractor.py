@@ -282,7 +282,7 @@ class AdvancedSkillExtractor:
                 if node.returns:
                     return_type_count += 1
         
-        if type_hint_count > 5 or return_type_count > 2:
+        if type_hint_count + return_type_count >= 5:
             analysis.advanced_skills.append('static-type-checking')
             analysis.evidence.append(SkillEvidence(
                 skill='static-type-checking',
