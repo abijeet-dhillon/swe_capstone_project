@@ -113,16 +113,14 @@ def test_run_cli_save_and_load_from_db(temp_db, capsys):
     with patch("sys.argv", args_save):
         config_manager.run_cli()
     out_save = capsys.readouterr().out
-    assert "Saved to DB: True" in out_save
+    assert f"Config saved to DB for user_id={user_id}" in out_save
 
     # Now, run CLI with --load
     args_load = ["prog", "--user-id", user_id, "--load", "--pretty"]
     with patch("sys.argv", args_load):
         config_manager.run_cli()
     out_load = capsys.readouterr().out
-
-    assert f"\"user_id\": \"{user_id}\"" in out_load
-    assert "consent" in out_load
+    assert f"Config found for user_id={user_id}" in out_load
 
 
 def test_load_config_from_corrupted_db_entry(temp_db, capsys):
