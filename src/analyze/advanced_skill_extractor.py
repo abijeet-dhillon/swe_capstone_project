@@ -459,7 +459,31 @@ class AdvancedSkillExtractor:
                 results[str(code_file)] = analysis
             except Exception as e:
                 print(f"Error analyzing {code_file}: {e}")
-        
+        import json
+
+        output_path = Path(directory) / "skill_analysis_results.json"
+        serializable = {}
+
+        for file_path, analysis in results.items():
+            serializable[file_path] = {
+                "basic_skills": analysis.basic_skills,
+                "advanced_skills": analysis.advanced_skills,
+                "design_patterns": analysis.design_patterns,
+                "skill_categories": analysis.skill_categories,
+                "evidence": [
+                    {
+                        "skill": e.skill,
+                        "type": e.evidence_type,
+                        "reasoning": e.reasoning,
+                        "confidence": e.confidence,
+                        "location": e.location,
+                    }
+                    for e in analysis.evidence
+                ],
+            }
+
+        output_path.write_text(json.dumps(serializable, indent=2))
+        print(f"Saved analysis to {output_path}")            
         return results
     
     def aggregate_skills(self, analyses: Dict[str, DeepSkillAnalysis]) -> Dict[str, Any]:
@@ -517,3 +541,55 @@ class AdvancedSkillExtractor:
             marker = "→" if i == line_idx else " "
             snippet.append(f"{marker} {i+1:3d} | {lines[i]}")
         return '\n'.join(snippet)
+
+
+def analyze_single_file(file_path):
+    """Run analysis on one file and export JSON next to it."""
+    from pathlib import Path
+    import json
+
+    file_path = Path(file_path)
+    extractor = AdvancedSkillExtractor()
+    analysis = extractor.analyze_file(file_path)
+
+    # Prepare output data
+    data = {
+        "file_path": analysis.file_path,
+        "basic_skills": analysis.basic_skills,
+        "advanced_skills": analysis.advanced_skills,
+        "design_patterns": analysis.design_patterns,
+        "skill_categories": analysis.skill_categories,
+        "evidence": [
+            {
+                "skill": e.skill,
+                "type": e.evidence_type,
+                "reasoning": e.reasoning,
+                "confidence": e.confidence,
+                "location": e.location,
+            }
+            for e in analysis.evidence
+        ],
+    }
+
+    output_path = file_path.with_suffix(".skill_analysis.json")
+    output_path.write_text(json.dumps(data, indent=2))
+    print(f"Saved single-file analysis to {output_path}")
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.analyze.advanced_skill_extractor <path_to_file_or_dir>")
+        sys.exit(1)
+
+    target = Path(sys.argv[1])
+    extractor = AdvancedSkillExtractor()
+
+    if target.is_file():
+        analyze_single_file(target)
+    elif target.is_dir():
+        extractor.analyze_directory(target)
+    else:
+        print(f"Invalid path: {target}")
