@@ -9,6 +9,7 @@ from typing import List
 @dataclass
 class ZipEntry:
     """Represents a single file entry within a zip archive."""
+    abs_path: str
     rel_path: str
     size: int
     compressed_size: int
