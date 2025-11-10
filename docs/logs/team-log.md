@@ -538,6 +538,7 @@ This week's milestone focused on pipeline integration, database setup, and enhan
 | 23      | Detect Individual/Collaboration Projects and Git Repo | tahsinj         | Git Analyzer                 | Completed   |
 | 28      | Extract Key Skills                                    | abdur026 | Code Analyzer                | Completed   |
 | 24      | Extrapolate Individual Contributions                  | tahsinj   | Git Contribution Metrics     | Completed   |
+| 123      | Implement confidence-based evidence scoring for Python in AdvancedSkillExtractor | Completed   | Added AST-driven confidence calculation using detection frequency and pattern context |
 
 ---
 
@@ -572,6 +573,10 @@ This week marked a significant milestone in system integration, with the team su
 
 - **Docker Configuration**: Updated Docker setup to support interactive development by keeping containers running with `tail -f /dev/null`, enabling easy exec access for testing and debugging.
 
+- Implemented confidence-based skill scoring within the `AdvancedSkillExtractor`, adding dynamic confidence metrics for Python skill detection based on frequency and context. Enhanced evidence extraction with detailed reasoning and code snippets, improved JSON export for both single-file and directory analysis, validated results through new automated tests, and confirmed correct CLI output generation for local verification.
+
+
+
 The team maintained strong testing practices with comprehensive test suites for all new features. The pipeline orchestrator alone includes 18 tests covering basic functionality, metadata extraction, categorization, edge cases, and full integration scenarios.
 
 ---
@@ -584,7 +589,7 @@ The team maintained strong testing practices with comprehensive test suites for 
 - Set up FastAPI endpoints to expose the pipeline via REST API
 - Add port mapping to docker-compose for external API access
 - Develop report generation component to format analysis results for end users
-
+- Extend confidence-based scoring to other languages and integrate the AdvancedSkillExtractor output into the main analysis pipeline for unified project evaluation.
 ---
 
 ### 8. Reflection on This Cycle
