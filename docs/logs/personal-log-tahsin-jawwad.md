@@ -7,6 +7,7 @@
 [Week 7 Personal Logs](#week-7)
 [Week 8 Personal Logs](#week-8)
 [Week 9 Personal Logs](#week-9)
+[Week 10 Personal Logs](#week-10)
 
 ## Week 3
 ### Date Range 
@@ -157,3 +158,32 @@
 **Future cycle plans**:
 - Integrate the enhanced code analyzer with git repository scanning (which can help with extracting individual contributions in collaboration projects)
 - Build the aggregation layer for multi-repository portfolio analysis
+
+## Week 10
+### Date Range 
+3rd November 2025 - 9th November 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 10](images/tahsin-week-10.png)
+
+### Weekly Goals
+**My features**:
+* Implemented Git repository analytics with support for both PyDriller and GitPython libraries
+* Created project-level analyzer to assess repository scope, collaboration patterns, and development activity
+* Developed individual contributor analyzer with fuzzy author matching and detailed per-author metrics
+* Built comprehensive test suite with 22 tests achieving 80-90% code coverage across modules
+* Implemented activity classification system for commits (feature/bugfix/refactor/docs/test/other)
+* Created week-based activity aggregation for trend analysis
+
+**Task from project board**:
+* Detect Individual/Collaboration Projects and Git Repository Analysis
+* Extrapolate Individual Contributions
+
+**Completed/In-progress tasks**: 
+* Detect Individual/Collaboration Projects and Git Repository Analysis (Completed)
+* Extrapolate Individual Contributions (Completed)
+
+**Future cycle plans**:
+- Wire git analytics into the main analysis pipeline
+- Use database persistence for storing repository metrics
+- Create visualization layer for contributor graphs and activity trends
