@@ -9,6 +9,7 @@
 1. [Week 7](#week-7)
 1. [Week 8](#week-8)
 1. [Week 9](#week-9)
+1. [Week 10](#week-10)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -227,5 +228,73 @@ This section outlines the individual log for week 9
 - Look into how we are going to faciliate the pipeline (maybe implement an orchestrator)
 - Define endpoint for API call to trigger the pipeline  
 - Optional: introduce a `PipelineConfig` to toggle categories (code/docs/media) and LLM usage
+
+
+## Week 10
+This section outlines the individual log for week 10
+
+### November 3 - November 9
+
+### Tasks
+![](images/kaiden_week10_tasks.png)
+
+### Weekly Goals
+
+1. My Features:
+    - Implement the Pipeline Orchestrator to connect the ZIP parser and file categorizer
+    - Create comprehensive test suite for the orchestrator component
+    - Set up Docker container for interactive development and testing
+    - Document orchestrator usage and prepare for API integration
+
+2. Associated Tasks
+    - Build `src/pipeline/orchestrator.py` with `ArtifactPipeline` class
+    - Create `tests/pipeline/test_orchestrator.py` with 18+ test cases
+    - Update Docker configuration to keep container running for exec access
+    - Write documentation for running orchestrator locally and in Docker
+
+3. Completed/In-Progress
+    - ✅ Implemented `ArtifactPipeline` orchestrator with `start()` method that accepts ZIP file path
+    - ✅ Orchestrator successfully connects parser → categorizer and returns structured output
+    - ✅ Created comprehensive test suite covering:
+      - Basic functionality (initialization, valid/invalid inputs)
+      - ZIP metadata extraction and validation
+      - File info extraction (paths, sizes, hashes)
+      - File categorization by type (code, docs, images, other)
+      - Language detection and grouping for code files
+      - Edge cases (empty ZIPs, nested directories)
+      - Full integration and JSON serialization
+    - ✅ All 18 tests passing
+    - ✅ Updated Dockerfile CMD to `tail -f /dev/null` to keep container running
+    - ✅ Verified orchestrator works both locally and inside Docker container
+    - ✅ Created documentation (`src/pipeline/README.md`) with usage examples
+
+### Reflection Points
+
+**What went well:**
+- The orchestrator design is clean and extensible - easy to add analyzer routing in the next phase
+- Test suite is comprehensive and caught issues early (e.g., JSON files categorized as code, not other)
+- Docker setup now supports interactive development - can exec in and run scripts easily
+- Output format is well-structured and JSON-serializable, ready for API responses
+- Good separation of concerns: orchestrator delegates to existing parser/categorizer without duplicating logic
+
+**What didn't go well:**
+- Initial confusion about Docker container lifecycle (container was exiting immediately)
+- Python path issues with pytest imports required adding `sys.path` fix to test file
+- Some back-and-forth on test expectations (e.g., where JSON files should be categorized)
+
+**Technical Decisions:**
+- Chose to keep orchestrator simple for now - just connects parser + categorizer
+- Analyzer routing will be added in next phase to avoid scope creep
+- Used `tail -f /dev/null` pattern to keep Docker container alive for interactive use
+- Decided to filter macOS metadata files (`__MACOSX`, `.DS_Store`, `._*`) at categorization level
+
+### Planning Activities for Next Cycle
+
+**Week 11 Goals:**
+- Connect analyzer components (CodeAnalyzer, TextAnalyzer, ImageProcessor, VideoAnalyzer) to orchestrator
+- Implement analyzer routing logic based on file categories
+- Aggregate analysis results into unified output structure
+- (if time permits) Set up FastAPI endpoints to expose the pipeline via REST API
+- (if time permits) Add port mapping to docker-compose and test API calls from host machine
 
 
