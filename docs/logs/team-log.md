@@ -5,7 +5,9 @@
 [Week 5 Team Logs](#week-5)<br>
 [Week 6 Team Logs](#week-6)<br>
 [Week 7 Team Logs](#week-7)<br>
-[Week 8 Team Logs](#week-8)
+[Week 8 Team Logs](#week-8)<br>
+[Week 9 Team Logs](#week-9)<br>
+[Week 10 Team Logs](#week-10)
 
 ## Week 3
 
@@ -487,3 +489,127 @@ How this informs us for the next cycle:
 - We need to establish a consistent data schema across all analyzers to facilitate the report generation process and enable seamless integration.
 - The team should prioritize end-to-end testing and documentation as we move from individual module development to full system integration.
 - With the analysis foundation solid, we can shift focus toward user-facing features like report generation, visualization, and the frontend interface.
+
+## Week 10
+
+### November 3 2025 to November 9 2025
+
+### 1. Milestone Goals Recap
+
+This week's milestone focused on pipeline integration, database setup, and enhancing the analysis capabilities. The team worked on connecting standalone components, implementing data persistence, and improving git repository analysis.
+
+- (#117) Pipeline connection - Parser and Categorizer
+- (#107) Setting up SQL DB
+- (#106) Update Parser to have Absolute Path
+- (#23) Detect Individual/Collaboration Projects and Git Repository Analysis
+- (#28) Extract Key Skills
+- (#24) Extrapolate Individual Contributions
+
+---
+
+### 2. Burnup Chart
+
+![Burnup Chart For Week 10](images/burnup_chart_week10.png)
+
+---
+
+### 3. Username → Student Name Mapping
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| mishgGavura     | Misha Gavura    |
+
+---
+
+### 4. Completed / In Progress Tasks
+
+![Kanban Board for Week 10](images/completed-tasks-week-10.png)
+
+| Task ID | Issue Title                                           | Username        | Associated Feature           | Status      |
+| ------- | ----------------------------------------------------- | --------------- | ---------------------------- | ----------- |
+| 117     | Pipeline connection - Parser and Categorizer          | kmerchant1      | Pipeline Orchestrator        | Completed   |
+| 107     | Setting up SQL DB                                     | abijeet-dhillon        | Database Layer               | Completed   |
+| 106     | Update Parser to have Absolute Path                   | abijeet-dhillon     | ZIP Parser                   | Completed   |
+| 23      | Detect Individual/Collaboration Projects and Git Repo | tahsinj         | Git Analyzer                 | Completed   |
+| 28      | Extract Key Skills                                    | abdur026 | Code Analyzer                | Completed   |
+| 24      | Extrapolate Individual Contributions                  | tahsinj   | Git Contribution Metrics     | Completed   |
+
+---
+
+### 5. Test Report
+
+All automated tests for the new and updated modules passed successfully.
+
+- **Pipeline Orchestrator** — 18 comprehensive tests covering ZIP parsing, categorization, edge cases, and integration (all passing)
+- **Database Layer** — Tests for schema creation, CRUD operations, and data persistence (all passing)
+- **Git Repository Analysis** — Tests for individual/collaboration detection and contribution metrics (all passing)
+- **Parser Updates** — Tests verifying absolute path handling and backward compatibility (all passing)
+
+Each feature was developed following TDD principles with pytest, achieving good test coverage across all new functionality.
+
+---
+
+### 6. Additional Context
+
+This week marked a significant milestone in system integration, with the team successfully connecting previously standalone components into a cohesive pipeline.
+
+**Key Achievements:**
+
+- **Pipeline Orchestrator Implementation**: Built the `ArtifactPipeline` class that connects the ZIP parser and file categorizer. The orchestrator provides a clean `start()` method that accepts a ZIP file path and returns structured, categorized results ready for analysis. The implementation includes comprehensive error handling, macOS metadata filtering, and JSON-serializable output.
+
+- **Database Infrastructure**: Established SQL database layer for persistent storage of analysis results, user configurations, and project metadata. The schema supports relationships between projects, files, and analysis results, enabling historical tracking and comparison.
+
+- **Parser Enhancement**: Updated the ZIP parser to return absolute file paths instead of relative paths, improving compatibility with downstream analyzers and simplifying file access patterns throughout the pipeline.
+
+- **Git Repository Analysis**: Implemented detection logic to distinguish between individual and collaborative projects based on commit patterns, contributor counts, and repository structure. Added contribution metrics extraction to quantify individual developer impact.
+
+- **Skill Extraction**: Enhanced the code analyzer to extract key technical skills from code files, configuration files, and project dependencies, providing a comprehensive skill profile for portfolio generation.
+
+- **Docker Configuration**: Updated Docker setup to support interactive development by keeping containers running with `tail -f /dev/null`, enabling easy exec access for testing and debugging.
+
+The team maintained strong testing practices with comprehensive test suites for all new features. The pipeline orchestrator alone includes 18 tests covering basic functionality, metadata extraction, categorization, edge cases, and full integration scenarios.
+
+---
+
+### 7. Future Cycle Plans
+
+- Connect analyzer components (CodeAnalyzer, TextAnalyzer, ImageProcessor, VideoAnalyzer) to the orchestrator for full pipeline analysis
+- Implement analyzer routing logic to direct files to appropriate analyzers based on categorization
+- Aggregate analysis results from all analyzers into a unified output structure
+- Set up FastAPI endpoints to expose the pipeline via REST API
+- Add port mapping to docker-compose for external API access
+- Develop report generation component to format analysis results for end users
+
+---
+
+### 8. Reflection on This Cycle
+
+What went well:
+
+- The pipeline orchestrator design is clean and extensible, making it straightforward to add analyzer routing in the next phase. The separation of concerns between parsing, categorization, and analysis is well-defined.
+- Database infrastructure provides a solid foundation for data persistence and enables future features like historical analysis and project comparison.
+- Strong test coverage (18 tests for orchestrator, comprehensive tests for database and git analysis) gives confidence in system reliability.
+- Docker configuration improvements significantly enhanced the development workflow, allowing team members to easily test components in containerized environments.
+- Team coordination was excellent with multiple parallel feature branches (pipeline, database, git analysis) merging successfully without major conflicts.
+- The absolute path update in the parser resolved several downstream integration issues and simplified file handling across the codebase.
+
+What could be improved:
+
+- Initial Docker container lifecycle confusion caused some delays — better documentation of container management patterns would help onboarding.
+- Python path issues with pytest imports required workarounds (`sys.path` manipulation) — should investigate proper package installation or PYTHONPATH configuration.
+- Some test expectations needed adjustment (e.g., JSON files categorized as code, not other) — clearer documentation of categorization rules would prevent confusion.
+- Integration testing between components is still limited — we're testing orchestrator and analyzers separately but not yet validating the full end-to-end flow.
+
+How this informs us for the next cycle:
+
+- With the orchestrator connecting parser and categorizer, we're ready to add analyzer routing and complete the full pipeline integration. This should be the top priority for Week 11.
+- The database layer enables us to start thinking about user features like project history, comparison tools, and persistent configurations.
+- Docker improvements make it feasible to start exposing API endpoints and testing with external clients, paving the way for frontend integration.
+- We need to establish consistent data schemas across all analyzers to ensure smooth aggregation and report generation.
+- End-to-end testing should become a priority as we move from individual components to integrated system functionality.
+- With core infrastructure in place, we can shift focus toward user-facing features: API endpoints, report generation, and frontend development.
