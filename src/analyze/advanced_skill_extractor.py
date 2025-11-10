@@ -8,6 +8,38 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 
 
+# Skill categorization for better organization
+CATEGORY_MAP = {
+    'lazy-initialization': 'architecture',
+    'memoization': 'architecture',
+    'dependency-injection': 'architecture',
+    'strategy-pattern': 'architecture',
+    'custom-exception-hierarchy': 'architecture',
+    'algorithmic-optimization': 'performance',
+    'set_deduplication': 'performance',
+    'static-type-checking': 'code-quality',
+    'modern-python-features': 'code-quality',
+    'pythonic-idioms': 'code-quality',
+    'graceful-degradation': 'error-handling',
+    'exception-handling': 'error-handling',
+    'cryptographic-hashing': 'security',
+    'resource-management': 'resource-management',
+    'java-generics': 'language-feature',
+    'java-stream': 'language-feature',
+    'java-lambda': 'language-feature',
+    'cpp-template': 'language-feature',
+    'cpp-smart_ptr': 'language-feature',
+    'cpp-move': 'language-feature',
+    'javascript-arrow': 'language-feature',
+    'javascript-async': 'language-feature',
+    'javascript-promise': 'language-feature',
+    'typescript-interface': 'language-feature',
+    'typescript-generic': 'language-feature',
+    'hash-based-structures': 'data-structure',
+}
+
+
+
 @dataclass
 class SkillEvidence:
     skill: str
@@ -25,6 +57,17 @@ class DeepSkillAnalysis:
     design_patterns: List[str] = field(default_factory=list)
     complexity_insights: Dict[str, Any] = field(default_factory=dict)
     evidence: List[SkillEvidence] = field(default_factory=list)
+    skill_categories: Dict[str, List[str]] = field(default_factory=dict)
+    
+    def categorize_skills(self):
+        self.skill_categories = {}
+        all_skills = self.advanced_skills + self.design_patterns
+        for skill in all_skills:
+            category = CATEGORY_MAP.get(skill, 'uncategorized')
+            self.skill_categories.setdefault(category, []).append(skill)
+        for cat in self.skill_categories:
+            self.skill_categories[cat].sort()
+
 
 
 class AdvancedSkillExtractor:
@@ -126,6 +169,9 @@ class AdvancedSkillExtractor:
         return analysis
     
     def _detect_caching_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        lines = content.split('\n')
+        total_lines = len(lines)  # ADD THIS
+        detection_count = 0        # ADD THIS
         
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
@@ -133,23 +179,31 @@ class AdvancedSkillExtractor:
                     if isinstance(stmt, ast.If):
                         test_str = ast.unparse(stmt.test) if hasattr(ast, 'unparse') else ''
                         if 'is None' in test_str or '== None' in test_str:
+                            detection_count += 1  # ADD THIS
+                            
+                            # CHANGE THIS SECTION:
+                            snippet = self._extract_code_snippet(content, stmt.lineno, context_lines=2)
+                            confidence = self._calculate_confidence(detection_count, 'pattern', total_lines)
+                            
                             analysis.advanced_skills.append('lazy-initialization')
                             analysis.evidence.append(SkillEvidence(
                                 skill='lazy-initialization',
                                 evidence_type='pattern',
-                                location=f'Function: {node.name}',
+                                location=snippet,  # ← Now shows actual code!
                                 reasoning='Detected lazy initialization pattern with None check',
-                                confidence=0.9
+                                confidence=confidence  # ← Now dynamic!
                             ))
                             break
+        
         if '@lru_cache' in content or '@cache' in content:
+            confidence = self._calculate_confidence(1, 'decorator', total_lines)  # CHANGE THIS
             analysis.advanced_skills.append('memoization')
             analysis.evidence.append(SkillEvidence(
                 skill='memoization',
                 evidence_type='decorator',
                 location='File-level',
                 reasoning='Uses functools caching decorators for performance',
-                confidence=1.0
+                confidence=confidence  # ← Now dynamic!
             ))
     
     def _detect_design_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
@@ -405,7 +459,31 @@ class AdvancedSkillExtractor:
                 results[str(code_file)] = analysis
             except Exception as e:
                 print(f"Error analyzing {code_file}: {e}")
-        
+        import json
+
+        output_path = Path(directory) / "skill_analysis_results.json"
+        serializable = {}
+
+        for file_path, analysis in results.items():
+            serializable[file_path] = {
+                "basic_skills": analysis.basic_skills,
+                "advanced_skills": analysis.advanced_skills,
+                "design_patterns": analysis.design_patterns,
+                "skill_categories": analysis.skill_categories,
+                "evidence": [
+                    {
+                        "skill": e.skill,
+                        "type": e.evidence_type,
+                        "reasoning": e.reasoning,
+                        "confidence": e.confidence,
+                        "location": e.location,
+                    }
+                    for e in analysis.evidence
+                ],
+            }
+
+        output_path.write_text(json.dumps(serializable, indent=2))
+        print(f"Saved analysis to {output_path}")            
         return results
     
     def aggregate_skills(self, analyses: Dict[str, DeepSkillAnalysis]) -> Dict[str, Any]:
@@ -430,3 +508,88 @@ class AdvancedSkillExtractor:
             'evidence_by_skill': dict(evidence_by_skill),
             'total_files_analyzed': len(analyses)
         }
+
+
+    def _calculate_confidence(self, detection_count, pattern_type, total_lines):
+        base_confidence = {
+            'decorator': 1.0,
+            'import': 0.95,
+            'library': 0.95,
+            'annotation': 0.95,
+            'data-structure': 0.9,
+            'pattern': 0.85,
+            'syntax': 0.8
+        }.get(pattern_type, 0.7)
+
+        if detection_count > 1:
+            frequency_boost = min((detection_count - 1) * 0.05, 0.2)
+            base_confidence = min(base_confidence + frequency_boost, 1.0)
+
+        if total_lines < 10:
+            base_confidence *= 0.95
+
+        return round(base_confidence, 2)
+
+
+    def _extract_code_snippet(self, content, line_number, context_lines=2):
+        lines = content.split('\n')
+        line_idx = line_number - 1
+        start = max(0, line_idx - context_lines)
+        end = min(len(lines), line_idx + context_lines + 1)
+        snippet = []
+        for i in range(start, end):
+            marker = "→" if i == line_idx else " "
+            snippet.append(f"{marker} {i+1:3d} | {lines[i]}")
+        return '\n'.join(snippet)
+
+
+def analyze_single_file(file_path):
+    """Run analysis on one file and export JSON next to it."""
+    from pathlib import Path
+    import json
+
+    file_path = Path(file_path)
+    extractor = AdvancedSkillExtractor()
+    analysis = extractor.analyze_file(file_path)
+
+    # Prepare output data
+    data = {
+        "file_path": analysis.file_path,
+        "basic_skills": analysis.basic_skills,
+        "advanced_skills": analysis.advanced_skills,
+        "design_patterns": analysis.design_patterns,
+        "skill_categories": analysis.skill_categories,
+        "evidence": [
+            {
+                "skill": e.skill,
+                "type": e.evidence_type,
+                "reasoning": e.reasoning,
+                "confidence": e.confidence,
+                "location": e.location,
+            }
+            for e in analysis.evidence
+        ],
+    }
+
+    output_path = file_path.with_suffix(".skill_analysis.json")
+    output_path.write_text(json.dumps(data, indent=2))
+    print(f"Saved single-file analysis to {output_path}")
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.analyze.advanced_skill_extractor <path_to_file_or_dir>")
+        sys.exit(1)
+
+    target = Path(sys.argv[1])
+    extractor = AdvancedSkillExtractor()
+
+    if target.is_file():
+        analyze_single_file(target)
+    elif target.is_dir():
+        extractor.analyze_directory(target)
+    else:
+        print(f"Invalid path: {target}")

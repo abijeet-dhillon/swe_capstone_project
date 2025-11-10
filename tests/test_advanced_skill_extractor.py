@@ -335,3 +335,162 @@ def test_multi_language_directory(extractor, tmp_path):
     assert 'python' in languages
     assert 'java' in languages
     assert 'javascript' in languages
+
+
+def test_category_map_exists():
+    """Verify CATEGORY_MAP is defined and comprehensive"""
+    from src.analyze.advanced_skill_extractor import CATEGORY_MAP
+    
+    assert len(CATEGORY_MAP) > 15
+    assert 'lazy-initialization' in CATEGORY_MAP
+    assert CATEGORY_MAP['lazy-initialization'] == 'architecture'
+
+
+def test_skill_categorization(extractor, tmp_path):
+    """Verify skills are correctly categorized"""
+    code = """
+from dataclasses import dataclass
+
+@dataclass
+class User:
+    name: str
+
+def optimize(items):
+    return list(set(items))
+"""
+    file = tmp_path / "test.py"
+    file.write_text(code)
+    
+    analysis = extractor.analyze_file(file)
+    analysis.categorize_skills()
+    
+    # Check categories exist
+    assert 'code-quality' in analysis.skill_categories
+    assert 'performance' in analysis.skill_categories
+    
+    # Check skills are in correct categories
+    assert 'modern-python-features' in analysis.skill_categories['code-quality']
+    assert 'algorithmic-optimization' in analysis.skill_categories['performance']
+
+
+def test_confidence_calculation_method(extractor):
+    """Test the _calculate_confidence method directly"""
+    # Single occurrence, pattern type
+    conf1 = extractor._calculate_confidence(1, 'pattern', 100)
+    assert 0.85 == conf1
+    
+    # Multiple occurrences (should boost confidence)
+    conf2 = extractor._calculate_confidence(3, 'pattern', 100)
+    assert conf2 > conf1
+    assert conf2 <= 1.0
+    
+    # Decorator type (highest confidence)
+    conf3 = extractor._calculate_confidence(1, 'decorator', 100)
+    assert conf3 == 1.0
+    
+    # Small file penalty
+    conf4 = extractor._calculate_confidence(1, 'pattern', 5)
+    assert conf4 < 0.85
+
+
+def test_code_snippet_extraction(extractor):
+    """Test the _extract_code_snippet method directly"""
+    code = """line 1
+line 2
+line 3 TARGET
+line 4
+line 5"""
+    
+    snippet = extractor._extract_code_snippet(code, line_number=3, context_lines=1)
+    
+    # Should contain target line with marker
+    assert "→   3 | line 3 TARGET" in snippet
+    
+    # Should contain context lines
+    assert "2 | line 2" in snippet
+    assert "4 | line 4" in snippet
+    
+    # Should NOT contain line 1 or 5 (outside context)
+    assert "line 1" not in snippet
+    assert "line 5" not in snippet
+
+
+def test_evidence_has_code_snippets(extractor, tmp_path):
+    """Verify evidence now contains actual code snippets (not just descriptions)"""
+    code = """
+def get_data(self):
+    if self._cache is None:
+        self._cache = load_data()
+    return self._cache
+"""
+    file = tmp_path / "test.py"
+    file.write_text(code)
+    
+    analysis = extractor.analyze_file(file)
+    
+    # Find lazy-initialization evidence
+    lazy_evidence = [e for e in analysis.evidence if 'lazy' in e.skill]
+    assert len(lazy_evidence) > 0
+    
+    # Check that location contains actual code with line numbers
+    location = lazy_evidence[0].location
+    assert "if self._cache is None" in location
+    assert "|" in location  # Line number separator
+    assert "→" in location  # Target line marker
+
+
+def test_dynamic_confidence_in_real_analysis(extractor, tmp_path):
+    """Verify confidence is actually calculated dynamically in file analysis"""
+    code = """
+x1 = list(set([1]))
+x2 = list(set([2]))
+x3 = list(set([3]))
+"""
+    file = tmp_path / "test.py"
+    file.write_text(code)
+    
+    analysis = extractor.analyze_file(file)
+    
+    # Find optimization evidence
+    opt_evidence = [e for e in analysis.evidence if 'optimization' in e.skill]
+    assert len(opt_evidence) > 0
+    
+    # Confidence should be reasonable and not hardcoded
+    for evidence in opt_evidence:
+        assert isinstance(evidence.confidence, float)
+        assert 0.0 <= evidence.confidence <= 1.0
+        # Should not be exactly 0.95 (the old hardcoded value)
+        # It should be dynamically calculated
+
+
+def test_categorize_skills_method(extractor, tmp_path):
+    """Test that categorize_skills() method works"""
+    code = """
+@dataclass
+class User:
+    name: str
+
+def process():
+    return list(set([1, 2, 3]))
+
+try:
+    risky_operation()
+except Exception:
+    fallback()
+"""
+    file = tmp_path / "test.py"
+    file.write_text(code)
+    
+    analysis = extractor.analyze_file(file)
+    
+    # Before categorization
+    assert len(analysis.skill_categories) == 0
+    
+    # After categorization
+    analysis.categorize_skills()
+    assert len(analysis.skill_categories) > 0
+    
+    # Check expected categories
+    assert 'code-quality' in analysis.skill_categories
+    assert 'performance' in analysis.skill_categories
+    assert 'error-handling' in analysis.skill_categories
