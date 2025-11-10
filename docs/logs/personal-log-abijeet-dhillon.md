@@ -6,7 +6,56 @@
 [Week 6 Individual Logs](#week-6)<br>
 [Week 7 Individual Logs](#week-7)<br>
 [Week 8 Individual Logs](#week-8)<br>
-[Week 9 Individual Logs](#week-9)
+[Week 9 Individual Logs](#week-9)<br>
+[Week 10 Individual Logs](#week-10)
+
+---
+
+## Week 10
+
+### November 3 2025 to November 9 2025
+
+### 1. Type of Tasks Worked On
+
+![Abijeet Dhillon Week 10 Task Types Screenshot](images/abijeetdhillon_week10_tasks.png)
+
+---
+
+### 2. Recap of Weekly Goals
+
+This week, I focused on improving backend functionality, testing, and persistence. I updated the parser to include absolute file paths and refined the categorizer to output categorized folder information. I refactored the corresponding unit tests for both components to align with the updated outputs while maintaining high test coverage. I also fixed the Dockerfile so the backend image builds and runs without errors. Additionally, I implemented a persistent SQLite database mounted as a Docker volume, enabling reliable storage and retrieval of user configuration data. To verify this setup, I created tests for the database environment and user configuration handling, ensuring proper integration and functionality. I also participated in weekly team meetings to discuss progress, troubleshoot issues, and plan next steps collaboratively while also reviewing my teammate's PRs.
+
+---
+
+### 3. Features Owned in Project Plan
+
+- Update Parser To Have Absolute Path (#106)
+- Setting Up SQL DB (#107)
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+
+- Update Parser To Have Absolute Path (#106)
+- Setting Up SQL DB (#107)
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+
+| Task ID | Issue Title                         | Status    | Notes                                                                                                                                                                                                                                                                                                                                     |
+| ------- | ----------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 36      | Generate Chronological Skill List   | Completed | Implemented cross-analyzer aggregation, chronological ordering by file mtime, optional date filtering, and export to JSON/CSV/TXT in src/analyze/output/. Added unit tests for ordering, serialization, and format parity; participated in review cycles for related analyzer updates and ensured consistent field naming across outputs. |
+| 106     | Update Parser To Have Absolute Path | Completed | Updated parser and categorizer components to output an absolute path in addition to the information it already outputted, while also flattening the categorization output. I also used this PR to update the Dockerfile to fix issues when building the Docker image.                                                                     |
+| 107     | Setting Up SQL DB                   | Completed | Implemented a persistent SQLite database into the backend service and mounted it as a Docker volume.                                                                                                                                                                                                                                      |
+
+---
+
+### 6. Future Cycle Plans & Reflection On This Week
+
+In the upcoming cycle, I plan to extend the database functionality to fully support user configurations, including saving, loading, and updating configuration data through the backend. I also plan to integrate this functionality with the existing configuration management system, add corresponding unit tests, and ensure the database interactions are properly validated and persistent across container restarts.
+
+From an individual standpoint, this week was very productive. My time management could've been better, but I had 2 midterms on Thursday, which caused me to work on this project later in the week. Given this, I still completed the issues/work I assigned for myself, with no issues.
 
 ---
 
