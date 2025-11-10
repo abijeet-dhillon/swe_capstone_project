@@ -164,4 +164,3 @@ def iso_week_start(dt: datetime) -> date:
     monday = dt.date() - timedelta(days=days_since_monday)
     
     return monday
-
