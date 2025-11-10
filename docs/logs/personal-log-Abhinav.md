@@ -299,3 +299,51 @@ My main contributions included:
 - Begin integrating transcribed text data with the artifact collection and consent validation modules.  
 - Work on a method for storing analyzed metadata and transcription results in a structured database 
 - Explore how this data layer can connect to the broader artifact analysis pipeline for unified retrieval and reporting.
+
+
+
+## Week 10 – November 3 to November 9
+
+### 1. Type of Tasks Worked On
+![Week 10 Task Screenshot](images/week10-abhinav-tasks.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week focused on implementing and validating the **Advanced Skill Extractor** for Python files, introducing confidence-based skill scoring and structured JSON output.  
+My main contributions included:  
+- implementing confidence-based scoring logic using AST-based static analysis  
+- integrating evidence-level reasoning (pattern type, location, and confidence) for detected skills  
+- extending directory-wide analysis with JSON export support for automated result aggregation  
+- performing multiple test iterations to verify accuracy and consistency across diverse Python samples  
+
+---
+
+### 4. Features Owned in Project Plan
+- Advanced Skill Extractor (Python)  
+- Confidence-Based Skill Scoring  
+- JSON Export Integration  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- Advanced Skill Extractor Implementation  
+- Confidence Score Integration  
+- JSON Export for Skill Analysis  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title                              | Status      | Notes |
+|----------|------------------------------------------|-------------|-------|
+| 123      | Implement confidence-based evidence scoring for Python in AdvancedSkillExtractor | Completed   | Added AST-driven confidence calculation using detection frequency and pattern context |
+
+---
+
+### 7. Additional Context
+- Currently, confidence scoring applies only to Python-based analysis; cross-language support will be added later.  
+- Verified single-file and directory analyses using both manual command-line testing and automated pytest validation.  
+
+### 8. Next Week's Focus
+- Extend the confidence scoring framework to other languages (Java, C++, JavaScript).
+- Add skill category mapping for architecture, performance, and design patterns.
