@@ -8,7 +8,9 @@ WORKDIR /code
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    libzbar0
+    libzbar0 \
+    sqlite3 \
+    libsqlite3-dev
 
 # Upgrade pip and related tools
 RUN pip install --upgrade pip setuptools wheel

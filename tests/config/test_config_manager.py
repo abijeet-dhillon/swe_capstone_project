@@ -1,200 +1,142 @@
 """
 test_config_manager.py
 ------------------------
-Unit tests for config_manager.py to ensure user configurations are correctly built, saved, and loaded. 
-Verifies directory creation, consent file generation, and graceful handling of missing or invalid paths.
+Unit tests for the new database-backed config_manager.py.
+
+These tests verify:
+    - correct creation of the user_configs table
+    - successful build, save, and load of user configurations in SQLite
+    - graceful handling of missing or invalid records
+    - functional CLI interactions (--save and --load)
 
 Run from root directory with:
     docker compose run --rm backend python3 -m pytest tests/config/test_config_manager.py -v
-    or 
-    python3 -m pytest tests/config/test_config_manager.py -v
-
-    (Optional) Test coverage with:
-        docker compose run --rm backend pytest tests/config/test_config_manager.py --cov=src/config --cov-report=term-missing -v
-        * 97% coverage *
+(Optional) Test coverage with:
+    docker compose run --rm backend pytest tests/config/test_config_manager.py --cov=src/config --cov-report=term-missing -v
 """
-# python3 -m pytest tests/config/test_config_manager.py -v
+
+import os
 import json
+import sqlite3
+import tempfile
 import pytest
-from pathlib import Path
 from unittest.mock import patch
 from src.config import config_manager
 
-# Helper: use a temporary directory to isolate from real data/configs
-@pytest.fixture
-def temp_config_dir(tmp_path, monkeypatch):
-    """Create a temporary config directory and monkeypatch CONFIG_DIR."""
-    temp_dir = tmp_path / "data" / "configs"
-    monkeypatch.setattr(config_manager, "CONFIG_DIR", temp_dir)
-    return temp_dir
 
-# Test: build_user_config() basic structure
-def test_build_user_config_creates_consent_files(temp_config_dir):
-    user_id = "testuser"
+# --------------------------------------------------------------------
+# Fixtures
+# --------------------------------------------------------------------
+@pytest.fixture
+def temp_db(monkeypatch):
+    """Provide a temporary SQLite database and patch DB_PATH."""
+    tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    monkeypatch.setattr(config_manager, "DB_PATH", tmp_db.name)
+    yield tmp_db.name
+    tmp_db.close()
+    if os.path.exists(tmp_db.name):
+        os.remove(tmp_db.name)
+
+
+# --------------------------------------------------------------------
+# Tests
+# --------------------------------------------------------------------
+
+def test_init_db_creates_table(temp_db):
+    """Ensure init_db() creates the user_configs table."""
+    config_manager.init_db()
+    conn = sqlite3.connect(temp_db)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_configs';")
+    table = cursor.fetchone()
+    conn.close()
+    assert table is not None, "user_configs table should exist after init_db()"
+
+
+def test_save_and_load_config_roundtrip(temp_db):
+    """Save a config into the database, then load it back."""
+    user_id = "test_user"
+    sample_cfg = {"user_id": user_id, "consent": {"llm": {"ok": True}}}
+
+    saved = config_manager.save_config_to_db(sample_cfg, user_id)
+    assert saved is True
+
+    loaded = config_manager.load_config_from_db(user_id)
+    assert loaded["user_id"] == user_id
+    assert loaded["consent"]["llm"]["ok"] is True
+
+
+def test_load_config_missing_user_returns_empty(temp_db, capsys):
+    """Loading a non-existent user returns an empty dict and prints a message."""
+    result = config_manager.load_config_from_db("no_user")
+    assert result == {}
+    out = capsys.readouterr().out
+    assert "No configuration" in out
+
+
+def test_save_config_updates_existing_entry(temp_db):
+    """Saving twice with same user_id updates the existing record."""
+    user_id = "update_user"
+    first = {"user_id": user_id, "consent": {"v": 1}}
+    second = {"user_id": user_id, "consent": {"v": 2}}
+
+    config_manager.save_config_to_db(first, user_id)
+    config_manager.save_config_to_db(second, user_id)
+
+    conn = sqlite3.connect(temp_db)
+    cursor = conn.cursor()
+    cursor.execute("SELECT config_json FROM user_configs WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    assert json.loads(row[0])["consent"]["v"] == 2
+
+
+def test_build_user_config_structure(temp_db):
+    """Verify build_user_config returns expected structure."""
+    user_id = "builder"
     cfg = config_manager.build_user_config(user_id)
 
-    # Ensure structure correctness
     assert isinstance(cfg, dict)
     assert cfg["user_id"] == user_id
     assert "consent" in cfg
     assert "llm" in cfg["consent"]
     assert "directory" in cfg["consent"]
 
-    # Check that directories and files were created
-    user_dir = temp_config_dir / user_id
-    consent_dir = user_dir / "consent"
 
-    assert user_dir.exists()
-    assert consent_dir.exists()
-    assert (consent_dir / "llm.json").exists()
-    assert (consent_dir / "directory.json").exists()
+def test_run_cli_save_and_load_from_db(temp_db, capsys):
+    """Integration test: CLI --save then --load should work with DB."""
+    user_id = "cli_user"
 
-# Test: save_config() writes config.json properly
-def test_save_config_creates_file(temp_config_dir):
-    user_id = "saveuser"
-    sample_cfg = {"user_id": user_id, "consent": {}}
+    # First, run CLI with --save
+    args_save = ["prog", "--user-id", user_id, "--save", "--pretty"]
+    with patch("sys.argv", args_save):
+        config_manager.run_cli()
+    out_save = capsys.readouterr().out
+    assert f"Config saved to DB for user_id={user_id}" in out_save
 
-    result = config_manager.save_config(sample_cfg, user_id)
-    assert result is True
+    # Now, run CLI with --load
+    args_load = ["prog", "--user-id", user_id, "--load", "--pretty"]
+    with patch("sys.argv", args_load):
+        config_manager.run_cli()
+    out_load = capsys.readouterr().out
+    assert f"Config found for user_id={user_id}" in out_load
 
-    user_dir = temp_config_dir / user_id
-    config_path = user_dir / "config.json"
 
-    assert config_path.exists(), "config.json should exist after saving"
+def test_load_config_from_corrupted_db_entry(temp_db, capsys):
+    """Handles corrupted JSON gracefully."""
+    user_id = "broken"
+    config_manager.init_db()
 
-    with open(config_path, "r") as f:
-        data = json.load(f)
+    conn = sqlite3.connect(temp_db)
+    conn.execute(
+        "INSERT INTO user_configs (user_id, config_json, updated_at) VALUES (?, ?, datetime('now'))",
+        (user_id, "{not valid json}"),
+    )
+    conn.commit()
+    conn.close()
 
-    assert data["user_id"] == user_id
-
-# Test: load_config() returns correct data when file exists
-def test_load_config_returns_data(temp_config_dir):
-    user_id = "loaduser"
-    user_dir = temp_config_dir / user_id
-    user_dir.mkdir(parents=True, exist_ok=True)
-
-    config_path = user_dir / "config.json"
-    sample = {"user_id": user_id, "consent": {"test": True}}
-    with open(config_path, "w") as f:
-        json.dump(sample, f)
-
-    loaded = config_manager.load_config(user_id)
-    assert loaded["user_id"] == user_id
-    assert "consent" in loaded
-    assert loaded["consent"]["test"] is True
-
-# Test: load_config() gracefully handles missing file
-def test_load_config_missing_file_returns_empty(temp_config_dir, capsys):
-    user_id = "nonexistent"
-    result = config_manager.load_config(user_id)
-    assert result == {}
-    out = capsys.readouterr().out
-    assert f"No configuration file found for {user_id}" in out
-
-# Test: save_config() gracefully handles invalid path
-def test_save_config_invalid_path(monkeypatch, tmp_path):
-    # Force CONFIG_DIR to a read-only invalid location
-    bad_dir = tmp_path / "no_permission"
-    monkeypatch.setattr(config_manager, "CONFIG_DIR", bad_dir)
-
-    # Simulate permission error
-    def fake_open(*args, **kwargs):
-        raise PermissionError("Cannot open file")
-
-    monkeypatch.setattr("builtins.open", fake_open)
-
-    result = config_manager.save_config({"user_id": "x"}, "x")
-    assert result is False
-
-# Test: ensures CONFIG_DIR is created if missing
-def test_config_dir_auto_created(tmp_path, monkeypatch):
-    test_dir = tmp_path / "fake_data" / "configs"
-    monkeypatch.setattr(config_manager, "CONFIG_DIR", test_dir)
-
-    user_id = "auto_user"
-    _ = config_manager.build_user_config(user_id)
-
-    assert test_dir.exists(), "CONFIG_DIR should be auto-created"
-    assert (test_dir / user_id).exists(), "User subfolder should be created"
-
-# Test: save -> load full cycle integration
-def test_save_and_load_integration(temp_config_dir):
-    user_id = "integrated_user"
-    cfg = config_manager.build_user_config(user_id)
-    assert config_manager.save_config(cfg, user_id)
-
-    loaded = config_manager.load_config(user_id)
-    assert loaded["user_id"] == user_id
-    assert "consent" in loaded
-
-# Test: invalid JSON read gracefully
-def test_load_config_with_corrupted_json(temp_config_dir, capsys):
-    user_id = "corrupt_user"
-    user_dir = temp_config_dir / user_id
-    user_dir.mkdir(parents=True, exist_ok=True)
-
-    bad_file = user_dir / "config.json"
-    bad_file.write_text("{not valid json}")
-
-    result = config_manager.load_config(user_id)
+    result = config_manager.load_config_from_db(user_id)
     assert result == {}
     out = capsys.readouterr().out
     assert "Error loading config" in out
-
-def test_run_cli_save_creates_file_and_prints_saved(tmp_path, monkeypatch, capsys):
-    """
-    run_cli --user-id <id> --save should:
-      - build the config
-      - write data/configs/<id>/config.json under the patched CONFIG_DIR
-      - print 'Saved: True -> ...' to stdout
-      - print the JSON (pretty if --pretty is set)
-    """
-    # Point CONFIG_DIR to a temp location
-    temp_config_dir = tmp_path / "data" / "configs"
-    monkeypatch.setattr(config_manager, "CONFIG_DIR", temp_config_dir)
-
-    user_id = "cliuser"
-    args = ["prog", "--user-id", user_id, "--save", "--pretty"]
-
-    with patch("sys.argv", args):
-        config_manager.run_cli()
-
-    # Assert file was created
-    config_path = temp_config_dir / user_id / "config.json"
-    assert config_path.exists(), "config.json should exist after CLI save"
-
-    # Assert stdout contains 'Saved: True' and JSON
-    out = capsys.readouterr().out
-    assert "Saved: True" in out
-    assert f"{user_id}.json" in out
-    # basic sanity check the printed JSON contains the user_id
-    assert f"\"user_id\": \"{user_id}\"" in out
-
-def test_run_cli_load_prints_json_when_exists(tmp_path, monkeypatch, capsys):
-    """
-    run_cli --user-id <id> --load should:
-      - read data/configs/<id>/config.json from patched CONFIG_DIR
-      - pretty-print the JSON to stdout when --pretty is passed
-    """
-    # Point CONFIG_DIR to a temp location
-    temp_config_dir = tmp_path / "data" / "configs"
-    monkeypatch.setattr(config_manager, "CONFIG_DIR", temp_config_dir)
-
-    # Pre-create a config for this user
-    user_id = "cliuser_load"
-    user_dir = temp_config_dir / user_id
-    user_dir.mkdir(parents=True, exist_ok=True)
-    config_path = user_dir / "config.json"
-    sample = {"user_id": user_id, "consent": {"llm": {"consent_given": False}, "directory": {"consent_given": False}}}
-    config_path.write_text(json.dumps(sample))
-
-    args = ["prog", "--user-id", user_id, "--load", "--pretty"]
-
-    with patch("sys.argv", args):
-        config_manager.run_cli()
-
-    # Assert stdout pretty-printed the JSON and includes user_id
-    out = capsys.readouterr().out
-    assert f"\"user_id\": \"{user_id}\"" in out
-    # Should NOT print the "No config found" message
-    assert "No config found" not in out
