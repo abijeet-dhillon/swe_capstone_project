@@ -8,6 +8,7 @@
 [Week 8 Personal Logs](#week-8)
 [Week 9 Personal Logs](#week-9)
 [Week 10 Personal Logs](#week-10)
+[Week 11 Personal Logs](#week-11)
 
 ## Week 3
 ### Date Range 
@@ -187,3 +188,36 @@
 - Wire git analytics into the main analysis pipeline
 - Use database persistence for storing repository metrics
 - Create visualization layer for contributor graphs and activity trends
+
+## Week 11
+### Date Range 
+10th November 2025 - 16th November 2025
+
+### Type of tasks worked on
+Since there are no peer evaluations, here is a list of tasks worked on:
+- Coding
+- Testing my own features
+- Testing other's features
+
+### Weekly Goals
+**My features**:
+* Implemented canonical rank-aware ProjectInfo aggregator for merging local and git analyzer metrics
+* Created unified data model with standardized fields for source identification, duration tracking, and collaboration detection
+* Implemented rank-aware computation system calculating LOC, commits, skills breadth, recency, collaboration flag, and code fraction
+* Built preliminary scoring formula using weighted log-scaled metrics for immediate demo capability
+* Created comprehensive test suite with 11 tests achieving 75% code coverage 
+* Developed CLI interface supporting local/git/merge modes with JSON input/output
+* Implemented case-insensitive unions for languages/frameworks/skills with first-occurrence casing preservation
+* Added extension-to-language mapping for git metrics normalization
+
+**Task from project board**:
+* Extract Key Contribution Metrics
+
+**Completed/In-progress tasks**: 
+* Extract Key Contribution Metrics (Completed)
+
+**Future cycle plans**:
+- Integrate aggregator with main pipeline to combine local and git analysis results
+- Build ranking engine using rank_inputs for project significance scoring
+- Implement persistence layer for storing aggregated ProjectInfo objects
+- Create API endpoints for retrieving ranked project portfolios
