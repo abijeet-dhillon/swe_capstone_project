@@ -7,7 +7,57 @@
 [Week 7 Individual Logs](#week-7)<br>
 [Week 8 Individual Logs](#week-8)<br>
 [Week 9 Individual Logs](#week-9)<br>
-[Week 10 Individual Logs](#week-10)
+[Week 10 Individual Logs](#week-10)<br>
+[Week 11 Individual Logs](#week-11)
+
+---
+
+## Week 11
+
+### November 10 2025 to November 16 2025
+
+### 1. Type of Tasks Worked On
+
+![Abijeet Dhillon Week 11 Task Types Screenshot]()
+
+> Not available since there wasn't a weekly evaluation available for this.
+
+---
+
+### 2. Recap of Weekly Goals
+
+This week, I focused primarily on database integration, backend improvements, and ensuring strong test coverage across updated components. I began work on fully integrating user configuration persistence into the SQLite database, wiring the config manager to support save/load/update operations through the backend. I also verified database behavior by running manual SQL checks and refining tests to validate schema correctness and config loading flows. In parallel, I reviewed my teammate’s PR, provided feedback, and participated in team meetings to plan the next stage of pipeline integration. Overall, my work this week pushed our backend closer to having a unified and persistent configuration layer ready for pipeline integration.
+
+---
+
+### 3. Features Owned in Project Plan
+
+- Setting Up SQL DB (#107)
+- Integrate User Configs Into SQLite Database (#127)
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+
+- Setting Up SQL DB (#107)
+- Integrate User Configs Into SQLite Database (#127)
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+
+| Task ID | Issue Title                                 | Status    | Notes                                                                                                                        |
+| ------- | ------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 107     | Setting Up SQL DB                           | Completed | Implemented a persistent SQLite database into the backend service and mounted it as a Docker volume.                         |
+| 127     | Integrate User Configs Into SQLite Database | Completed | Implemented complete end-to-end support for saving, loading, and updating user configuration data using our SQLite database. |
+
+---
+
+### 6. Future Cycle Plans & Reflection On This Week
+
+Next week, I will begin working on Store Project Insights (#30), which focuses on creating a secure and scalable system for persisting project insights in our backend. My goals for the upcoming cycle include implementing the initial SQLite schema for insights, setting up encrypted storage for sensitive fields, and designing the incremental update workflow so that insights can be appended or modified over time. I will also start drafting the backup/restore workflow, ensuring we can export and reload insight data reliably. Depending on progress, I may also begin adding validation logic and evaluating whether data compression or retention policies are necessary for larger datasets.
+
+From a personal standpoint, this week was productive—despite it being reading week, I completed the full user config integration and maintained code quality and test coverage. Now that reading week is coming to a close, I expect to have more consistent availability next week to tackle this larger feature.
 
 ---
 
