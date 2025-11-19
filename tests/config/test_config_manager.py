@@ -1,26 +1,26 @@
 """
 test_config_manager.py
 ------------------------
-Unit tests for the new database-backed config_manager.py.
+Unit tests for the normalized SQLite-backed config_manager module.
 
-These tests verify:
-    - correct creation of the user_configs table
-    - successful build, save, and load of user configurations in SQLite
-    - graceful handling of missing or invalid records
-    - functional CLI interactions (--save and --load)
+Coverage highlights:
+    - table schema creation
+    - create/update/load flows for the new consent fields
+    - wrapper helpers for legacy callers
+    - CLI prompts enforcing LLM consent and alternative analysis text
 
-Run from root directory with:
+Run from repo root:
     docker compose run --rm backend python3 -m pytest tests/config/test_config_manager.py -v
-(Optional) Test coverage with:
     docker compose run --rm backend pytest tests/config/test_config_manager.py --cov=src/config --cov-report=term-missing -v
 """
 
 import os
-import json
 import sqlite3
 import tempfile
-import pytest
 from unittest.mock import patch
+
+import pytest
+
 from src.config import config_manager
 
 
@@ -29,7 +29,6 @@ from src.config import config_manager
 # --------------------------------------------------------------------
 @pytest.fixture
 def temp_db(monkeypatch):
-    """Provide a temporary SQLite database and patch DB_PATH."""
     tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     monkeypatch.setattr(config_manager, "DB_PATH", tmp_db.name)
     yield tmp_db.name
@@ -38,105 +37,149 @@ def temp_db(monkeypatch):
         os.remove(tmp_db.name)
 
 
+@pytest.fixture
+def manager(temp_db):
+    return config_manager.UserConfigManager(db_path=temp_db)
+
+
 # --------------------------------------------------------------------
 # Tests
 # --------------------------------------------------------------------
 
-def test_init_db_creates_table(temp_db):
-    """Ensure init_db() creates the user_configs table."""
-    config_manager.init_db()
+def test_init_db_creates_table(manager, temp_db):
+    manager.init_db()
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_configs';")
-    table = cursor.fetchone()
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='user_configurations';"
+    )
+    assert cursor.fetchone() is not None
     conn.close()
-    assert table is not None, "user_configs table should exist after init_db()"
 
 
-def test_save_and_load_config_roundtrip(temp_db):
-    """Save a config into the database, then load it back."""
-    user_id = "test_user"
-    sample_cfg = {"user_id": user_id, "consent": {"llm": {"ok": True}}}
+def test_create_and_load_config_roundtrip(manager):
+    created = manager.create_config(
+        "test_user",
+        "/tmp/data.zip",
+        llm_consent=False,
+    )
+    assert created is True
 
-    saved = config_manager.save_config_to_db(sample_cfg, user_id)
-    assert saved is True
+    cfg = manager.load_config("test_user")
+    assert cfg is not None
+    assert cfg.zip_file == "/tmp/data.zip"
+    assert cfg.llm_consent is False
+    assert cfg.updated_at is None
 
-    loaded = config_manager.load_config_from_db(user_id)
-    assert loaded["user_id"] == user_id
-    assert loaded["consent"]["llm"]["ok"] is True
+
+def test_update_config_sets_updated_timestamp(manager):
+    manager.create_config("user", "/tmp/a.zip", False)
+    assert manager.update_config("user", llm_consent=True) is True
+
+    cfg = manager.load_config("user")
+    assert cfg.llm_consent is True
+    assert cfg.updated_at is not None
 
 
-def test_load_config_missing_user_returns_empty(temp_db, capsys):
-    """Loading a non-existent user returns an empty dict and prints a message."""
-    result = config_manager.load_config_from_db("no_user")
+def test_save_config_helper_upserts(manager):
+    payload = {
+        "zip_file": "/tmp/original.zip",
+        "llm_consent": False,
+    }
+    assert config_manager.save_config_to_db(payload, "helper_user") is True
+
+    second = {
+        "zip_file": "/tmp/new.zip",
+        "llm_consent": True,
+    }
+    assert config_manager.save_config_to_db(second, "helper_user") is True
+
+    cfg = manager.load_config("helper_user")
+    assert cfg.zip_file == "/tmp/new.zip"
+    assert cfg.llm_consent is True
+    assert cfg.updated_at is not None
+
+
+def test_load_config_from_db_missing_returns_empty(manager, capsys):
+    result = config_manager.load_config_from_db("missing")
     assert result == {}
     out = capsys.readouterr().out
     assert "No configuration" in out
 
 
-def test_save_config_updates_existing_entry(temp_db):
-    """Saving twice with same user_id updates the existing record."""
-    user_id = "update_user"
-    first = {"user_id": user_id, "consent": {"v": 1}}
-    second = {"user_id": user_id, "consent": {"v": 2}}
+def test_cli_save_prompts_and_stores(temp_db, monkeypatch, capsys):
+    monkeypatch.setattr(config_manager, "DB_PATH", temp_db)
 
-    config_manager.save_config_to_db(first, user_id)
-    config_manager.save_config_to_db(second, user_id)
+    responses = iter(["n", "y"])  # llm consent, opt-out confirm
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
 
-    conn = sqlite3.connect(temp_db)
-    cursor = conn.cursor()
-    cursor.execute("SELECT config_json FROM user_configs WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    assert json.loads(row[0])["consent"]["v"] == 2
-
-
-def test_build_user_config_structure(temp_db):
-    """Verify build_user_config returns expected structure."""
-    user_id = "builder"
-    cfg = config_manager.build_user_config(user_id)
-
-    assert isinstance(cfg, dict)
-    assert cfg["user_id"] == user_id
-    assert "consent" in cfg
-    assert "llm" in cfg["consent"]
-    assert "directory" in cfg["consent"]
-
-
-def test_run_cli_save_and_load_from_db(temp_db, capsys):
-    """Integration test: CLI --save then --load should work with DB."""
-    user_id = "cli_user"
-
-    # First, run CLI with --save
-    args_save = ["prog", "--user-id", user_id, "--save", "--pretty"]
-    with patch("sys.argv", args_save):
+    args = [
+        "prog",
+        "--user-id",
+        "cli_user",
+        "--save",
+        "--zip-file",
+        "/tmp/cli.zip",
+    ]
+    with patch("sys.argv", args):
         config_manager.run_cli()
-    out_save = capsys.readouterr().out
-    assert f"Config saved to DB for user_id={user_id}" in out_save
-
-    # Now, run CLI with --load
-    args_load = ["prog", "--user-id", user_id, "--load", "--pretty"]
-    with patch("sys.argv", args_load):
-        config_manager.run_cli()
-    out_load = capsys.readouterr().out
-    assert f"Config found for user_id={user_id}" in out_load
-
-
-def test_load_config_from_corrupted_db_entry(temp_db, capsys):
-    """Handles corrupted JSON gracefully."""
-    user_id = "broken"
-    config_manager.init_db()
-
-    conn = sqlite3.connect(temp_db)
-    conn.execute(
-        "INSERT INTO user_configs (user_id, config_json, updated_at) VALUES (?, ?, datetime('now'))",
-        (user_id, "{not valid json}"),
-    )
-    conn.commit()
-    conn.close()
-
-    result = config_manager.load_config_from_db(user_id)
-    assert result == {}
     out = capsys.readouterr().out
-    assert "Error loading config" in out
+
+    assert "Privacy notice" in out
+    assert "User is opting out of external LLM services" in out
+
+    cfg = config_manager.UserConfigManager(db_path=temp_db).load_config("cli_user")
+    assert cfg is not None
+    assert cfg.zip_file == "/tmp/cli.zip"
+    assert cfg.llm_consent is False
+
+
+def test_cli_update_respects_defaults(temp_db, monkeypatch, capsys):
+    monkeypatch.setattr(config_manager, "DB_PATH", temp_db)
+    manager = config_manager.UserConfigManager(db_path=temp_db)
+    manager.create_config("update_user", "/tmp/current.zip", True)
+
+    responses = iter([""])  # keep existing llm consent
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
+
+    args = [
+        "prog",
+        "--user-id",
+        "update_user",
+        "--update",
+        "--zip-file",
+        "/tmp/updated.zip",
+    ]
+    with patch("sys.argv", args):
+        config_manager.run_cli()
+    out = capsys.readouterr().out
+    assert "Config updated" in out
+
+    cfg = manager.load_config("update_user")
+    assert cfg.zip_file == "/tmp/updated.zip"
+    assert cfg.llm_consent is True
+    assert cfg.updated_at is not None
+
+
+def test_cli_update_accepts_llm_consent_flag(temp_db, monkeypatch, capsys):
+    monkeypatch.setattr(config_manager, "DB_PATH", temp_db)
+    manager = config_manager.UserConfigManager(db_path=temp_db)
+    manager.create_config("toggle_user", "/tmp/current.zip", True)
+
+    args = [
+        "prog",
+        "--user-id",
+        "toggle_user",
+        "--update",
+        "--zip-file",
+        "/tmp/current.zip",
+        "--llm-consent",
+        "no",
+    ]
+    with patch("sys.argv", args):
+        config_manager.run_cli()
+    out = capsys.readouterr().out
+    assert "Config updated" in out
+
+    cfg = manager.load_config("toggle_user")
+    assert cfg.llm_consent is False
