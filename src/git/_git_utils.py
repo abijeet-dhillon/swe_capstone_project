@@ -27,6 +27,7 @@ def iter_commits(repo_path) -> Iterator[Dict]:
     Iterate over commits in a repository, yielding normalized commit data.
     
     Works with either PyDriller or GitPython depending on availability.
+    Gracefully handles empty repositories (no commits yet).
     
     Args:
         repo_path: Path to the Git repository
@@ -45,44 +46,54 @@ def iter_commits(repo_path) -> Iterator[Dict]:
     
     if PYDRILLER_AVAILABLE:
         # Use PyDriller
-        repo = Repository(repo_path_str)
-        for commit in repo.traverse_commits():
-            files = []
-            for mf in commit.modified_files:
-                # Use new_path if available, otherwise old_path
-                file_path = mf.new_path if mf.new_path else mf.old_path
-                if file_path:
-                    files.append(file_path)
-            
-            yield {
-                "author_name": commit.author.name,
-                "author_email": commit.author.email,
-                "msg": commit.msg,
-                "date": commit.author_date,
-                "insertions": commit.insertions,
-                "deletions": commit.deletions,
-                "files": files,
-            }
+        try:
+            repo = Repository(repo_path_str)
+            for commit in repo.traverse_commits():
+                files = []
+                for mf in commit.modified_files:
+                    # Use new_path if available, otherwise old_path
+                    file_path = mf.new_path if mf.new_path else mf.old_path
+                    if file_path:
+                        files.append(file_path)
+                
+                yield {
+                    "author_name": commit.author.name,
+                    "author_email": commit.author.email,
+                    "msg": commit.msg,
+                    "date": commit.author_date,
+                    "insertions": commit.insertions,
+                    "deletions": commit.deletions,
+                    "files": files,
+                }
+        except Exception as e:
+            # Empty repository or invalid Git repo - return empty iterator
+            # Common errors: "bad revision 'HEAD'", "does not have any commits yet"
+            return
     
     elif GITPYTHON_AVAILABLE:
         # Fallback to GitPython
-        repo = GitRepo(repo_path_str)
-        for commit in repo.iter_commits():
-            # Extract stats
-            stats = commit.stats.total
-            insertions = stats.get("insertions", 0)
-            deletions = stats.get("deletions", 0)
-            files = list(commit.stats.files.keys())
-            
-            yield {
-                "author_name": commit.author.name,
-                "author_email": commit.author.email,
-                "msg": commit.message,
-                "date": commit.committed_datetime,
-                "insertions": insertions,
-                "deletions": deletions,
-                "files": files,
-            }
+        try:
+            repo = GitRepo(repo_path_str)
+            for commit in repo.iter_commits():
+                # Extract stats
+                stats = commit.stats.total
+                insertions = stats.get("insertions", 0)
+                deletions = stats.get("deletions", 0)
+                files = list(commit.stats.files.keys())
+                
+                yield {
+                    "author_name": commit.author.name,
+                    "author_email": commit.author.email,
+                    "msg": commit.message,
+                    "date": commit.committed_datetime,
+                    "insertions": insertions,
+                    "deletions": deletions,
+                    "files": files,
+                }
+        except Exception as e:
+            # Empty repository or invalid Git repo - return empty iterator
+            # Common errors: "bad revision 'HEAD'", "does not have any commits yet"
+            return
     
     else:
         raise ImportError("Neither PyDriller nor GitPython is available. Install one of them.")
