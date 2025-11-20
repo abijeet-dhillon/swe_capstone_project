@@ -83,10 +83,12 @@ class ArtifactPipeline:
                 zf.extractall(self.temp_dir)
             print(f"✓ Extracted to: {self.temp_dir}")
             
-            # Step 3: Identify top-level projects
+            # Step 3: Identify top-level projects and loose files
             print(f"\n[3/6] Identifying projects (top-level directories)...")
-            projects = self._identify_projects()
+            projects, loose_files = self._identify_projects()
             print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}")
+            if loose_files:
+                print(f"✓ Found {len(loose_files)} loose file(s) not in any project")
             
             # Step 4: Process each project
             print(f"\n[4/6] Processing each project...")
@@ -95,6 +97,12 @@ class ArtifactPipeline:
             for project_name, project_path in projects.items():
                 print(f"\n  📁 Processing project: {project_name}")
                 project_results[project_name] = self._process_project(project_name, project_path)
+            
+            # Step 4b: Process loose files if any exist
+            if loose_files:
+                print(f"\n  📂 Processing miscellaneous files...")
+                misc_result = self._process_loose_files(loose_files)
+                project_results['_misc_files'] = misc_result
             
             # Step 5: Build final result
             print(f"\n[5/6] Compiling results...")
@@ -120,67 +128,146 @@ class ArtifactPipeline:
                 print(f"\n🧹 Cleaning up temporary directory...")
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
     
-    def _identify_projects(self) -> Dict[str, Path]:
+    def _identify_projects(self) -> tuple[Dict[str, Path], List[Path]]:
         """
-        Identify top-level directories as individual projects
+        Identify top-level directories as individual projects and collect loose files
         
         Handles common ZIP structures where extraction creates a wrapper folder.
         For example, if demo_projects.zip extracts to:
           temp_dir/demo_projects/project-mobile/
           temp_dir/demo_projects/project-webapp/
+          temp_dir/demo_projects/notes.txt
         
         We want to identify project-mobile and project-webapp as projects,
-        not demo_projects itself.
+        and notes.txt as a loose file.
         
         Returns:
-            Dictionary mapping project name to project path
+            Tuple of (projects dict, loose files list)
+            - projects: Dictionary mapping project name to project path
+            - loose_files: List of file paths that aren't in any project
         """
         projects = {}
+        loose_files = []
         
         if not self.temp_dir or not self.temp_dir.exists():
-            return projects
+            return projects, loose_files
         
         # Get all top-level items in the extracted directory
-        top_level_items = []
+        top_level_dirs = []
+        top_level_files = []
+        
         for item in self.temp_dir.iterdir():
             # Skip hidden files and macOS metadata
             if item.name.startswith('.') or item.name.startswith('__MACOSX'):
                 continue
             if item.is_dir():
-                top_level_items.append(item)
+                top_level_dirs.append(item)
+            elif item.is_file():
+                top_level_files.append(item)
         
         # Case 1: No directories found - treat temp_dir as single project
-        if not top_level_items:
+        if not top_level_dirs:
             projects['root'] = self.temp_dir
-            return projects
+            return projects, []
         
         # Case 2: Exactly one top-level directory (likely a wrapper folder from ZIP)
         # Check if it contains subdirectories that should be treated as projects
-        if len(top_level_items) == 1:
-            wrapper_dir = top_level_items[0]
+        if len(top_level_dirs) == 1:
+            wrapper_dir = top_level_dirs[0]
             subdirs = []
+            wrapper_files = []
             
-            # Look for subdirectories inside the wrapper
+            # Look for subdirectories and files inside the wrapper
             for item in wrapper_dir.iterdir():
                 if item.name.startswith('.') or item.name.startswith('__MACOSX'):
                     continue
                 if item.is_dir():
                     subdirs.append(item)
+                elif item.is_file():
+                    wrapper_files.append(item)
             
             # If we found subdirectories, use those as projects
             if subdirs:
                 for subdir in subdirs:
                     projects[subdir.name] = subdir
+                # Files in wrapper become loose files
+                loose_files = wrapper_files
             else:
                 # No subdirectories, so the wrapper itself is the project
                 projects[wrapper_dir.name] = wrapper_dir
+                # No loose files in this case
         
         # Case 3: Multiple top-level directories - each is a project
         else:
-            for item in top_level_items:
+            for item in top_level_dirs:
                 projects[item.name] = item
+            # Top-level files become loose files
+            loose_files = top_level_files
         
-        return projects
+        return projects, loose_files
+    
+    def _process_loose_files(self, loose_files: List[Path]) -> Dict[str, Any]:
+        """
+        Process loose files that aren't part of any project
+        
+        Args:
+            loose_files: List of file paths
+            
+        Returns:
+            Dictionary with analysis results for loose files
+        """
+        result = {
+            "project_name": "Miscellaneous Files",
+            "is_git_repo": False,
+            "git_analysis": None,
+            "categorized_contents": {},
+            "analysis_results": {}
+        }
+        
+        print(f"     ℹ️  Processing {len(loose_files)} loose files")
+        
+        # Manually categorize loose files by examining each one
+        categorized = {
+            "code": [],
+            "code_by_language": {},
+            "documentation": [],
+            "images": [],
+            "sketches": [],
+            "other": []
+        }
+        
+        from src.categorize.file_categorizer import categorize_file, _get_language
+        
+        for file_path in loose_files:
+            file_str = str(file_path)
+            category = categorize_file(file_path.name)
+            
+            if category == "code":
+                lang = _get_language(file_path.name) or "unknown"
+                categorized["code"].append(file_str)
+                categorized["code_by_language"].setdefault(lang, []).append(file_str)
+            else:
+                categorized[category].append(file_str)
+        
+        result["categorized_contents"] = categorized
+        
+        # Count files by type
+        code_count = len(categorized.get('code', []))
+        doc_count = len(categorized.get('documentation', []))
+        img_count = len(categorized.get('images', []))
+        print(f"     ✓ Categorized: {code_count} code, {doc_count} docs, {img_count} images")
+        
+        # Analyze files with appropriate analyzers
+        print(f"     🔬 Running file analyzers...")
+        try:
+            analysis_results = self._analyze_categorized_files(categorized)
+            result["analysis_results"] = analysis_results
+            print(f"     ✓ Analysis complete")
+        except Exception as e:
+            print(f"     ✗ Error during analysis: {e}")
+            result["analysis_results"] = {"error": str(e)}
+        
+        return result
     
     def _process_project(self, project_name: str, project_path: Path) -> Dict[str, Any]:
         """
@@ -445,9 +532,14 @@ class ArtifactPipeline:
         
         # Projects summary
         projects = result.get('projects', {})
-        print(f"\n📦 Projects Found: {len(projects)}")
+        regular_projects = {k: v for k, v in projects.items() if k != '_misc_files'}
+        misc_files = projects.get('_misc_files')
         
-        for project_name, project_data in projects.items():
+        print(f"\n📦 Projects Found: {len(regular_projects)}")
+        if misc_files:
+            print(f"📂 Miscellaneous Files: Yes ({len(misc_files.get('categorized_contents', {}).get('code', []) + misc_files.get('categorized_contents', {}).get('documentation', []) + misc_files.get('categorized_contents', {}).get('images', []))} loose files)")
+        
+        for project_name, project_data in regular_projects.items():
             print(f"\n{'─'*70}")
             print(f"📁 Project: {project_name}")
             print(f"{'─'*70}")
@@ -522,6 +614,53 @@ class ArtifactPipeline:
                     duration = metrics.get('total_duration', 0)
                     print(f"      • Videos: {metrics.get('total_videos', 0)} files, {duration:.1f}s duration")
         
+        # Miscellaneous files summary
+        if misc_files:
+            print(f"\n{'─'*70}")
+            print(f"📂 Miscellaneous Files (not in any project)")
+            print(f"{'─'*70}")
+            
+            # Categorization summary
+            categorized = misc_files.get('categorized_contents', {})
+            if categorized:
+                print(f"\n   📁 File Categorization:")
+                print(f"      • Code files: {len(categorized.get('code', []))}")
+                
+                code_by_lang = categorized.get('code_by_language', {})
+                if code_by_lang:
+                    print(f"        Languages detected:")
+                    for lang, files in sorted(code_by_lang.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
+                        print(f"          - {lang}: {len(files)} files")
+                
+                print(f"      • Documentation files: {len(categorized.get('documentation', []))}")
+                print(f"      • Image files: {len(categorized.get('images', []))}")
+                print(f"      • Video files: {len([f for f in categorized.get('other', []) if Path(f).suffix.lower() in self.VIDEO_EXTENSIONS])}")
+            
+            # Analysis summary
+            analysis = misc_files.get('analysis_results', {})
+            if analysis:
+                print(f"\n   🔬 Analysis Results:")
+                
+                doc_analysis = analysis.get('documentation')
+                if doc_analysis and 'error' not in doc_analysis:
+                    totals = doc_analysis.get('totals', {})
+                    print(f"      • Documentation: {totals.get('total_files', 0)} files, {totals.get('total_words', 0):,} words")
+                
+                img_analysis = analysis.get('images')
+                if img_analysis and 'error' not in img_analysis:
+                    total_size = sum(img.get('file_stats', {}).get('size_mb', 0) for img in img_analysis)
+                    print(f"      • Images: {len(img_analysis)} files, {total_size:.2f} MB")
+                
+                code_analysis = analysis.get('code')
+                if code_analysis and 'error' not in code_analysis:
+                    metrics = code_analysis.get('metrics', {})
+                    print(f"      • Code: {metrics.get('total_files', 0)} files, {metrics.get('total_lines', 0):,} lines")
+                
+                video_analysis = analysis.get('videos')
+                if video_analysis and 'error' not in video_analysis:
+                    metrics = video_analysis.get('metrics', {})
+                    print(f"      • Videos: {metrics.get('total_videos', 0)} files, {metrics.get('total_duration', 0):.1f}s duration")
+        
         print(f"\n{'='*70}\n")
     
     def _format_bytes(self, bytes_size: int) -> str:
@@ -558,7 +697,12 @@ def main():
         
         projects = result.get('projects', {})
         
-        for project_name, project_data in projects.items():
+        # Separate regular projects from misc files
+        regular_projects = {k: v for k, v in projects.items() if k != '_misc_files'}
+        misc_files = projects.get('_misc_files')
+        
+        # Process regular projects first
+        for project_name, project_data in regular_projects.items():
             print("\n" + "="*70)
             print(f"PROJECT: {project_name}")
             print("="*70)
@@ -646,6 +790,79 @@ def main():
                 print(json.dumps(video_data, indent=2))
             else:
                 print("No video files found")
+        
+        # Process miscellaneous files section if it exists
+        if misc_files:
+            print("\n" + "="*70)
+            print(f"MISCELLANEOUS FILES (not in any project)")
+            print("="*70)
+            
+            # File Analysis Results (no Git analysis for loose files)
+            analysis = misc_files.get('analysis_results', {})
+            
+            print("\n" + "-"*70)
+            print("📄 DOCUMENTATION ANALYSIS")
+            print("-"*70)
+            doc_data = analysis.get('documentation')
+            if doc_data is None:
+                print("No documentation files")
+            elif isinstance(doc_data, dict) and 'error' in doc_data:
+                print(f"Error: {doc_data['error']}")
+            else:
+                print(json.dumps(doc_data, indent=2))
+            
+            print("\n" + "-"*70)
+            print("🖼️  IMAGE ANALYSIS")
+            print("-"*70)
+            img_data = analysis.get('images')
+            if img_data is None:
+                print("No image files")
+            elif isinstance(img_data, dict) and 'error' in img_data:
+                print(f"Error: {img_data['error']}")
+            elif img_data:
+                for i, img in enumerate(img_data, 1):
+                    print(f"\n[Image {i}] {img.get('file_name', 'unknown')}")
+                    print(f"  Resolution: {img.get('resolution', {}).get('width', 0)}x{img.get('resolution', {}).get('height', 0)}")
+                    print(f"  Size: {img.get('file_stats', {}).get('size_mb', 0):.2f} MB")
+                    print(f"  Format: {img.get('format', {}).get('format', 'unknown')}")
+                    content = img.get('content_classification', {})
+                    print(f"  Type: {content.get('primary_type', 'unknown')}")
+            else:
+                print("No image files")
+            
+            print("\n" + "-"*70)
+            print("💻 CODE ANALYSIS")
+            print("-"*70)
+            code_data = analysis.get('code')
+            if code_data is None:
+                print("No code files")
+            elif isinstance(code_data, dict) and 'error' in code_data:
+                print(f"Error: {code_data['error']}")
+            elif code_data:
+                files = code_data.get('files', [])
+                if files:
+                    print(f"Individual File Analysis ({len(files)} files):")
+                    print(json.dumps(files, indent=2))
+                
+                metrics = code_data.get('metrics', {})
+                print(f"\n{'─'*70}")
+                print("Aggregate Metrics Summary:")
+                print(json.dumps(metrics, indent=2))
+            else:
+                print("No code files")
+            
+            print("\n" + "-"*70)
+            print("🎥 VIDEO ANALYSIS")
+            print("-"*70)
+            video_data = analysis.get('videos')
+            if video_data is None:
+                print("No video files")
+            elif isinstance(video_data, dict) and 'error' in video_data:
+                print(f"Error: {video_data['error']}")
+            elif video_data:
+                print(json.dumps(video_data, indent=2))
+            else:
+                print("No video files")
         
         print("\n" + "="*70)
         print("✅ Analysis Complete - All results printed above")
