@@ -16,6 +16,7 @@ from src.analyze.text_analyzer import TextAnalyzer
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.image_processor import ImageProcessor
+from src.git.individual_contrib_analyzer import summarize_author_contrib
 
 
 class ArtifactPipeline:
@@ -41,23 +42,20 @@ class ArtifactPipeline:
     
     def start(self, zip_path: str) -> Dict[str, Any]:
         """
-        Main entry point - parse ZIP, categorize files, and analyze with local analyzers
+        Main entry point - parse ZIP, identify projects, analyze each project
         
         Args:
             zip_path: Path to the ZIP file to analyze
             
         Returns:
             Dictionary containing:
-                - zip_metadata: Info about the ZIP file (name, file count, sizes)
-                - file_info: List of file metadata (paths, sizes, hashes)
-                - categorized_contents: Dictionary mapping file types to file paths
-                - analysis_results: Dictionary containing analysis results from each analyzer
-                    {
-                        "documentation": {...results from TextAnalyzer...},
-                        "images": [...results from ImageProcessor...],
-                        "code": [...results from CodeAnalyzer...],
-                        "videos": [...results from VideoAnalyzer...]
-                    }
+                - zip_metadata: Info about the ZIP file
+                - projects: Dictionary where each key is a project name (top-level directory)
+                    Each project contains:
+                        - is_git_repo: bool
+                        - git_analysis: {...} (if Git repo)
+                        - categorized_contents: file categorization
+                        - analysis_results: results from analyzers by file type
         """
         # Validate input
         zip_path = Path(zip_path)
@@ -74,48 +72,32 @@ class ArtifactPipeline:
         
         try:
             # Step 1: Parse ZIP metadata
-            print(f"\n[1/5] Parsing ZIP file metadata...")
+            print(f"\n[1/6] Parsing ZIP file metadata...")
             zip_index = parse_zip(str(zip_path))
             print(f"✓ Parsed {zip_index.file_count} files")
             
             # Step 2: Extract to temporary directory
-            print(f"\n[2/5] Extracting ZIP contents...")
+            print(f"\n[2/6] Extracting ZIP contents...")
             self.temp_dir = Path(tempfile.mkdtemp(prefix="unzipped_"))
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(self.temp_dir)
             print(f"✓ Extracted to: {self.temp_dir}")
             
-            # Step 3: Categorize extracted files
-            print(f"\n[3/5] Categorizing files by type...")
-            categorized_contents = categorize_folder_structure(str(self.temp_dir))
-            print(f"✓ Categorized into {len([k for k in categorized_contents.keys() if k != 'code_by_language'])} categories")
+            # Step 3: Identify top-level projects
+            print(f"\n[3/6] Identifying projects (top-level directories)...")
+            projects = self._identify_projects()
+            print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}")
             
-            # Build file info list
-            file_info = []
-            for entry in zip_index.files:
-                if "__MACOSX" in entry.rel_path or Path(entry.rel_path).name.startswith("._"):
-                    continue
-                extracted_path = self.temp_dir / entry.rel_path
-                if not extracted_path.exists():
-                    continue
-                file_info.append({
-                    "abs_path": str(extracted_path.resolve()),
-                    "rel_path": entry.rel_path,
-                    "size": entry.size,
-                    "compressed_size": entry.compressed_size,
-                    "is_compressed": entry.is_compressed,
-                    "sha256": entry.sha256,
-                    "depth": entry.depth,
-                    "ext": entry.ext,
-                    "is_text_guess": entry.is_text_guess,
-                })
+            # Step 4: Process each project
+            print(f"\n[4/6] Processing each project...")
+            project_results = {}
             
-            # Step 4: Analyze files with appropriate analyzers
-            print(f"\n[4/5] Analyzing files with local analyzers...")
-            analysis_results = self._analyze_categorized_files(categorized_contents)
+            for project_name, project_path in projects.items():
+                print(f"\n  📁 Processing project: {project_name}")
+                project_results[project_name] = self._process_project(project_name, project_path)
             
             # Step 5: Build final result
-            print(f"\n[5/5] Compiling results...")
+            print(f"\n[5/6] Compiling results...")
             result = {
                 "zip_metadata": {
                     "root_name": zip_index.root_name,
@@ -123,12 +105,11 @@ class ArtifactPipeline:
                     "total_uncompressed_bytes": zip_index.total_uncompressed_bytes,
                     "total_compressed_bytes": zip_index.total_compressed_bytes,
                 },
-                "file_info": file_info,
-                "categorized_contents": categorized_contents,
-                "analysis_results": analysis_results
+                "projects": project_results
             }
             
-            # Print summary
+            # Step 6: Print summary
+            print(f"\n[6/6] Generating summary...")
             self._print_summary(result)
             
             return result
@@ -138,6 +119,201 @@ class ArtifactPipeline:
             if self.temp_dir and self.temp_dir.exists():
                 print(f"\n🧹 Cleaning up temporary directory...")
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def _identify_projects(self) -> Dict[str, Path]:
+        """
+        Identify top-level directories as individual projects
+        
+        Handles common ZIP structures where extraction creates a wrapper folder.
+        For example, if demo_projects.zip extracts to:
+          temp_dir/demo_projects/project-mobile/
+          temp_dir/demo_projects/project-webapp/
+        
+        We want to identify project-mobile and project-webapp as projects,
+        not demo_projects itself.
+        
+        Returns:
+            Dictionary mapping project name to project path
+        """
+        projects = {}
+        
+        if not self.temp_dir or not self.temp_dir.exists():
+            return projects
+        
+        # Get all top-level items in the extracted directory
+        top_level_items = []
+        for item in self.temp_dir.iterdir():
+            # Skip hidden files and macOS metadata
+            if item.name.startswith('.') or item.name.startswith('__MACOSX'):
+                continue
+            if item.is_dir():
+                top_level_items.append(item)
+        
+        # Case 1: No directories found - treat temp_dir as single project
+        if not top_level_items:
+            projects['root'] = self.temp_dir
+            return projects
+        
+        # Case 2: Exactly one top-level directory (likely a wrapper folder from ZIP)
+        # Check if it contains subdirectories that should be treated as projects
+        if len(top_level_items) == 1:
+            wrapper_dir = top_level_items[0]
+            subdirs = []
+            
+            # Look for subdirectories inside the wrapper
+            for item in wrapper_dir.iterdir():
+                if item.name.startswith('.') or item.name.startswith('__MACOSX'):
+                    continue
+                if item.is_dir():
+                    subdirs.append(item)
+            
+            # If we found subdirectories, use those as projects
+            if subdirs:
+                for subdir in subdirs:
+                    projects[subdir.name] = subdir
+            else:
+                # No subdirectories, so the wrapper itself is the project
+                projects[wrapper_dir.name] = wrapper_dir
+        
+        # Case 3: Multiple top-level directories - each is a project
+        else:
+            for item in top_level_items:
+                projects[item.name] = item
+        
+        return projects
+    
+    def _process_project(self, project_name: str, project_path: Path) -> Dict[str, Any]:
+        """
+        Process a single project: check Git status, categorize, and analyze
+        
+        Args:
+            project_name: Name of the project
+            project_path: Path to the project directory
+            
+        Returns:
+            Dictionary with project analysis results
+        """
+        result = {
+            "project_name": project_name,
+            "project_path": str(project_path),
+            "is_git_repo": False,
+            "git_analysis": None,
+            "categorized_contents": {},
+            "analysis_results": {}
+        }
+        
+        # Check if this is a Git repository
+        git_dir = project_path / ".git"
+        is_git = git_dir.exists() and git_dir.is_dir()
+        result["is_git_repo"] = is_git
+        
+        if is_git:
+            print(f"     🔍 Git repository detected")
+            print(f"     📊 Running Git analysis...")
+            try:
+                # Run git analysis - we'll analyze all contributors
+                git_analysis = self._analyze_git_project(project_path)
+                result["git_analysis"] = git_analysis
+                
+                # Print appropriate message based on results
+                if git_analysis.get('total_commits', 0) > 0:
+                    contributors = git_analysis.get('total_contributors', 0)
+                    print(f"     ✓ Git analysis complete ({git_analysis['total_commits']} commits, {contributors} contributors)")
+                else:
+                    message = git_analysis.get('message', 'No commits found')
+                    print(f"     ℹ️  {message}")
+            except Exception as e:
+                print(f"     ⚠️  Warning: Git analysis failed: {e}")
+                result["git_analysis"] = {"error": str(e)}
+        else:
+            print(f"     ℹ️  Not a Git repository")
+        
+        # Categorize files in this project
+        print(f"     📁 Categorizing files...")
+        try:
+            categorized_contents = categorize_folder_structure(str(project_path))
+            result["categorized_contents"] = categorized_contents
+            
+            # Count files by type
+            code_count = len(categorized_contents.get('code', []))
+            doc_count = len(categorized_contents.get('documentation', []))
+            img_count = len(categorized_contents.get('images', []))
+            print(f"     ✓ Categorized: {code_count} code, {doc_count} docs, {img_count} images")
+        except Exception as e:
+            print(f"     ✗ Error categorizing files: {e}")
+            result["categorized_contents"] = {"error": str(e)}
+            return result
+        
+        # Analyze files with appropriate analyzers
+        print(f"     🔬 Running file analyzers...")
+        try:
+            analysis_results = self._analyze_categorized_files(categorized_contents)
+            result["analysis_results"] = analysis_results
+            print(f"     ✓ Analysis complete")
+        except Exception as e:
+            print(f"     ✗ Error during analysis: {e}")
+            result["analysis_results"] = {"error": str(e)}
+        
+        return result
+    
+    def _analyze_git_project(self, project_path: Path) -> Dict[str, Any]:
+        """
+        Analyze Git repository to extract contribution metrics
+        
+        Args:
+            project_path: Path to the Git repository
+            
+        Returns:
+            Dictionary with Git analysis results
+        """
+        from src.git._git_utils import iter_commits
+        
+        # Get all commits to identify contributors
+        try:
+            all_commits = list(iter_commits(project_path))
+        except Exception as e:
+            return {
+                "total_commits": 0,
+                "contributors": [],
+                "message": f"Unable to read Git history: {str(e)}"
+            }
+        
+        if not all_commits:
+            return {
+                "total_commits": 0,
+                "contributors": [],
+                "message": "Git repository is empty (no commits yet)"
+            }
+        
+        # Identify unique contributors
+        contributors_set = set()
+        for commit in all_commits:
+            contributors_set.add((commit["author_name"], commit["author_email"]))
+        
+        # Analyze each contributor
+        contributor_analyses = []
+        for name, email in contributors_set:
+            try:
+                # Use email as identifier (preferred)
+                contrib_summary = summarize_author_contrib(
+                    project_path,
+                    email,
+                    prefer_email=True,
+                    fuzzy=False
+                )
+                contributor_analyses.append(contrib_summary)
+            except Exception as e:
+                print(f"        ⚠️  Could not analyze contributor {name}: {e}")
+                continue
+        
+        # Sort contributors by commit count
+        contributor_analyses.sort(key=lambda x: x["commits"], reverse=True)
+        
+        return {
+            "total_commits": len(all_commits),
+            "total_contributors": len(contributor_analyses),
+            "contributors": contributor_analyses
+        }
     
     def _analyze_categorized_files(self, categorized_contents: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -267,66 +443,84 @@ class ArtifactPipeline:
         print(f"   • Uncompressed size: {self._format_bytes(zip_meta.get('total_uncompressed_bytes', 0))}")
         print(f"   • Compressed size: {self._format_bytes(zip_meta.get('total_compressed_bytes', 0))}")
         
-        # Categorization summary
-        categorized = result.get('categorized_contents', {})
-        print(f"\n📁 Categorization Summary:")
-        print(f"   • Code files: {len(categorized.get('code', []))}")
+        # Projects summary
+        projects = result.get('projects', {})
+        print(f"\n📦 Projects Found: {len(projects)}")
         
-        # Show languages breakdown
-        code_by_lang = categorized.get('code_by_language', {})
-        if code_by_lang:
-            print(f"     Languages detected:")
-            for lang, files in sorted(code_by_lang.items(), key=lambda x: len(x[1]), reverse=True):
-                print(f"       - {lang}: {len(files)} files")
-        
-        print(f"   • Documentation files: {len(categorized.get('documentation', []))}")
-        print(f"   • Image files: {len(categorized.get('images', []))}")
-        print(f"   • Sketch files: {len(categorized.get('sketches', []))}")
-        print(f"   • Other files: {len(categorized.get('other', []))}")
-        
-        # Analysis summary
-        analysis = result.get('analysis_results', {})
-        print(f"\n🔍 Analysis Summary:")
-        
-        # Documentation analysis
-        doc_analysis = analysis.get('documentation')
-        if doc_analysis and doc_analysis is not None and 'error' not in doc_analysis:
-            totals = doc_analysis.get('totals', {})
-            print(f"   • Documentation:")
-            print(f"     - {totals.get('total_files', 0)} files analyzed")
-            print(f"     - {totals.get('total_words', 0):,} total words")
-            print(f"     - {totals.get('total_reading_time_minutes', 0):.1f} minutes reading time")
-        
-        # Image analysis
-        img_analysis = analysis.get('images')
-        if img_analysis and img_analysis is not None and 'error' not in img_analysis:
-            print(f"   • Images:")
-            print(f"     - {len(img_analysis)} files analyzed")
-            if img_analysis:
-                total_size = sum(img.get('file_stats', {}).get('size_mb', 0) for img in img_analysis)
-                print(f"     - {total_size:.2f} MB total size")
-        
-        # Code analysis
-        code_analysis = analysis.get('code')
-        if code_analysis and code_analysis is not None and 'error' not in code_analysis:
-            metrics = code_analysis.get('metrics', {})
-            print(f"   • Code:")
-            print(f"     - {metrics.get('total_files', 0)} files analyzed")
-            print(f"     - {metrics.get('total_lines', 0):,} total lines of code")
-            langs = metrics.get('languages', [])
-            if langs:
-                print(f"     - Languages: {', '.join(langs)}")
-            frameworks = metrics.get('frameworks', [])
-            if frameworks:
-                print(f"     - Frameworks: {', '.join(frameworks[:5])}")
-        
-        # Video analysis
-        video_analysis = analysis.get('videos')
-        if video_analysis and video_analysis is not None and 'error' not in video_analysis:
-            metrics = video_analysis.get('metrics', {})
-            print(f"   • Videos:")
-            print(f"     - {metrics.get('total_videos', 0)} files analyzed")
-            print(f"     - {metrics.get('total_duration', 0):.1f} seconds total duration")
+        for project_name, project_data in projects.items():
+            print(f"\n{'─'*70}")
+            print(f"📁 Project: {project_name}")
+            print(f"{'─'*70}")
+            
+            # Git status
+            is_git = project_data.get('is_git_repo', False)
+            if is_git:
+                print(f"   🔍 Git Repository: YES")
+                git_analysis = project_data.get('git_analysis', {})
+                if git_analysis and 'error' not in git_analysis:
+                    print(f"      • Total commits: {git_analysis.get('total_commits', 0)}")
+                    print(f"      • Contributors: {git_analysis.get('total_contributors', 0)}")
+                    
+                    # Show top 3 contributors
+                    contributors = git_analysis.get('contributors', [])
+                    if contributors:
+                        print(f"      • Top contributors:")
+                        for i, contrib in enumerate(contributors[:3], 1):
+                            author = contrib.get('author', {})
+                            commits = contrib.get('commits', 0)
+                            print(f"         {i}. {author.get('name', 'Unknown')} ({commits} commits)")
+            else:
+                print(f"   🔍 Git Repository: NO")
+            
+            # Categorization summary
+            categorized = project_data.get('categorized_contents', {})
+            if categorized and 'error' not in categorized:
+                print(f"\n   📁 File Categorization:")
+                print(f"      • Code files: {len(categorized.get('code', []))}")
+                
+                # Show languages breakdown
+                code_by_lang = categorized.get('code_by_language', {})
+                if code_by_lang:
+                    print(f"        Languages detected:")
+                    for lang, files in sorted(code_by_lang.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
+                        print(f"          - {lang}: {len(files)} files")
+                
+                print(f"      • Documentation files: {len(categorized.get('documentation', []))}")
+                print(f"      • Image files: {len(categorized.get('images', []))}")
+                print(f"      • Video files: {len([f for f in categorized.get('other', []) if Path(f).suffix.lower() in self.VIDEO_EXTENSIONS])}")
+            
+            # Analysis summary
+            analysis = project_data.get('analysis_results', {})
+            if analysis and 'error' not in analysis:
+                print(f"\n   🔬 Analysis Results:")
+                
+                # Documentation analysis
+                doc_analysis = analysis.get('documentation')
+                if doc_analysis and doc_analysis is not None and 'error' not in doc_analysis:
+                    totals = doc_analysis.get('totals', {})
+                    print(f"      • Documentation: {totals.get('total_files', 0)} files, {totals.get('total_words', 0):,} words")
+                
+                # Image analysis
+                img_analysis = analysis.get('images')
+                if img_analysis and img_analysis is not None and 'error' not in img_analysis:
+                    total_size = sum(img.get('file_stats', {}).get('size_mb', 0) for img in img_analysis)
+                    print(f"      • Images: {len(img_analysis)} files, {total_size:.2f} MB")
+                
+                # Code analysis
+                code_analysis = analysis.get('code')
+                if code_analysis and code_analysis is not None and 'error' not in code_analysis:
+                    metrics = code_analysis.get('metrics', {})
+                    print(f"      • Code: {metrics.get('total_files', 0)} files, {metrics.get('total_lines', 0):,} lines")
+                    langs = metrics.get('languages', [])
+                    if langs:
+                        print(f"        Languages: {', '.join(langs)}")
+                
+                # Video analysis
+                video_analysis = analysis.get('videos')
+                if video_analysis and video_analysis is not None and 'error' not in video_analysis:
+                    metrics = video_analysis.get('metrics', {})
+                    duration = metrics.get('total_duration', 0)
+                    print(f"      • Videos: {metrics.get('total_videos', 0)} files, {duration:.1f}s duration")
         
         print(f"\n{'='*70}\n")
     
@@ -357,33 +551,55 @@ def main():
         pipeline = ArtifactPipeline()
         result = pipeline.start(zip_path)
         
-        # Print detailed analysis results
+        # Print detailed analysis results by project
         print("\n" + "="*70)
-        print("📋 DETAILED ANALYSIS RESULTS")
+        print("📋 DETAILED ANALYSIS RESULTS BY PROJECT")
         print("="*70)
         
-        analysis = result.get('analysis_results', {})
+        projects = result.get('projects', {})
         
-        # Documentation Analysis Details
-        if analysis.get('documentation'):
+        for project_name, project_data in projects.items():
+            print("\n" + "="*70)
+            print(f"PROJECT: {project_name}")
+            print("="*70)
+            
+            # Git Analysis
+            if project_data.get('is_git_repo'):
+                git_analysis = project_data.get('git_analysis', {})
+                print("\n" + "-"*70)
+                print("🔍 GIT ANALYSIS")
+                print("-"*70)
+                if git_analysis:
+                    if 'error' in git_analysis:
+                        print(f"Error: {git_analysis['error']}")
+                    else:
+                        print(json.dumps(git_analysis, indent=2))
+                else:
+                    print("No Git analysis data available")
+            
+            # File Analysis Results
+            analysis = project_data.get('analysis_results', {})
+            
             print("\n" + "-"*70)
             print("📄 DOCUMENTATION ANALYSIS")
             print("-"*70)
-            doc_data = analysis['documentation']
-            if 'error' in doc_data:
+            doc_data = analysis.get('documentation')
+            if doc_data is None:
+                print("No documentation files to analyze")
+            elif isinstance(doc_data, dict) and 'error' in doc_data:
                 print(f"Error: {doc_data['error']}")
             else:
                 print(json.dumps(doc_data, indent=2))
-        
-        # Image Analysis Details
-        if analysis.get('images'):
+            
             print("\n" + "-"*70)
             print("🖼️  IMAGE ANALYSIS")
             print("-"*70)
-            img_data = analysis['images']
-            if 'error' in img_data:
+            img_data = analysis.get('images')
+            if img_data is None:
+                print("No image files to analyze")
+            elif isinstance(img_data, dict) and 'error' in img_data:
                 print(f"Error: {img_data['error']}")
-            else:
+            elif img_data:
                 # Print summary for each image (full output can be very large)
                 for i, img in enumerate(img_data, 1):
                     print(f"\n[Image {i}] {img.get('file_name', 'unknown')}")
@@ -392,28 +608,44 @@ def main():
                     print(f"  Format: {img.get('format', {}).get('format', 'unknown')}")
                     content = img.get('content_classification', {})
                     print(f"  Type: {content.get('primary_type', 'unknown')}")
-        
-        # Code Analysis Details
-        if analysis.get('code'):
+            else:
+                print("No image files found")
+            
             print("\n" + "-"*70)
             print("💻 CODE ANALYSIS")
             print("-"*70)
-            code_data = analysis['code']
-            if 'error' in code_data:
+            code_data = analysis.get('code')
+            if code_data is None:
+                print("No code files to analyze")
+            elif isinstance(code_data, dict) and 'error' in code_data:
                 print(f"Error: {code_data['error']}")
+            elif code_data:
+                # Print individual file analyses
+                files = code_data.get('files', [])
+                if files:
+                    print(f"Individual File Analysis ({len(files)} files):")
+                    print(json.dumps(files, indent=2))
+                
+                # Print aggregate metrics summary
+                metrics = code_data.get('metrics', {})
+                print(f"\n{'─'*70}")
+                print("Aggregate Metrics Summary:")
+                print(json.dumps(metrics, indent=2))
             else:
-                print(json.dumps(code_data, indent=2))
-        
-        # Video Analysis Details
-        if analysis.get('videos'):
+                print("No code files found")
+            
             print("\n" + "-"*70)
             print("🎥 VIDEO ANALYSIS")
             print("-"*70)
-            video_data = analysis['videos']
-            if 'error' in video_data:
+            video_data = analysis.get('videos')
+            if video_data is None:
+                print("No video files to analyze")
+            elif isinstance(video_data, dict) and 'error' in video_data:
                 print(f"Error: {video_data['error']}")
-            else:
+            elif video_data:
                 print(json.dumps(video_data, indent=2))
+            else:
+                print("No video files found")
         
         print("\n" + "="*70)
         print("✅ Analysis Complete - All results printed above")
