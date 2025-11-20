@@ -10,7 +10,10 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     libzbar0 \
     sqlite3 \
-    libsqlite3-dev
+    libsqlite3-dev \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    git
 
 # Upgrade pip and related tools
 RUN pip install --upgrade pip setuptools wheel
