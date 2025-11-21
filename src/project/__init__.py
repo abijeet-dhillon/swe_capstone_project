@@ -10,6 +10,12 @@ from .aggregator import (
     compute_preliminary_score,
     to_dict,
 )
+from .top_summary import (
+    rank_projects,
+    generate_summary,
+    generate_summaries,
+    to_format,
+)
 
 __all__ = [
     "ProjectInfo",
@@ -19,5 +25,9 @@ __all__ = [
     "compute_rank_inputs",
     "compute_preliminary_score",
     "to_dict",
+    "rank_projects",
+    "generate_summary",
+    "generate_summaries",
+    "to_format",
 ]
 
