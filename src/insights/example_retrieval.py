@@ -72,26 +72,26 @@ def video_summary(analysis: Dict[str, Any]) -> Tuple[int, float]:
 
 
 def print_project_summary(project_name: str, payload: Dict[str, Any]) -> None:
-    print("\n" + "─" * 70)
-    print(f"📁 Project: {project_name}")
-    print("─" * 70)
+    print("\n" + "-" * 70)
+    print(f"Project: {project_name}")
+    print("-" * 70)
 
     is_git = payload.get("is_git_repo", False)
-    print(f"   🔍 Git Repository: {'YES' if is_git else 'NO'}")
+    print(f"   Git Repository: {'YES' if is_git else 'NO'}")
 
     categorized = payload.get("categorized_contents", {})
-    print("\n   📁 File Categorization:")
+    print("\n   File Categorization:")
     code_files = len(categorized.get("code", []))
     doc_files = len(categorized.get("documentation", []))
     image_files = len(categorized.get("images", []))
     lang_counts = describe_languages(categorized)
-    print(f"      • Code files: {code_files}")
+    print(f"      - Code files: {code_files}")
     if lang_counts:
         print("        Languages detected:")
         for lang, count in lang_counts[:5]:
             print(f"          - {lang}: {count} files")
-    print(f"      • Documentation files: {doc_files}")
-    print(f"      • Image files: {image_files}")
+    print(f"      - Documentation files: {doc_files}")
+    print(f"      - Image files: {image_files}")
     video_ext_count = len(
         [
             path
@@ -99,20 +99,20 @@ def print_project_summary(project_name: str, payload: Dict[str, Any]) -> None:
             if Path(path).suffix.lower() in ArtifactVideoHint.EXTENSIONS
         ]
     )
-    print(f"      • Video files: {video_ext_count}")
+    print(f"      - Video files: {video_ext_count}")
 
     analysis = payload.get("analysis_results", {})
-    print("\n   🔬 Analysis Results:")
+    print("\n   Analysis Results:")
     doc_files_count, doc_words = doc_summary(analysis)
-    print(f"      • Documentation: {doc_files_count} files, {doc_words} words")
+    print(f"      - Documentation: {doc_files_count} files, {doc_words} words")
     img_count, img_size = image_summary(analysis)
-    print(f"      • Images: {img_count} files, {img_size:.2f} MB")
+    print(f"      - Images: {img_count} files, {img_size:.2f} MB")
     code_count, code_lines, languages = code_summary(analysis)
     langs_display = ", ".join(languages) if languages else "N/A"
-    print(f"      • Code: {code_count} files, {code_lines} lines")
+    print(f"      - Code: {code_count} files, {code_lines} lines")
     print(f"        Languages: {langs_display}")
     video_count, duration = video_summary(analysis)
-    print(f"      • Videos: {video_count} files, {duration:.1f}s duration")
+    print(f"      - Videos: {video_count} files, {duration:.1f}s duration")
 
 
 def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) -> None:
@@ -128,7 +128,7 @@ def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) ->
     analysis = payload.get("analysis_results", {})
 
     print("\n" + "-" * 70)
-    print("📄 DOCUMENTATION ANALYSIS")
+    print("DOCUMENTATION ANALYSIS")
     print("-" * 70)
     doc_data = analysis.get("documentation")
     if doc_data is None:
@@ -139,7 +139,7 @@ def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) ->
         print(json.dumps(doc_data, indent=2))
 
     print("\n" + "-" * 70)
-    print("🖼️  IMAGE ANALYSIS")
+    print("IMAGE ANALYSIS")
     print("-" * 70)
     img_data = analysis.get("images")
     if img_data is None:
@@ -160,7 +160,7 @@ def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) ->
         print("No image files found")
 
     print("\n" + "-" * 70)
-    print("💻 CODE ANALYSIS")
+    print("CODE ANALYSIS")
     print("-" * 70)
     code_data = analysis.get("code")
     if code_data is None:
@@ -173,14 +173,14 @@ def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) ->
             print(f"Individual File Analysis ({len(files)} files):")
             print(json.dumps(files, indent=2))
         metrics = code_data.get("metrics", {})
-        print("\n" + "─" * 70)
+        print("\n" + "-" * 70)
         print("Aggregate Metrics Summary:")
         print(json.dumps(metrics, indent=2))
     else:
         print("No code files found")
 
     print("\n" + "-" * 70)
-    print("🎥 VIDEO ANALYSIS")
+    print("VIDEO ANALYSIS")
     print("-" * 70)
     video_data = analysis.get("videos")
     if video_data is None:
@@ -233,51 +233,53 @@ def main() -> None:
     misc_payload = payloads.pop("_misc_files", None)
 
     print("\n" + "=" * 70)
-    print("✅ Data Retrieval Complete!")
+    print("Retrieval From Database")
     print("=" * 70)
 
-    print("\n📊 ZIP Summary:")
-    print(f"   • Total files: {metadata.get('file_count', 0)}")
-    print(f"   • Uncompressed size: {format_bytes(metadata.get('total_uncompressed_bytes', 0))}")
-    print(f"   • Compressed size: {format_bytes(metadata.get('total_compressed_bytes', 0))}")
+    print("\nZIP Summary:")
+    print(f"   - Total files: {metadata.get('file_count', 0)}")
+    print(f"   - Uncompressed size: {format_bytes(metadata.get('total_uncompressed_bytes', 0))}")
+    print(f"   - Compressed size: {format_bytes(metadata.get('total_compressed_bytes', 0))}")
 
-    print(f"\n📦 Projects Found: {len(payloads)}")
+    print(f"\nProjects Found: {len(payloads)}")
     if misc_payload:
         loose_count = count_misc_files(misc_payload)
-        print(f"📂 Miscellaneous Files: Yes ({loose_count} loose files)")
+        print(f"Miscellaneous Files: Yes ({loose_count} loose files)")
     else:
-        print("📂 Miscellaneous Files: No")
+        print("Miscellaneous Files: No")
 
     for project_name, data in payloads.items():
         print_project_summary(project_name, data)
 
     if misc_payload:
-        print("\n" + "─" * 70)
-        print("📂 Miscellaneous Files (not in any project)")
-        print("─" * 70)
+        print("\n" + "-" * 70)
+        print("Miscellaneous Files (not in any project)")
+        print("-" * 70)
         categorized = misc_payload.get("categorized_contents", {})
-        print("\n   📁 File Categorization:")
-        print(f"      • Code files: {len(categorized.get('code', []))}")
+        print("\n   File Categorization:")
+        print(f"      - Code files: {len(categorized.get('code', []))}")
         code_langs = describe_languages(categorized)
         if code_langs:
             print("        Languages detected:")
             for lang, count in code_langs[:5]:
                 print(f"          - {lang}: {count} files")
-        print(f"      • Documentation files: {len(categorized.get('documentation', []))}")
-        print(f"      • Image files: {len(categorized.get('images', []))}")
+        print(f"      - Documentation files: {len(categorized.get('documentation', []))}")
+        print(f"      - Image files: {len(categorized.get('images', []))}")
         print(
-            f"      • Video files: {len([p for p in categorized.get('other', []) if Path(p).suffix.lower() in ArtifactVideoHint.EXTENSIONS])}"
+            f"      - Video files: {len([p for p in categorized.get('other', []) if Path(p).suffix.lower() in ArtifactVideoHint.EXTENSIONS])}"
         )
 
         analysis = misc_payload.get("analysis_results", {})
-        print("\n   🔬 Analysis Results:")
+        print("\n   Analysis Results:")
         doc_files_count, doc_words = doc_summary(analysis)
-        print(f"      • Documentation: {doc_files_count} files, {doc_words} words")
+        print(f"      - Documentation: {doc_files_count} files, {doc_words} words")
         code_count, code_lines, _ = code_summary(analysis)
-        print(f"      • Code: {code_count} files, {code_lines} lines")
+        print(f"      - Code: {code_count} files, {code_lines} lines")
+
+    print("\nCleaning up temporary directory...\n")
 
     print("\n" + "=" * 70)
-    print("📋 DETAILED ANALYSIS RESULTS BY PROJECT")
+    print("DETAILED ANALYSIS RESULTS BY PROJECT")
     print("=" * 70)
 
     for project_name, data in payloads.items():
@@ -286,7 +288,9 @@ def main() -> None:
     if misc_payload:
         print_detailed_project_output("_misc_files", misc_payload)
 
-    print("\n" + "🧹 Cleaning up temporary directory...\n")
+    print("\n" + "=" * 70)
+    print("Retrieval Complete - All results printed above")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
