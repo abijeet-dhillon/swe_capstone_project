@@ -8,56 +8,54 @@
 [Week 8 Individual Logs](#week-8)<br>
 [Week 9 Individual Logs](#week-9)<br>
 [Week 10 Individual Logs](#week-10)<br>
-[Week 11 Individual Logs](#week-11)
+[Week 12 Individual Logs](#week-12)
 
 ---
 
-## Week 11
+## Week 12
 
-### November 10 2025 to November 16 2025
+### November 10 2025 to November 23 2025
 
 ### 1. Type of Tasks Worked On
 
-![Abijeet Dhillon Week 11 Task Types Screenshot]()
-
-> Not available since there wasn't a weekly evaluation available for this.
+![Abijeet Dhillon Week 12 Task Types Screenshot]()
 
 ---
 
 ### 2. Recap of Weekly Goals
 
-This week, I focused primarily on database integration, backend improvements, and ensuring strong test coverage across updated components. I began work on fully integrating user configuration persistence into the SQLite database, wiring the config manager to support save/load/update operations through the backend. I also verified database behavior by running manual SQL checks and refining tests to validate schema correctness and config loading flows. In parallel, I reviewed my teammate’s PR, provided feedback, and participated in team meetings to plan the next stage of pipeline integration. Overall, my work this week pushed our backend closer to having a unified and persistent configuration layer ready for pipeline integration.
+This week (and last week since it was reading week/week 11), I focused primarily on database integration, backend improvements, and ensuring strong test coverage across updated components. I continued integrating user configuration persistence into the SQLite database, wiring the config manager so configs can be saved, loaded, and updated through the backend, and verifying behavior with manual SQL checks and schema-focused tests. In parallel, I implemented an encrypted SQLite-backed insights store on top of the artifact pipeline so each orchestrator run now automatically writes its ZIP-level and per-project summaries into the new zipfile and project tables in data/app.db via ProjectInsightsStore. I validated this end-to-end flow by running the pipeline in Docker with INSIGHTS_ENCRYPTION_KEY/DATABASE_URL set, inspecting the written rows with sqlite3, using the example retrieval CLI to replay stored runs without re-running analysis, and exercising the backup/restore helpers to confirm we can safely move DB snapshots between environments. I also updated the database schema and insights docs to explain how to persist, retrieve, and back up results, and reviewed my teammates' PRs (3 of them) and participated in team meetings to plan the next stage of pipeline integration. Overall, my work this week pushed our backend closer to a unified, encrypted, and persistent configuration and insights layer ready for pipeline integration.
 
 ---
 
 ### 3. Features Owned in Project Plan
 
-- Setting Up SQL DB (#107)
+- Store Project Insights (#30)
 - Integrate User Configs Into SQLite Database (#127)
 
 ---
 
 ### 4. Tasks from Project Board Associated with These Features
 
-- Setting Up SQL DB (#107)
+- Store Project Insights (#30)
 - Integrate User Configs Into SQLite Database (#127)
 
 ---
 
 ### 5. Tasks Completed / In Progress in the Last 2 Weeks
 
-| Task ID | Issue Title                                 | Status    | Notes                                                                                                                        |
-| ------- | ------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 107     | Setting Up SQL DB                           | Completed | Implemented a persistent SQLite database into the backend service and mounted it as a Docker volume.                         |
-| 127     | Integrate User Configs Into SQLite Database | Completed | Implemented complete end-to-end support for saving, loading, and updating user configuration data using our SQLite database. |
+| Task ID | Issue Title                                 | Status    | Notes                                                                                                                                                                                                                               |
+| ------- | ------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 30      | Store Project Insights                      | Completed | Implemented an **encrypted SQLite-backed ProjectInsightsStore** and wired the pipeline orchestrator to persist each run into `zipfile` and `project` tables in `data/app.db`, including a retrieval CLI and backup/restore helpers. |
+| 127     | Integrate User Configs Into SQLite Database | Completed | Integrated full user configuration persistence into SQLite via the config manager, enabling save/load/update operations from the backend/CLI and adding tests to validate schema, migrations, and config loading flows.             |
 
 ---
 
 ### 6. Future Cycle Plans & Reflection On This Week
 
-Next week, I will begin working on Store Project Insights (#30), which focuses on creating a secure and scalable system for persisting project insights in our backend. My goals for the upcoming cycle include implementing the initial SQLite schema for insights, setting up encrypted storage for sensitive fields, and designing the incremental update workflow so that insights can be appended or modified over time. I will also start drafting the backup/restore workflow, ensuring we can export and reload insight data reliably. Depending on progress, I may also begin adding validation logic and evaluating whether data compression or retention policies are necessary for larger datasets.
+Next week, I plan to work closely with my teammates to wrap up all of our components and ensure the system is ready for Milestone 1. This will include tightening the integration points between the pipeline orchestrator, the encrypted insights store, and the user config layer, and doing end-to-end runs to verify everything behaves correctly under Docker. Depending on how similar the data shapes are, I may also start wiring the LLM’s analysis output into the existing “store project insights” path so that both local analyzers and LLM-generated insights are persisted in a consistent way.
 
-From a personal standpoint, this week was productive—despite it being reading week, I completed the full user config integration and maintained code quality and test coverage. Now that reading week is coming to a close, I expect to have more consistent availability next week to tackle this larger feature.
+This week was good overall—I was able to finish the user config integration work and land the core of the insights storage flow while keeping tests and documentation up to date. Getting these foundational pieces in place makes me feel confident about our architecture, and I’m excited to push through Milestone 1 with a system that already feels robust and extensible.
 
 ---
 
