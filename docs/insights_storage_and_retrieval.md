@@ -97,15 +97,50 @@ Miscellaneous Files: Yes (2 loose files)
 
 The script reconstructs both the high-level summary (projects, file counts, analyses) and the detailed per-project sections you see during a live pipeline run, but without any Unicode emojis so logs stay ASCII-friendly.
 
-### Verifying the CLI
+### Full Testing Workflow (from repo root)
 
-Run the focused pytest suite to validate both the storage layer and the retrieval CLI:
+1. **Build and start the backend container**
+   ```bash
+   docker compose build backend
+   docker compose up -d backend
+   ```
 
-```bash
-PYTHONPATH=. pytest tests/insights -q --cov=src/insights --cov-report=term-missing
-```
+2. **Run the pipeline to persist insights** (using the demo ZIP; swap for your own)
+   ```bash
+   docker compose run --rm \
+     -e INSIGHTS_ENCRYPTION_KEY=<your-hex-key> \
+     -e DATABASE_URL=sqlite:///data/app.db \
+     backend \
+     python -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
+   ```
 
-This keeps coverage above 80% for `src/insights/storage.py` and `src/insights/example_retrieval.py`.
+3. **Inspect the database via sqlite3**
+   ```bash
+   docker compose run --rm backend sqlite3 data/app.db
+   ```
+   Inside the `sqlite>` prompt you can verify or explore:
+   ```
+   .tables
+   SELECT zip_hash, total_projects FROM zipfile;
+   .quit
+   ```
+
+4. **Retrieve stored insights from the DB**
+   ```bash
+   docker compose run --rm \
+     -e INSIGHTS_ENCRYPTION_KEY=<your-hex-key> \
+     backend \
+     python -m src.insights.example_retrieval --db-path data/app.db
+   ```
+   Use `--zip-hash <hash>` if you want to target a specific stored run.
+
+5. **Run the insights pytest suite**
+   ```bash
+   PYTHONPATH=. pytest tests/insights -q
+   PYTHONPATH=. pytest tests/insights -q --cov=src/insights --cov-report=term-missing
+   ```
+
+These steps cover the entire flow (store, inspect, retrieve, regressions) and ensure coverage stays above 80% for the new modules.
 
 ---
 
