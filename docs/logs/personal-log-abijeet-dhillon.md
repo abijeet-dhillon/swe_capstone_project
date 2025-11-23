@@ -18,7 +18,7 @@
 
 ### 1. Type of Tasks Worked On
 
-![Abijeet Dhillon Week 12 Task Types Screenshot]()
+![Abijeet Dhillon Week 12 Task Types Screenshot](images/abijeetdhillon_week12_tasks.png)
 
 ---
 
