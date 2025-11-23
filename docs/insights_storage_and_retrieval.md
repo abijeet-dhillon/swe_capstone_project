@@ -100,12 +100,14 @@ The script reconstructs both the high-level summary (projects, file counts, anal
 ### Full Testing Workflow (from repo root)
 
 1. **Build and start the backend container**
+
    ```bash
    docker compose build backend
    docker compose up -d backend
    ```
 
 2. **Run the pipeline to persist insights** (using the demo ZIP; swap for your own)
+
    ```bash
    docker compose run --rm \
      -e INSIGHTS_ENCRYPTION_KEY=<your-hex-key> \
@@ -115,10 +117,13 @@ The script reconstructs both the high-level summary (projects, file counts, anal
    ```
 
 3. **Inspect the database via sqlite3**
+
    ```bash
    docker compose run --rm backend sqlite3 data/app.db
    ```
+
    Inside the `sqlite>` prompt you can verify or explore:
+
    ```
    .tables
    SELECT zip_hash, total_projects FROM zipfile;
@@ -126,18 +131,20 @@ The script reconstructs both the high-level summary (projects, file counts, anal
    ```
 
 4. **Retrieve stored insights from the DB**
+
    ```bash
    docker compose run --rm \
      -e INSIGHTS_ENCRYPTION_KEY=<your-hex-key> \
      backend \
      python -m src.insights.example_retrieval --db-path data/app.db
    ```
+
    Use `--zip-hash <hash>` if you want to target a specific stored run.
 
 5. **Run the insights pytest suite**
    ```bash
-   PYTHONPATH=. pytest tests/insights -q
-   PYTHONPATH=. pytest tests/insights -q --cov=src/insights --cov-report=term-missing
+   docker compose run --rm backend pytest tests/insights -q
+   docker compose run --rm backend pytest tests/insights -q --cov=src/insights --cov-report=term-
    ```
 
 These steps cover the entire flow (store, inspect, retrieve, regressions) and ensure coverage stays above 80% for the new modules.
