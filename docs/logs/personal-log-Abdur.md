@@ -6,6 +6,7 @@
 1. [Week 7](#week-7)
 1. [Week 8](#week-8)
 1. [Week 9](#week-9)
+1. [Week 10](#week-10)
 
 ## Week 3 
 
@@ -318,3 +319,49 @@ This section outlines the individual log for week 10
 - Add visualization tools to represent detected skills and code quality metrics.  
 - Enhance configuration flexibility (language detection thresholds, rule customization).  
 - Prepare branch for peer review and merge into the main development pipeline.
+
+## Week 12
+This section outlines the individual log for week 12
+
+### November 17 – November 23
+
+### Tasks
+![](images/abdur-week12.png)
+
+### Weekly Goals
+
+1. **My Features:**
+   - Implement a fully deterministic **project ranking and summary generation module** for `ProjectInfo` objects.  
+   - Support flexible ranking criteria (`score`, `recency`, `commits`, `loc`, `impact`) while enforcing 3–5 item output limits.  
+   - Produce concise, multi-format summaries (JSON, CSV, text) with consistent structure and no GenAI usage.  
+
+2. **Associated Tasks:**
+   - Build and refine `rank_projects`, `generate_summary`, `generate_summaries`, and `to_format`.  
+   - Ensure summaries include key metrics (commits, LOC, duration, languages, recency, contributor highlights).  
+   - Add comprehensive tests verifying:  
+     - Correct ranking behavior and clamped output sizes  
+     - Differences across ranking criteria  
+     - Summary length limits  
+     - Consistent formatting for JSON/CSV/Text  
+     - Proper recency based ordering  
+   - Update exports in `src/project/__init__.py`.
+
+### Reflection Points
+
+**What went well:**  
+- Completed the ranking and summary module with clean, predictable behavior.  
+- Achieved thorough test coverage across ranking logic, formatting, and length constraints.  
+- Summary outputs are consistently structured and easy to integrate downstream.  
+
+
+**What didn’t go well:**  
+- Ensuring all criteria produced meaningful ordering differences required iterative tuning.  
+- Summary truncation edge cases needed refinement to avoid awkward sentence breaks.
+
+### Planning Activities for Next Cycle
+
+**Week 13 Goals:**  
+- Finish remaining pipeline work and integrate the new ranking/summary module where applicable.  
+- Begin completing **Milestone 1** with a focus on stability and end-to-end workflow validation.  
+- Add any missing tests required for integration with upstream components.  
+- Prepare the branch for review and merging into the main pipeline.
