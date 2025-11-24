@@ -618,3 +618,134 @@ How this informs us for the next cycle:
 - We need to establish consistent data schemas across all analyzers to ensure smooth aggregation and report generation.
 - End-to-end testing should become a priority as we move from individual components to integrated system functionality.
 - With core infrastructure in place, we can shift focus toward user-facing features: API endpoints, report generation, and frontend development.
+
+
+
+## Week 11 and Week 12
+
+### November 10 2025 to November 23 2025
+
+### 1. Milestone Goals Recap
+
+This two-week cycle focused on completing the final core components of the analysis pipeline, integrating advanced skill extraction, expanding database persistence, refactoring the orchestrator into a project-centric architecture, developing contribution aggregation and ranking tools, and generating presentation-ready project summaries.  
+
+Key milestone goals included:
+- Complete integration of user configs, project insights, and pipeline outputs into the SQLite persistence layer
+- Expand advanced skill extraction with deep CS concept detection across multiple languages
+- Refactor the pipeline architecture to support multi-project ZIPs and orchestrate analyzers in a project-centric workflow
+- Build contribution aggregation, ranking, and scoring components for project metrics
+- Generate portfolio and résumé items for each analyzed project  
+- Add ranking and summary generation modules to support later reporting and UI layers  
+
+---
+
+### 2. Burnup Chart
+
+![Burnup Chart For Week 11/12](images/week12-burnup.png)
+
+---
+
+### 3. Username → Student Name Mapping
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| mishgGavura     | Misha Gavura    |
+
+---
+
+### 4. Completed / In Progress Tasks
+
+![Kanban Board for Week 11/12](images/week12-tasks.png)
+
+| Task ID | Issue Title                                              | Username        | Associated Feature                        | Status     |
+| ------- | --------------------------------------------------------- | --------------- | ------------------------------------------ | ---------- |
+| 144     | Deep CS Concept Detection for Skill Extractor             | Malik-Abhinav   | Advanced Skill Extractor                   | Completed  |
+| 30      | Store Project Insights                                    | abijeet-dhillon | Database Insights Layer                    | Completed  |
+| 127     | Integrate User Configs Into SQLite Database               | abijeet-dhillon | Config Persistence                         | Completed  |
+| –       | Orchestrator Refactoring & Multi-Project Detection        | kmerchant1      | Pipeline Architecture                      | Completed  |
+| –       | Git Repository Integration into Pipeline                  | kmerchant1      | Git Analyzer Integration                   | Completed  |
+| –       | Connect Local Analyzer Components to Orchestrator         | kmerchant1      | Pipeline Integration                       | Completed  |
+| –       | Generate Portfolio and Resume Data                        | tahsinj         | Presentation Generator                     | Completed  |
+| –       | Extract Key Contribution Metrics                          | tahsinj         | Contribution Aggregator                    | Completed  |
+| –       | Ranking and Summary Generation Module                     | abdur026        | Project Ranking & Summaries                | Completed  |
+
+---
+
+### 5. Test Report
+
+All automated tests for new and updated modules passed successfully.
+
+- **Advanced Skill Extractor**  
+  Updated and validated across multi-language OOP, functional, architectural, and algorithmic detections. All previous tests updated for deterministic behavior.
+
+- **Database Layer (Insights + Configs)**  
+  Schema, migrations, CRUD operations, encryption flow, backup/restore features, and end-to-end persistence tests all passing.
+
+- **Pipeline Orchestrator Refactor**  
+  Verified project detection, analyzer routing, Git repo handling, error handling, and multi-project ZIP outputs. All integration tests passing.
+
+- **Contribution Aggregator & Presentation Generators**  
+  33 tests validating portfolio/resume output, structured fields, tagline generation, and truncation logic all passing.
+
+- **Project Ranking & Summary Module**  
+  Full suite confirming ranking criteria, output limits, recency sorting, and JSON/CSV/Text formatting.
+
+All components were validated manually inside Docker and via CLI tools to confirm real-environment correctness.
+
+---
+
+### 6. Additional Context
+
+This two-week sprint represents one of the most significant integration phases so far, advancing the project into a fully connected pipeline capable of:
+
+- Deep, multi-language skill extraction grounded in CS theory  
+- Persistent configuration and encrypted insights storage  
+- Multi-project ZIP detection and orchestrated analysis for each directory  
+- Automatic Git analysis when repositories are detected  
+- Generation of portfolio-ready descriptions and résumé bullet points  
+- Contribution metric aggregation and deterministic project ranking  
+- Unified data models across local analyzers, git analyzers, and project presentation modules  
+
+Key achievements:
+- The orchestrator now handles real-world multi-project layouts with robust error handling.  
+- The database layer supports encrypted insights, user configurations, and reproducible stored runs.  
+- The advanced skill extractor now analyzes architectural patterns, algorithms, object-oriented principles, functional patterns, and module-level structure.  
+- Presentation modules produce professional portfolio and résumé items automatically.  
+- Ranking and summary generation enables the upcoming reporting and frontend stages.  
+
+---
+
+### 7. Future Cycle Plans
+
+- Connect pipeline output to the database for full ingestion of project insights, ranking results, and résumé/portfolio data.  
+- Begin full end-to-end testing across pipeline → database → retrieval.  
+- Implement API endpoints for pipeline execution, stored insights retrieval, and project ranking queries.  
+- Prepare for Milestone 1 submission with documentation, demos, and integration verification.  
+- Add complexity analysis module and chronological skill ordering (from Week 12 plans).  
+- Prepare final architecture diagrams and system explanation for instructor review.  
+
+---
+
+### 8. Reflection on This Cycle
+
+**What went well:**
+- Major components were completed, integrated, and tested across all contributors.  
+- The project-centric orchestrator dramatically improved structure and analyzability.  
+- Database integration is stable, encrypted, and fully documented.  
+- Skill extraction, contribution aggregation, and ranking features now form a cohesive analytical pipeline.  
+- Cross-team PR review and coordination were strong.
+
+**What could be improved:**
+- Docker dependency debugging (git, ffmpeg, tesseract) required more time than expected.  
+- Some ranking and summary edge cases required iterative refinement.  
+- Multi-project ZIP detection introduced a few early structural challenges.
+
+**How this informs us for the next cycle:**
+
+The next cycle will focus on tightening integration across modules, adding the remaining complexity and chronological skill logic, and ensuring project insights, presentation data, and ranking outputs all connect cleanly. The team will finalize end-to-end behavior and verify that all Milestone 1 requirements are fully met.
+
