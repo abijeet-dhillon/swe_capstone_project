@@ -10,6 +10,7 @@
 1. [Week 8](#week-8)
 1. [Week 9](#week-9)
 1. [Week 10](#week-10)
+1. [Week 12](#week-12)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -297,4 +298,69 @@ This section outlines the individual log for week 10
 - (if time permits) Set up FastAPI endpoints to expose the pipeline via REST API
 - (if time permits) Add port mapping to docker-compose and test API calls from host machine
 
+## Week 12
+This section outlines the individual log for week 12
+
+### November 17 - November 23
+
+### Tasks
+![](images/kaiden_week12_tasks.png)
+
+### Weekly Goals
+
+1. My Features: 
+    - Refactor pipeline architecture to be "project-centric" (handling multiple projects within a single ZIP)
+    - Integrate Git repository detection and analysis into the pipeline
+    - Connect all local analyzer components (Text, Code, Image, Video) to the orchestrator
+    - Implement handling for miscellaneous/loose files outside project directories
+
+2. Associated Tasks
+    - Orchestrator Refactoring & Project Detection Logic
+    - Git Analyzer Integration
+    - Analyzer Component Connection (4 analyzers)
+    - Docker Dependency Management (Tesseract, Git, FFmpeg)
+    - Error Handling & Edge Case Testing
+
+3. Completed/In-Progress
+    - ✅ Refactored `ArtifactPipeline` to identify top-level directories as individual projects and process them independently
+    - ✅ Integrated `individual_contrib_analyzer` to automatically run on detected Git repositories
+    - ✅ Connected all 4 local analyzers to pipeline flow:
+      - `TextAnalyzer` for documentation (PDF, DOCX, TXT, MD)
+      - `CodeAnalyzer` for code files with language/framework detection
+      - `ImageProcessor` for image analysis (resolution, content, OCR)
+      - `VideoAnalyzer` for video metadata and transcription
+    - ✅ Implemented "Miscellaneous Files" section to capture and analyze root-level files
+    - ✅ Updated `Dockerfile` to include system dependencies: `git`, `tesseract-ocr`, `tesseract-ocr-eng`, `ffmpeg`
+    - ✅ Restructured output format: Project → Git Analysis → File Analysis (by type)
+    - ✅ Added graceful error handling for empty Git repositories and missing dependencies
+    - ✅ Updated `src/pipeline/README.md` with new architecture documentation
+
+### Reflection Points
+
+**What went well:**
+- The project-centric architecture provides much better data organization, especially for multi-project submissions
+- Git integration adds significant value by surfacing contributor metrics alongside code analysis
+- All analyzer components now work together seamlessly through the orchestrator
+- Output structure is consistent and well-organized, making downstream consumption easier
+- Docker setup ensures all system dependencies are portable and reproducible
+
+**What didn't go well:**
+- Debugging Docker dependency issues took time (e.g., `tesseract` binary missing despite Python package being installed)
+- Handling Git edge cases (empty repos, no commits) required multiple iterations to get messaging right
+- Initial confusion about how to handle wrapper folders in ZIP extraction vs actual projects
+
+**Technical Decisions:**
+- Chose to detect projects at the top-level directory after unwrapping any single wrapper folder
+- Git analysis runs automatically if `.git` directory is detected, with graceful fallback if repo is empty
+- Loose files get their own "Miscellaneous Files" section rather than being ignored
+- Error handling is defensive - one analyzer failure doesn't break the entire pipeline
+
+### Planning Activities for Next Cycle
+
+**Week 13 Goals:**
+- Expose the `ArtifactPipeline` via FastAPI endpoints
+- Define API request/response schemas to match new orchestrator output format
+- Connect pipeline output to database for persistence
+- Begin work on frontend integration to display project-centric results
+- Prepare for final integration testing and demo
 
