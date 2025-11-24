@@ -1,0 +1,320 @@
+================================================================================
+REPOSITORY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-19 09:41:02
+
+📊 REPOSITORY OVERVIEW
+--------------------------------------------------------------------------------
+Repository Path: .
+Remote URL: git@github.com:COSC-499-W2025/capstone-project-team-14.git
+Total Commits: 60
+Branches: 41
+Contributors: 9
+
+📁 FILE TYPES
+--------------------------------------------------------------------------------
+  .png                    21 files
+  .py                     17 files
+  .md                     11 files
+  .txt                     7 files
+  .jpeg                    1 files
+  [no extension]           1 files
+  .pptx                    1 files
+  .example                 1 files
+  .docx                    1 files
+
+👥 CONTRIBUTORS
+================================================================================
+
+1. Abijeet Dhillon <abijeetdhillon@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 16 (28.9%)
+   Lines Added: +487
+   Lines Deleted: -272
+   Files Touched: 26
+   First Commit: 2025-10-05 16:57:42 -0600
+   Last Commit: 2025-10-05 16:57:42 -0600
+
+   💡 PRIMARY SKILLS:
+      • Markdown/Documentation  46.2% (12 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (1 mentions)
+
+   📋 WORK AREAS:
+      • Documentation              23 files
+      • Testing                     1 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Medium
+      Avg Lines/Commit: 47.4
+      Files/Commit: 1.6
+      Code Churn: 55.9%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Focused changes
+
+2. Tahsin Jawwad <tahsin.jawwad23@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 14 (23.3%)
+   Lines Added: +289
+   Lines Deleted: -25
+   Files Touched: 10
+   First Commit: 2025-10-12 11:21:25 -0700
+   Last Commit: 2025-10-12 11:21:25 -0700
+
+   💡 PRIMARY SKILLS:
+      • Markdown/Documentation  40.0% (4 files)
+
+   📋 WORK AREAS:
+      • Documentation              10 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Medium
+      Avg Lines/Commit: 22.4
+      Files/Commit: 0.7
+      Code Churn: 8.7%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+3. kmerchant1 <kaiden.merchant@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 8 (17.0%)
+   Lines Added: +80
+   Lines Deleted: -5
+   Files Touched: 7
+   First Commit: 2025-10-05 16:35:17 -0700
+   Last Commit: 2025-10-05 16:35:17 -0700
+
+   💡 PRIMARY SKILLS:
+      • Markdown/Documentation  42.9% (3 files)
+
+   📋 WORK AREAS:
+      • Documentation               7 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 10.6
+      Files/Commit: 0.9
+      Code Churn: 6.2%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+4. Malik-Abhinav <abhinavmalik1573@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 4 (15.7%)
+   Lines Added: +186
+   Lines Deleted: -15
+   Files Touched: 8
+   First Commit: 2025-10-05 18:13:32 -0700
+   Last Commit: 2025-10-05 18:13:32 -0700
+
+   💡 PRIMARY SKILLS:
+      • Markdown/Documentation  37.5% (3 files)
+
+   📋 WORK AREAS:
+      • Documentation               8 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 50.2
+      Files/Commit: 2.0
+      Code Churn: 8.1%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+5. Abdur <abdur026@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 3 (9.4%)
+   Lines Added: +92
+   Lines Deleted: -1
+   Files Touched: 4
+   First Commit: 2025-10-05 19:32:30 -0700
+   Last Commit: 2025-10-05 19:32:30 -0700
+
+   💡 PRIMARY SKILLS:
+      • Markdown/Documentation  25.0% (1 files)
+
+   📋 WORK AREAS:
+      • Documentation               4 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 31.0
+      Files/Commit: 1.3
+      Code Churn: 1.1%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+6. Misha Gavura <1mgavura@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 3 (3.1%)
+   Lines Added: +3658
+   Lines Deleted: -99
+   Files Touched: 26
+   First Commit: 2025-11-09 17:49:19 -0800
+   Last Commit: 2025-11-09 17:49:19 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                65.4% (17 files)
+      • Markdown/Documentation   7.7% (2 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (2 mentions)
+
+   📋 WORK AREAS:
+      • Documentation               3 files
+      • Testing                     2 files
+      • Frontend                    1 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 1252.3
+      Files/Commit: 8.7
+      Code Churn: 2.7%
+
+   ✨ QUALITY INDICATORS:
+      • Large commits (consider breaking down)
+      • Low code churn (stable code)
+
+7. github-classroom[bot] <66690702+github-classroom[bot]@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (1.3%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+8. Misha Gavura <43016416+mishagavura@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (0.6%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+9. Tahsin Jawwad <144264787+tahsinj@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (0.6%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+📈 CODE QUALITY ANALYSIS
+================================================================================
+Files Analyzed: 17 of 17
+Total Code Lines: -569
+Total Comment Lines: 3,016
+Average Comment Ratio: 0.0%
+
+Quality Score: 50/100
+Quality Rating: Fair
+
+⚠️  Code Issues Found:
+   • No obvious code smells detected (8 occurrences)
+   • Very long functions detected (>50 lines) (7 occurrences)
+   • Functions with many parameters detected (4 occurrences)
+   • Many magic numbers found (consider using constants) (4 occurrences)
+   • 10 TODO/FIXME comments found (1 occurrences)
+   • Potential code duplication detected (1 occurrences)
+
+================================================================================
+📝 CODEBASE ANALYSIS
+================================================================================
+Files Analyzed: 10
+Languages Detected: .py
+
+🤖 WHAT THIS PROJECT DOES:
+--------------------------------------------------------------------------------
+The codebase is designed for analyzing various types of documents and code repositories, providing functionality for file format support display, Git repository analysis, and contributor metrics. The main program, as indicated in `list_supported_formats.py`, showcases a comprehensive list of supported file formats across different categories such as documents, presentations, spreadsheets, code files, and markup/data formats. This feature is aimed at users who need to understand the types of files the program can handle.
+
+Key technologies utilized in this project include Python, along with various libraries for handling document parsing and Git operations. The architecture comprises different modules like `GitAnalyzer`, `ContributorAnalyzer`, and `CodeQualityAnalyzer`, which encapsulate specific functionalities related to Git repository analysis, contributor statistics, and code quality assessments. The code structure is modular, allowing for easy extension and maintenance, with each analyzer class dedicated to a particular aspect of the analysis process.
+
+🤖 AI-POWERED REPOSITORY INSIGHTS
+================================================================================
+**Repository Analysis Summary:**
+
+- **Total Commits:** 60
+- **Contributors:** 9
+- **Branches:** 41
+
+**Top Contributors:**
+1. **Abijeet Dhillon:** 16 commits (28.9%) - Markdown/Documentation
+2. **Tahsin Jawwad:** 14 commits (23.3%) - Markdown/Documentation
+3. **kmerchant1:** 8 commits (17.0%) - Markdown/Documentation
+4. **Malik-Abhinav:** 4 commits (15.7%) - Markdown/Documentation
+5. **Abdur:** 3 commits (9.4%) - Markdown/Documentation
+
+**File Extensions Used:** .md, .txt, .png, .jpeg, [no extension], .pptx, .py, .example, .docx
+
+👥 CONTRIBUTOR INSIGHTS
+--------------------------------------------------------------------------------
+
+Abijeet Dhillon:
+Abijeet Dhillon contributed 16 commits, accounting for 28.9% of the total contributions. He added 487 lines and deleted 272 lines across 26 files. His primary focus was on Markdown/documentation, making up 46.2% of his contributions. His activity level is categorized as medium, with an average of 47.4 lines per commit. He also worked with testing frameworks/tools.
+
+
+Tahsin Jawwad:
+Tahsin Jawwad made 14 commits, contributing 23.3% of the project's activity. He added 289 lines and deleted 25 across 10 files, primarily using Markdown/Documentation (40.0%). His activity level is classified as medium, with an average of 22.4 lines per commit.
+
+
+kmerchant1:
+The contributor kmerchant1 has made 8 commits, accounting for 17.0% of the contributions. They added 80 lines and deleted 5 across 7 files, with 42.9% of their work in Markdown/Documentation. Their activity level is low, with an average of 10.6 lines per commit.
+
+
+Malik-Abhinav:
+Malik-Abhinav made 4 commits, contributing 15.7% overall. They added 186 lines and deleted 15 across 8 files. Their primary language used is Markdown/Documentation, accounting for 37.5% of their contributions. Their activity level is considered low, with an average of 50.2 lines added per commit.
+
+
+Abdur:
+Abdur has made 3 commits, contributing 9.4% to the project. He added 92 lines and deleted 1 line across 4 files, with Markdown/Documentation being his primary language at 25%. His activity level is categorized as low, with an average of 31 lines added per commit.

@@ -246,3 +246,5 @@ class ContributorAnalyzer:
             "quality_indicators": quality_indicators
         }
 
+
+

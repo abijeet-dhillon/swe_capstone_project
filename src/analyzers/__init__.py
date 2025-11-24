@@ -5,3 +5,5 @@ from .code_quality_analyzer import CodeQualityAnalyzer
 
 __all__ = ['GitAnalyzer', 'ContributorAnalyzer', 'CodeQualityAnalyzer']
 
+
+

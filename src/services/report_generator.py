@@ -143,12 +143,28 @@ class ReportGenerator:
             
             report.append("")
         
+        # Codebase Summary
+        code_summary = results.get('code_summary')
+        if code_summary and not code_summary.get('error'):
+            report.append("=" * 80)
+            report.append("📝 CODEBASE ANALYSIS")
+            report.append("=" * 80)
+            report.append(f"Files Analyzed: {code_summary.get('files_analyzed', 0)}")
+            report.append(f"Languages Detected: {', '.join(code_summary.get('languages', []))}")
+            report.append("")
+            
+            if 'codebase_summary' in code_summary:
+                report.append("🤖 WHAT THIS PROJECT DOES:")
+                report.append("-" * 80)
+                report.append(code_summary['codebase_summary'])
+                report.append("")
+        
         # AI Insights
         if 'ai_insights' in results and results['ai_insights']:
             insights = results['ai_insights']
             
             if 'repository_summary' in insights:
-                report.append("🤖 AI-POWERED INSIGHTS")
+                report.append("🤖 AI-POWERED REPOSITORY INSIGHTS")
                 report.append("=" * 80)
                 report.append(insights['repository_summary'])
                 report.append("")
@@ -183,6 +199,22 @@ class ReportGenerator:
         if 'total_contributors' in summary:
             report.append(f"Total Contributors: {summary.get('total_contributors', 0)}")
         report.append("")
+        
+        # Codebase Summary (AI-powered)
+        code_summary = results.get('code_summary')
+        if code_summary and not code_summary.get('error'):
+            report.append("=" * 80)
+            report.append("📝 CODEBASE ANALYSIS")
+            report.append("=" * 80)
+            report.append(f"Files Analyzed: {code_summary.get('files_analyzed', 0)}")
+            report.append(f"Languages Detected: {', '.join(code_summary.get('languages', []))}")
+            report.append("")
+            
+            if 'codebase_summary' in code_summary:
+                report.append("🤖 AI-POWERED CODEBASE SUMMARY:")
+                report.append("-" * 80)
+                report.append(code_summary['codebase_summary'])
+                report.append("")
         
         # Repository analyses
         git_repos = results.get('git_repositories', [])
@@ -257,4 +289,6 @@ class ReportGenerator:
             f.write(report_content)
         
         return str(output_path)
+
+
 

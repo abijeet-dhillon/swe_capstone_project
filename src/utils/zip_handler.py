@@ -92,7 +92,8 @@ class ZipHandler:
         self,
         extracted_dir: str,
         extensions: Optional[List[str]] = None,
-        exclude_patterns: Optional[List[str]] = None
+        exclude_patterns: Optional[List[str]] = None,
+        skip_hidden: bool = True
     ) -> List[str]:
         """
         Find files in extracted directory with optional filtering.
@@ -101,6 +102,7 @@ class ZipHandler:
             extracted_dir: Path to extracted directory
             extensions: Optional list of extensions to include (e.g., ['.py', '.js'])
             exclude_patterns: Optional list of patterns to exclude (e.g., ['node_modules', '__pycache__'])
+            skip_hidden: Whether to skip hidden files (starting with .)
             
         Returns:
             List of file paths
@@ -130,6 +132,10 @@ class ZipHandler:
             dirs[:] = [d for d in dirs if not any(pattern in d for pattern in exclude_patterns)]
             
             for filename in filenames:
+                # Skip hidden files (starting with .) if requested
+                if skip_hidden and filename.startswith('.'):
+                    continue
+                
                 file_path = Path(root) / filename
                 
                 # Check exclusions
@@ -231,4 +237,6 @@ class ZipHandler:
     def __del__(self):
         """Destructor to ensure cleanup."""
         self.cleanup()
+
+
 

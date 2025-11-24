@@ -326,3 +326,5 @@ class CodeQualityAnalyzer:
             "quality_rating": quality_rating
         }
 
+
+

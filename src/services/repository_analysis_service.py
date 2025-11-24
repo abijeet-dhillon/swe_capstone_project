@@ -78,14 +78,20 @@ class RepositoryAnalysisService:
         
         # Generate AI summary
         ai_insights = None
+        code_summary = None
         if generate_ai_summary and self.openai_client:
             print("\n🤖 Generating AI-powered insights...")
             ai_insights = self._generate_ai_insights(repo_data)
+            
+            # Generate codebase summary
+            print("📝 Analyzing codebase with AI...")
+            code_summary = self._analyze_codebase_batch(str(repo_path))
         
         result = {
             "repository_analysis": repo_data,
             "code_quality": quality_metrics,
             "ai_insights": ai_insights,
+            "code_summary": code_summary,
             "analysis_complete": True
         }
         
@@ -116,7 +122,7 @@ class RepositoryAnalysisService:
         # Extract zip
         extracted_dir = self.zip_handler.extract_zip(zip_path)
         
-        # Check if it contains a Git repository
+        # PRIORITY 1: Check if it contains a Git repository (analyze .git first)
         git_repos = self.zip_handler.find_git_repositories(extracted_dir)
         
         results = {
@@ -125,10 +131,11 @@ class RepositoryAnalysisService:
             "contains_git_repos": len(git_repos) > 0,
             "git_repositories": [],
             "documents": [],
+            "code_summary": None,
             "summary": {}
         }
         
-        # Analyze Git repositories
+        # Analyze Git repositories FIRST
         if git_repos:
             print(f"\n✅ Found {len(git_repos)} Git repositor{'y' if len(git_repos) == 1 else 'ies'}")
             for repo_path in git_repos:
@@ -140,16 +147,24 @@ class RepositoryAnalysisService:
                         generate_ai_summary=generate_ai_summary
                     )
                     results["git_repositories"].append(repo_analysis)
+                    
+                    # Analyze code files in batch if AI is enabled
+                    if generate_ai_summary and self.openai_client:
+                        print("\n📝 Analyzing codebase with AI...")
+                        code_summary = self._analyze_codebase_batch(repo_path)
+                        results["code_summary"] = code_summary
+                        
                 except Exception as e:
                     print(f"   ⚠️  Error analyzing repository: {e}")
                     results["git_repositories"].append({"error": str(e), "path": repo_path})
         
-        # Find and analyze documents
+        # Find and analyze documents (skip hidden files)
         print("\n📄 Searching for documents...")
         supported_extensions = self.parser.get_supported_formats()
         documents = self.zip_handler.find_files_in_extracted(
             extracted_dir,
-            extensions=supported_extensions
+            extensions=supported_extensions,
+            skip_hidden=True  # Skip hidden files like ._files
         )
         
         if documents:
@@ -234,6 +249,76 @@ class RepositoryAnalysisService:
                 })
         
         return results
+    
+    def _analyze_codebase_batch(self, repo_path: str) -> Dict[str, Any]:
+        """
+        Analyze codebase by batching code files together to reduce API calls.
+        
+        Args:
+            repo_path: Path to repository
+            
+        Returns:
+            Dictionary with codebase analysis
+        """
+        if not self.openai_client:
+            return {"error": "OpenAI client not initialized"}
+        
+        repo_path = Path(repo_path)
+        
+        # Find all code files
+        code_extensions = ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php']
+        code_files_by_type = {}
+        
+        for ext in code_extensions:
+            files = list(repo_path.rglob(f'*{ext}'))
+            # Exclude common directories
+            exclude_patterns = ['node_modules', '__pycache__', 'venv', '.git', 'build', 'dist', 'test']
+            files = [f for f in files if not any(pattern in str(f) for pattern in exclude_patterns)]
+            if files:
+                code_files_by_type[ext] = files[:10]  # Limit to 10 files per type
+        
+        if not code_files_by_type:
+            return {"error": "No code files found"}
+        
+        # Batch analyze by file type
+        print(f"   Batching {sum(len(files) for files in code_files_by_type.values())} code files...")
+        
+        try:
+            # Collect code samples from different files
+            code_samples = []
+            for ext, files in code_files_by_type.items():
+                for file_path in files[:3]:  # Top 3 files per type
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()[:2000]  # First 2000 chars
+                            code_samples.append(f"File: {file_path.name} ({ext})\n{content}\n")
+                    except:
+                        continue
+            
+            # Create batch summary prompt
+            batch_text = "\n---\n".join(code_samples[:15])  # Max 15 samples
+            prompt = f"""Analyze this codebase and provide:
+1. What this program/project does
+2. Main technologies and frameworks used
+3. Key features or functionality
+4. Architecture or structure insights
+
+Code samples:
+{batch_text}
+
+Provide a concise summary in 2-3 paragraphs."""
+            
+            # Get AI summary
+            codebase_summary = self.openai_client.summarize_text(prompt, max_tokens=500)
+            
+            return {
+                "codebase_summary": codebase_summary,
+                "files_analyzed": sum(len(files) for files in code_files_by_type.values()),
+                "languages": list(code_files_by_type.keys())
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
     
     def _generate_ai_insights(self, repo_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate AI-powered insights about the repository."""
@@ -351,4 +436,6 @@ Files Touched: {contributor.get('unique_files_touched', 0)}
     def __del__(self):
         """Destructor to ensure cleanup."""
         self.cleanup()
+
+
 
