@@ -1,0 +1,118 @@
+{
+  "zip_file": "capstone-project-team-14-main.zip",
+  "extracted_to": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/zip_extract_er7fn6f6",
+  "contains_git_repos": false,
+  "git_repositories": [],
+  "documents": [
+    {
+      "file_name": "README.md",
+      "file_type": "md",
+      "text": "[![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-2e0aaae1b6195c2367325f4f02e2d04e9abb55f0b24a779b69b11b9e10269abc.svg)](https://classroom.github.com/online_ide?assignment_repo_id=20510468&assignment_repo_type=AssignmentRepo)\n# Project-Starter\nPlease use the provided folder structure for your project. You are free to organize any additional internal folder structure as required by the project. \n\n```\n.\n\u251c\u2500\u2500 docs                    # Documentation files\n\u2502   \u251c\u2500\u2500 contract            # Team contract\n\u2502   \u251c\u2500\u2500 proposal            # Project proposal \n\u2502   \u251c\u2500\u2500 design              # UI mocks\n\u2502   \u251c\u2500\u2500 minutes             # Minutes from team meetings\n\u2502   \u251c\u2500\u2500 logs                # Team and individual Logs\n\u2502   \u2514\u2500\u2500 ...          \n\u251c\u2500\u2500 src                     # Source files (alternatively `app`)\n\u251c\u2500\u2500 tests                   # Automated tests \n\u251c\u2500\u2500 utils                   # Utility files\n\u2514\u2500\u2500 README.md\n```\n\nPlease use a branching workflow, and once an item is ready, do remember to issue a PR, review, and merge it into the master branch.\nBe sure to keep your docs and README.md up-to-date.\n",
+      "line_count": 22,
+      "non_empty_lines": 19,
+      "word_count": 129,
+      "encoding": "utf-8",
+      "metadata": {},
+      "ai_summary": "The \"Project-Starter\" document outlines the folder structure for a project, emphasizing the organization of files and directories. Key directories include:\n\n- **docs**: Contains documentation files such as the team contract, project proposal, UI mocks, meeting minutes, and logs.\n- **src**: Houses the source files.\n- **tests**: Contains automated tests.\n- **utils**: Holds utility files.\n- **README.md**: A file for project details.\n\nIt advises using a branching workflow for development, with the necessity of issuing pull requests (PRs) for review and merging into the master branch. Additionally, it highlights the importance of keeping documentation and the README up-to-date."
+    },
+    {
+      "file_name": "placeholder.txt",
+      "file_type": "txt",
+      "text": "",
+      "line_count": 1,
+      "non_empty_lines": 0,
+      "word_count": 0,
+      "encoding": "utf-8",
+      "metadata": {}
+    },
+    {
+      "file_name": "placeholder.txt",
+      "file_type": "txt",
+      "text": "",
+      "line_count": 1,
+      "non_empty_lines": 0,
+      "word_count": 0,
+      "encoding": "utf-8",
+      "metadata": {}
+    },
+    {
+      "file_name": "placeholder.txt",
+      "file_type": "txt",
+      "text": "",
+      "line_count": 1,
+      "non_empty_lines": 0,
+      "word_count": 0,
+      "encoding": "utf-8",
+      "metadata": {}
+    },
+    {
+      "file_name": "placeholder.txt",
+      "file_type": "txt",
+      "text": "",
+      "line_count": 1,
+      "non_empty_lines": 0,
+      "word_count": 0,
+      "encoding": "utf-8",
+      "metadata": {}
+    },
+    {
+      "file_name": "README.md",
+      "file_type": "md",
+      "text": "# Features Proposal for Project Option: Mining Digital Work Artifacts\n\n**Team Number:** 14  \n**Team Members:** Tahsin Jawwad, Abijeet Dhillon, Abdur Rehman, Abhinav Malik, Kaiden Merchant, Misha Gavura\n\n---\n\n## 1. Project Scope and Usage Scenario\nCreators (graduating students or early professionals) want a privacy-first way to scan selected folders on their own machines to mine digital work artifacts (code repositories, documents, slides, and media/design files) and produce highlights and portfolio summaries; Administrators (the local machine owner, often the same person) configure and consent to scanning policies such as allowlists/denylists and redaction, while Reviewers (instructors, mentors, hiring managers) never access raw files but consume exported summaries (JSON/CSV/PDF) produced by the system. The typical flow is that a Creator configures a scan, the system parses and normalizes artifact metadata locally, computes insights such as contribution timelines and document activity, stores them locally, and then the Creator exports a concise report for Reviewers.\n\n---\n\n## 2. Proposed Solution\nWe will implement a local-first pipeline with three components: (1) a Scanner that enumerates files from user-approved folders and detects types; (2) Adapters for key artifact classes (Git repositories via GitPython/pydriller; Office/PDF via `python-docx`/`python-pptx`/`pdfminer`; basic media/design metadata via `ffprobe` or equivalent); and (3) a FastAPI service that exposes REST endpoints for artifacts and insights. Processing and storage remain local by default to protect privacy, and the API will be consumed by a dashboard in Term 2.\n\nOur value proposition is a privacy-first, testable, and extensible architecture that surfaces meaningful signals (commit velocity, project timelines, document activity) in a deterministic way; compared to other teams, we emphasize: (a) a plug-in adapter interface that makes file-type support straightforward to extend, (b) robust PII redaction before storage, and (c) a full requirements\u2192tests traceability matrix to ensure verifiability from the outset.\n\n---\n\n## 3. Use Cases\n\n### Use Case 1: Configure Scan\n- **Primary actor:** Creator  \n- **Description:** Select folders to scan and set scanning/redaction preferences.  \n- **Precondition:** Application installed locally; Creator has access to target folders.  \n- **Postcondition:** A scan configuration with allowlists/denylists, size caps, and redaction rules is saved.  \n- **Main Scenario:**\n  1. Creator opens app and chooses \u201cConfigure Scan.\u201d\n  2. Creator selects one or more folders (e.g., `./Projects`, external drive).\n  3. Creator sets file-type limits, max file size, and exclusion patterns.\n  4. Creator reviews default redaction rules and adjusts as needed.\n  5. System validates access and saves configuration.\n- **Extensions:**\n  - Folder not accessible: system displays error and suggests alternatives.\n  - Conflicting rules: system highlights conflicts and asks for resolution.\n\n### Use Case 2: Run Scan & Ingest\n- **Primary actor:** Creator  \n- **Description:** Enumerate files, parse artifacts via adapters, normalize and deduplicate, apply redaction, and persist locally.  \n- **Precondition:** A valid scan configuration exists.  \n- **Postcondition:** Normalized artifacts and derived metrics are stored in the local DB with an audit log.  \n- **Main Scenario:**\n  1. Creator clicks \u201cRun Scan.\u201d\n  2. System enumerates files and detects types.\n  3. Adapters extract metadata/content summaries (Git stats, doc word/page counts, media duration).\n  4. System normalizes, deduplicates by hash, and applies redaction.\n  5. System writes records to DB and emits progress status.\n- **Extensions:**\n  - Timeout on large files: system skips with warning and continues.\n  - Duplicate files detected: single canonical record retained.\n\n### Use Case 3: View Insights via API\n- **Primary actor:** Creator  \n- **Description:** Query local API for artifacts, timelines, and summary insights.  \n- **Precondition:** Scan has completed successfully.  \n- **Postcondition:** Creator receives JSON responses for artifacts and insights.  \n- **Main Scenario:**\n  1. Creator requests summary endpoint (e.g., `/insights/summary`).\n  2. System aggregates metrics (contribution heatmap, streaks).\n  3. System returns JSON with totals and timelines.\n- **Extensions:**\n  - Empty dataset: system returns empty arrays with guidance to run a scan.\n\n### Use Case 4: Export Summaries\n- **Primary actor:** Creator  \n- **Description:** Export selected insights as JSON/CSV/PDF for Reviewers.  \n- **Precondition:** Insights exist in the DB.  \n- **Postcondition:** Exported file is generated locally.  \n- **Main Scenario:**\n  1. Creator selects export format and scope (time window/projects).\n  2. System formats and writes the export to a chosen location.\n  3. System confirms completion and path to file.\n- **Extensions:**\n  - Path not writable: system prompts for another/default location.\n\n### Use Case 5: Manage Privacy/Redaction\n- **Primary actor:** Administrator  \n- **Description:** Configure redaction policies and retention; purge data on request.  \n- **Precondition:** Admin access to the local instance.  \n- **Postcondition:** Policies are updated; data purged if requested.  \n- **Main Scenario:**\n  1. Admin opens Privacy settings.\n  2. Admin edits redaction regexes and retention windows.\n  3. System revalidates rules and saves.\n- **Extensions:**\n  - Invalid regex: system highlights error and suggests a fix.\n\n\n\n### Use Case 6: Add Notes/Annotations\n\n- **Primary actor:** Creator  \n- **Description:** Attach personal notes or reflections to a project or artifact.  \n- **Precondition:** Artifact exists in the local database.  \n- **Postcondition:** Note is stored and associated with the artifact.  \n\n**Main Scenario:**  \n1. Creator selects an artifact from the list of scanned items.  \n2. Creator chooses \u201cAdd Note.\u201d  \n3. Creator writes a note and saves it.  \n4. System stores the note linked to the artifact.  \n5. System confirms successful save.  \n\n**Extensions:**  \n- Empty note submitted \u2192 system rejects and prompts for valid input.  \n- Artifact deleted before save \u2192 system displays error and cancels operation.  \n\n---\n\n### Use Case 7: Reviewer Consumes Export\n\n- **Primary actor:** Reviewer  \n- **Description:** Reviewer opens and reviews an exported portfolio summary without accessing raw files.  \n- **Precondition:** Export file (JSON/CSV/PDF) has been generated by the Creator.  \n- **Postcondition:** Reviewer is able to view structured insights and summaries.  \n\n**Main Scenario:**  \n1. Reviewer receives the exported file from the Creator.  \n2. Reviewer opens the file in a suitable application (e.g., Excel for CSV, PDF reader).  \n3. Reviewer reviews contributions, timelines, and summaries.  \n\n**Extensions:**  \n- Export file is missing or corrupted \u2192 Reviewer cannot open and requests Creator to regenerate.  \n- Reviewer requests more detail \u2192 Creator reconfigures export and generates a new file.  \n\n\n![UML Diagram](./uml_diagram.png)\n---\n\n\n\n\n## 4. Requirements, Testing, Requirement Verification\n\n**Technology stack & test framework:** Python 3.11, FastAPI, GitPython/pydriller, `python-docx`/`python-pptx`/`pdfminer`, optional `ffprobe`; testing with `pytest` (unit/integration), FastAPI `TestClient`, coverage via `pytest-cov`, GitHub Actions CI.\n\n## Requirements, Testing, and Verification\n\n### Requirements Table\n\n| Requirement | Description | Test Cases | Who | H/M/E |\n|---|---|---|---|---|\n| R1 Directory Selection & Policy | User can select folders; set allow/deny patterns, size caps | **Positive:** TC1.1 Select valid folder \u2192 config saved.<br>TC1.2 Allow/deny filters apply correctly.<br>**Negative:** TC1.3 Unreadable folder \u2192 error.<br>TC1.4 Conflicting rules \u2192 warning. | **Tahsin Jawwad** | M |\n| R2 Type Detection | Detect file types via extension/magic, skip unsupported | **Positive:** TC2.1 Supported file detected.<br>TC2.2 Mixed input \u2192 only supported kept.<br>**Negative:** TC2.3 Unsupported file skipped w/ warning.<br>TC2.4 Corrupt header \u2192 fallback or skip. | **Misha** | M |\n| R3 Git Adapter | Extract commits, authorship, churn | **Positive:** TC3.1 Small repo \u2192 commit count matches `git log`.<br>TC3.2 Author list extracted.<br>**Negative:** TC3.3 Missing `.git/` folder \u2192 error.<br>TC3.4 Huge repo \u2192 timeout handled. | **Abijeet Dhillon** | H |\n| R4 Office/PDF Adapter | Parse Word, PPT, PDF for counts & metadata | **Positive:** TC4.1 Word file word count accurate.<br>TC4.2 PDF page count correct.<br>**Negative:** TC4.3 Corrupt file \u2192 error logged.<br>TC4.4 Missing metadata handled safely. | **Abhinav Malik** | M |\n| R5 Media/Design Adapter | Extract duration, resolution/dimensions | **Positive:** TC5.1 Video duration correct.<br>TC5.2 Image width/height detected.<br>**Negative:** TC5.3 Corrupt file skipped w/ warning.<br>TC5.4 Unsupported format skipped. | **Kaiden Merchant** | M |\n| R6 Storage Layer | Persist normalized entities; migrations | **Positive:** TC6.1 Insert + retrieve artifact.<br>TC6.2 Schema migration keeps data.<br>**Negative:** TC6.3 Insert duplicate \u2192 deduped.<br>TC6.4 Invalid ID query \u2192 error/null. | **Abdur Rehman** | M |\n| R7 Analytics | Compute insights (timelines, streaks, totals) | **Positive:** TC7.1 Commit streak detected.<br>TC7.2 Totals computed correctly.<br>**Negative:** TC7.3 Empty dataset handled.<br>TC7.4 Invalid input \u2192 error logged. | **Tahsin Jawwad** | M |\n| R8 API Endpoints | REST endpoints for artifacts, insights, search | **Positive:** TC8.1 `/artifacts` returns valid schema.<br>TC8.2 `/insights` matches DB.<br>**Negative:** TC8.3 Invalid param \u2192 400.<br>TC8.4 Bad ID \u2192 404. | **Abhinav Malik** | M |\n| R9 Incremental Scan | Process only changed/new files | **Positive:** TC9.1 No changes \u2192 no new entries.<br>TC9.2 Add new file detected once.<br>**Negative:** TC9.3 Modify file \u2192 version updated.<br>TC9.4 Deleted file not re-added. | **Misha** | M |\n| R10 Export | Export insights to JSON/CSV/PDF | **Positive:** TC10.1 JSON export valid.<br>TC10.2 CSV opens in Excel.<br>**Negative:** TC10.3 Bad path \u2192 error.<br>TC10.4 Corrupt DB \u2192 clean fail. | **Kaiden Merchant** | E |\n| R11 Notes/Annotations | User can attach notes to projects | **Positive:** TC11.1 Add + retrieve note works.<br>TC11.2 Delete removes note.<br>**Negative:** TC11.3 Add note to missing artifact \u2192 error.<br>TC11.4 Empty note rejected. | **Abijeet Dhillon** | E |\n| R12 Privacy/Redaction Policies | Configure regexes, retention, and purge data | **Positive:** TC12.1 Add valid regex \u2192 saved.<br>TC12.2 Retention window applied.<br>**Negative:** TC12.3 Invalid regex \u2192 error.<br>TC12.4 Purge request clears data. | **Abdur Rehman** | M |\n\n---\n\n### Workload Summary\n\n- **Tahsin Jawwad** \u2192 R1 (M), R7 (M) \u2192 Config + analytics  \n- **Abijeet Dhillon** \u2192 R3 (H), R11 (E) \u2192 Git + annotations  \n- **Misha** \u2192 R2 (M), R9 (M) \u2192 Detection + incremental scan  \n- **Abhinav Malik** \u2192 R4 (M), R8 (M) \u2192 Office/PDF parsing + API  \n- **Kaiden Merchant** \u2192 R5 (M), R10 (E) \u2192 Media parsing + export  \n- **Abdur Rehman** \u2192 R6 (M), R12 (M) \u2192 Storage + privacy/redaction  \n\n---\n",
+      "line_count": 168,
+      "non_empty_lines": 129,
+      "word_count": 1559,
+      "encoding": "utf-8",
+      "metadata": {},
+      "ai_summary": "**Features Proposal Summary for Mining Digital Work Artifacts**\n\n**Team:** 14  \n**Members:** Tahsin Jawwad, Abijeet Dhillon, Abdur Rehman, Abhinav Malik, Kaiden Merchant, Misha Gavura\n\n**1. Project Scope and Usage Scenario:**  \nThe project aims to provide a privacy-focused tool for creators (students or early professionals) to scan their machines for digital work artifacts (like code, documents, and media) and generate portfolio highlights. Administrators configure scanning policies, while Reviewers access only the processed summaries, not raw files. The typical workflow involves creators setting up scans, with the system processing and exporting reports.\n\n**2. Proposed Solution:**  \nThe solution includes a local-first architecture with three components:  \n- **Scanner:** Identifies files in user-approved folders.  \n- **Adapters:** Process various artifact types (e.g., Git repositories, Office documents).  \n- **FastAPI Service:** Provides REST endpoints for accessing artifacts and insights"
+    },
+    {
+      "file_name": "placeholder.txt",
+      "file_type": "txt",
+      "text": "",
+      "line_count": 1,
+      "non_empty_lines": 0,
+      "word_count": 0,
+      "encoding": "utf-8",
+      "metadata": {}
+    },
+    {
+      "file_name": "placeholder.txt",
+      "file_type": "txt",
+      "text": "",
+      "line_count": 1,
+      "non_empty_lines": 0,
+      "word_count": 0,
+      "encoding": "utf-8",
+      "metadata": {}
+    },
+    {
+      "file_name": "personal-log-tahsin-jawwad.md",
+      "file_type": "md",
+      "text": "# Personal Log\n\n[Week 3 Personal Logs](#week-3)\n[Week 4 Personal Logs](#week-4)\n\n## Week 3\n### Date Range \n15th September 2025 - 21st September 2025\n\n### Type of tasks worked on\n![Tahsin Type of Tasks Week 3](images/tahsin-week-3.png)\n\n### Weekly Goals\n**My features**:\n* The goal was to understand the project theme and contribute to the requirements document\n* Created requirements document and drafted functional requirements\n* Talked with other groups in class to refine our requirements\n\n**Task from project board**:\n* \"Project Requirements\"\n\n**Completed/In-progress tasks**: \n* \"Project Requirements\"\n\n---\n## Week 4\n### Date Range \n22nd September 2025 - 28th September 2025\n\n### Type of tasks worked on\n![Tahsin Type of Tasks Week 4](images/tahsin-week-4.png)\n\n### Weekly Goals\n**My features**:\n* Collaborate on creating the system architecture diagram\n* Collaborate on drafting and completing the project proposal\n\n**Task from project board**:\n* System Architecture Diagram\n* Project Proposal\n\n**Completed/In-progress tasks**: \n* System Architecture Diagram\n* Project Proposal\n\n## Week 5\n### Date Range \n29th September 2025 - 5th October 2025\n\n### Type of tasks worked on\n![Tahsin Type of Tasks Week 5](images/tahsin-week-5.png)\n\n### Weekly Goals\n**My features**:\n* Collaborated on creating Level 0 and Level 1 Data Flow Diagrams and discussion with other groups on differences in DFDs\n\n**Task from project board**:\n* Data Flow Diagram\n\n**Completed/In-progress tasks**: \n* Data Flow Diagram (Completed)",
+      "line_count": 61,
+      "non_empty_lines": 45,
+      "word_count": 221,
+      "encoding": "utf-8",
+      "metadata": {},
+      "ai_summary": "### Summary of Personal Log\n\n**Week 3 (15th - 21st September 2025)**\n- **Goals**: Understand project theme, contribute to requirements document, refine requirements with classmates.\n- **Tasks**: Created and drafted functional requirements, completed the task \"Project Requirements\".\n\n**Week 4 (22nd - 28th September 2025)**\n- **Goals**: Collaborate on system architecture diagram and project proposal.\n- **Tasks**: Worked on and completed the System Architecture Diagram and Project Proposal.\n\n**Week 5 (29th September - 5th October 2025)**\n- **Goals**: Collaborate on Level 0 and Level 1 Data Flow Diagrams (DFDs), discuss DFD differences with other groups.\n- **Tasks**: Completed the Data Flow Diagram."
+    },
+    {
+      "file_name": "personal-log-Abdur.md",
+      "file_type": "md",
+      "text": "# Individual Log \u2013 Abdur Rehman\n1. [Week 3](#week-3)\n1. [Week 4](#week-4)\n1. [Week 5](#week-5)\n\n## Week 3 \n\n### 1. Type of Tasks Worked On\n![Abdur Rehman Week 3 Task Type Screenshot](images/Abdur_week3.png)  \n\n\n---\n\n### 3. Recap of Weekly Goals\nThis week focused on foundational project requirement work. I assisted in the following:\n- outlining the artifact collection features (directory scanning, file filtering, and metadata)\n- drafting the artifact analysis requirements (classification and basic statistics)\n- reviewing the dashboard and visualization requirements for summary metrics\n\n---\n\n### 4. Features Owned in Project Plan\n- N/A\n\n---\n\n### 5. Tasks from Project Board Associated with These Features\n- N/A\n\n---\n\n### 6. Tasks Completed / In Progress in the Last 2 Weeks\n| Task ID | Issue Title | Status       | Notes |\n|--------|-------------|-------------|-------|\n| N/A    | N/A         | N/A         | N/A   |\n\n---\n\n### 7. Additional Context\nN/A\n\n---\n\n## Week 4\nThis section outlines the individual log for week 4\n\n### September 22 - September 28\n\n### Tasks\n![Abdur Rehman Week 4 Task Type Screenshot](images/abdur-week-4.png.png)\n\n### Weekly Goals\n\n1. My Features: \n    - Connected project requirements to the architecture layout.\n    - Polished and expanded the requirements section for the proposal.\n\n2. Associated Tasks\n    - Refining and writing project proposal.\n\n3. Completed/In-Progress\n    - Finalized the requirements and proposal write-up.\n\n\n\n## Week 5\nThis section outlines the individual log for week 5\n\n### September 29 - October 5\n\n### Tasks\n![](images/abdur-week5.png)\n\n### Weekly Goals\n\n1.Weekly Goals\n\nMy Focus Areas:\n\nDevelop Level 0 and Level 1 Data Flow Diagrams (DFDs)\n\n2.Related Tasks:\n\nWork on creating and refining the Data Flow Diagram\n\n3.Progress Summary:\n\nFinished the Level 0 DFD\n\nCompleted the Level 1 DFD\n---",
+      "line_count": 91,
+      "non_empty_lines": 56,
+      "word_count": 280,
+      "encoding": "utf-8",
+      "metadata": {},
+      "ai_summary": "### Summary of Individual Log \u2013 Abdur Rehman\n\n**Week 3:**\n- Focused on foundational project requirements.\n- Assisted with:\n  - Outlining artifact collection features (directory scanning, file filtering, metadata).\n  - Drafting artifact analysis requirements (classification, basic statistics).\n  - Reviewing dashboard and visualization requirements for summary metrics.\n\n**Week 4:**\n- Connected project requirements to architecture layout.\n- Polished the proposal's requirements section.\n- Refined and wrote the project proposal, finalizing the requirements and write-up.\n\n**Week 5:**\n- Developed Level 0 and Level 1 Data Flow Diagrams (DFDs).\n- Completed both the Level 0 and Level 1 DFDs. \n\nNo specific features owned or tasks from the project board were mentioned in weeks 3 and 4."
+    }
+  ],
+  "code_summary": null,
+  "summary": {
+    "total_git_repos": 0,
+    "total_documents": 10,
+    "has_code": false
+  }
+}
