@@ -358,9 +358,6 @@ This section outlines the individual log for week 12
 ### Planning Activities for Next Cycle
 
 **Week 13 Goals:**
-- Expose the `ArtifactPipeline` via FastAPI endpoints
-- Define API request/response schemas to match new orchestrator output format
 - Connect pipeline output to database for persistence
-- Begin work on frontend integration to display project-centric results
 - Prepare for final integration testing and demo
 
