@@ -347,3 +347,51 @@ My main contributions included:
 ### 8. Next Week's Focus
 - Extend the confidence scoring framework to other languages (Java, C++, JavaScript).
 - Add skill category mapping for architecture, performance, and design patterns.
+
+
+## Week 12 – November 10 to November 16
+
+### 1. Type of Tasks Worked On
+![Week 12 Task Screenshot](images/week12-abhinav.png)
+
+---
+
+### 3. Recap of Weekly Goals
+This week focused on enhancing the Advanced Skill Extractor by expanding its ability to detect deeper computer-science concepts across multiple languages.  
+My contributions included:  
+- adding detection for OOP principles such as abstraction, encapsulation, inheritance, and polymorphism  
+- extending multi-language analysis to identify functional constructs, algorithm usage, memory-management patterns, and module architecture  
+- improving detection of code structure indicators like coupling and cohesion  
+- updating directory-level JSON export to reflect the enriched skill set  
+- removing confidence scoring logic and restructuring evidence to remain deterministic and consistent with the new design  
+- validating the implementation by updating and running the entire test suite, ensuring all previous tests passed after changes  
+
+---
+
+### 4. Features Owned in Project Plan
+- Advanced Skill Extractor – Deep CS Concept Detection  
+- Multi-Language Skill Extraction Enhancements  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features
+- Issue #144 – Deep CS Concept Detection for Skill Extractor  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks
+| Task ID | Issue Title                                      | Status     | Notes |
+|---------|---------------------------------------------------|------------|-------|
+| 144     | Deep CS Concept Detection for Skill Extractor     | Completed  | Added multi-language OOP, algorithmic, architectural, and functional analysis |
+
+---
+
+### 7. Additional Context
+- Updated the entire test suite to align with the redesigned extractor, removing deprecated confidence tests.  
+- Confirmed compatibility with existing modules and JSON serialization.  
+
+---
+
+### 8. Next Week’s Focus
+- Implement the final complexity analysis module for deeper algorithmic reasoning.  
+- Add chronological ordering logic for skill evidence and structured output.  
