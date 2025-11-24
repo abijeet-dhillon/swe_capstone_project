@@ -17,6 +17,7 @@ from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
+from src.project.presentation import generate_portfolio_item, generate_resume_item
 
 
 class ArtifactPipeline:
@@ -341,6 +342,19 @@ class ArtifactPipeline:
             print(f"     ✗ Error during analysis: {e}")
             result["analysis_results"] = {"error": str(e)}
         
+        # Generate portfolio and resume items
+        print(f"     📝 Generating presentation items...")
+        try:
+            portfolio_item = generate_portfolio_item(result)
+            resume_item = generate_resume_item(result)
+            result["portfolio_item"] = portfolio_item
+            result["resume_item"] = resume_item
+            print(f"     ✓ Presentation items generated")
+        except Exception as e:
+            print(f"     ⚠️  Warning: Failed to generate presentation items: {e}")
+            result["portfolio_item"] = {"error": str(e)}
+            result["resume_item"] = {"error": str(e)}
+        
         return result
     
     def _analyze_git_project(self, project_path: Path) -> Dict[str, Any]:
@@ -613,6 +627,26 @@ class ArtifactPipeline:
                     metrics = video_analysis.get('metrics', {})
                     duration = metrics.get('total_duration', 0)
                     print(f"      • Videos: {metrics.get('total_videos', 0)} files, {duration:.1f}s duration")
+            
+            # Portfolio and Resume items
+            portfolio_item = project_data.get('portfolio_item')
+            resume_item = project_data.get('resume_item')
+            
+            if portfolio_item and 'error' not in portfolio_item:
+                print(f"\n   📝 Portfolio Item:")
+                print(f"      • Tagline: {portfolio_item.get('tagline', 'N/A')}")
+                print(f"      • Collaborative: {portfolio_item.get('is_collaborative', False)}")
+                if portfolio_item.get('languages'):
+                    print(f"      • Languages: {', '.join(portfolio_item.get('languages', [])[:5])}")
+                if portfolio_item.get('frameworks'):
+                    print(f"      • Frameworks: {', '.join(portfolio_item.get('frameworks', [])[:3])}")
+            
+            if resume_item and 'error' not in resume_item:
+                print(f"\n   📄 Resume Bullets:")
+                for i, bullet in enumerate(resume_item.get('bullets', []), 1):
+                    # Truncate long bullets for display
+                    display_bullet = bullet[:120] + '...' if len(bullet) > 120 else bullet
+                    print(f"      {i}. {display_bullet}")
         
         # Miscellaneous files summary
         if misc_files:
