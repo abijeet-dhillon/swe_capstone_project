@@ -9,6 +9,7 @@
 [Week 9 Personal Logs](#week-9)
 [Week 10 Personal Logs](#week-10)
 [Week 11 Personal Logs](#week-11)
+[Week 12 Personal Logs](#week-12)
 
 ## Week 3
 ### Date Range 
@@ -221,3 +222,32 @@ Since there are no peer evaluations, here is a list of tasks worked on:
 - Build ranking engine using rank_inputs for project significance scoring
 - Implement persistence layer for storing aggregated ProjectInfo objects
 - Create API endpoints for retrieving ranked project portfolios
+
+## Week 12
+### Date Range 
+17th November 2025 - 23rd November 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 12](images/tahsin-week-12.png)
+
+### Weekly Goals
+**My features**:
+* Implemented automatic portfolio and resume item generation for each analyzed project
+* Developed PortfolioItem dataclass with structured fields: tagline, description, languages, frameworks, skills, collaboration status, and metrics
+* Developed ResumeItem dataclass generating 2-3 professional bullet points tailored to individual vs. collaborative projects
+* Integrated presentation generators into main pipeline orchestrator in _process_project() method
+* Enhanced console output to display portfolio taglines and resume bullets in pipeline summary
+* Created comprehensive test suite with 33 tests (27 unit tests, 5 integration tests, 1 demonstration test) achieving full coverage
+* Implemented intelligent tagline generation distinguishing individual vs. collaborative projects with language/framework detection
+* Built resume bullet generation with structured format: project scope, version control discipline, and skills application
+* Added automatic list truncation (10 languages, 10 frameworks, 15 skills) to prevent overwhelming output
+
+**Task from project board**:
+* Generate Portfolio and Resume Data
+
+**Completed/In-progress tasks**: 
+* Generate Portfolio and Resume Data (Completed)
+
+**Future cycle plans**:
+- Integrate presentation items with database persistence layer for storage and retrieval
+- Implement ranking/filtering system to highlight most significant projects in portfolio summaries
