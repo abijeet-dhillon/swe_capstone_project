@@ -1,6 +1,7 @@
 """Advanced Skill Extractor - Local AST-based analysis"""
 
 import ast
+import json
 import re
 from pathlib import Path
 from typing import List, Dict, Set, Any, Optional
@@ -36,6 +37,18 @@ CATEGORY_MAP = {
     'typescript-interface': 'language-feature',
     'typescript-generic': 'language-feature',
     'hash-based-structures': 'data-structure',
+    'oop-structure': 'architecture',
+    'abstraction-principle': 'architecture',
+    'encapsulation-principle': 'architecture',
+    'polymorphism-principle': 'architecture',
+    'inheritance-pattern': 'architecture',
+    'function-purity': 'code-quality',
+    'side-effects-detected': 'code-quality',
+    'algorithm-usage': 'performance',
+    'functional-constructs': 'language-feature',
+    'memory-management-patterns': 'resource-management',
+    'module-architecture': 'architecture',
+    'coupling-cohesion': 'architecture'
 }
 
 
@@ -46,12 +59,12 @@ class SkillEvidence:
     evidence_type: str
     location: str
     reasoning: str
-    confidence: float
 
 
 @dataclass
 class DeepSkillAnalysis:
     file_path: str
+    language: str
     basic_skills: List[str] = field(default_factory=list)
     advanced_skills: List[str] = field(default_factory=list)
     design_patterns: List[str] = field(default_factory=list)
@@ -67,6 +80,29 @@ class DeepSkillAnalysis:
             self.skill_categories.setdefault(category, []).append(skill)
         for cat in self.skill_categories:
             self.skill_categories[cat].sort()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Dictionary representation for serialization/databases."""
+        if not self.skill_categories:
+            self.categorize_skills()
+        return {
+            "file_path": self.file_path,
+            "language": self.language,
+            "basic_skills": self.basic_skills,
+            "advanced_skills": self.advanced_skills,
+            "design_patterns": self.design_patterns,
+            "skill_categories": self.skill_categories,
+            "complexity_insights": self.complexity_insights,
+            "evidence": [
+                {
+                    "skill": e.skill,
+                    "type": e.evidence_type,
+                    "reasoning": e.reasoning,
+                    "location": e.location,
+                }
+                for e in self.evidence
+            ],
+        }
 
 
 
@@ -142,6 +178,30 @@ class AdvancedSkillExtractor:
             }
         }
     
+    def _append_unique(self, items: List[str], value: str) -> None:
+        if value not in items:
+            items.append(value)
+
+    def _add_evidence(
+        self,
+        analysis: DeepSkillAnalysis,
+        skill: str,
+        evidence_type: str,
+        reasoning: str,
+        location: str = "File-level",
+        bucket: str = "advanced",
+    ) -> None:
+        target = analysis.advanced_skills if bucket == "advanced" else analysis.design_patterns
+        self._append_unique(target, skill)
+        analysis.evidence.append(
+            SkillEvidence(
+                skill=skill,
+                evidence_type=evidence_type,
+                location=location,
+                reasoning=reasoning,
+            )
+        )
+    
     def analyze_file(self, file_path: Path) -> DeepSkillAnalysis:
         try:
             content = file_path.read_text(encoding='utf-8')
@@ -149,7 +209,7 @@ class AdvancedSkillExtractor:
             content = file_path.read_text(encoding='latin-1')
         
         language = self._detect_language(file_path)
-        analysis = DeepSkillAnalysis(file_path=str(file_path))
+        analysis = DeepSkillAnalysis(file_path=str(file_path), language=language)
         analysis.basic_skills.append(language)
         
         if language == 'python':
@@ -161,6 +221,7 @@ class AdvancedSkillExtractor:
                 self._detect_error_handling(tree, content, analysis)
                 self._detect_type_safety(tree, content, analysis)
                 self._detect_data_structures(tree, content, analysis)
+                self._detect_python_cs_concepts(tree, content, analysis)
             except SyntaxError:
                 analysis.basic_skills.append('syntax-error-detected')
         else:
@@ -170,8 +231,6 @@ class AdvancedSkillExtractor:
     
     def _detect_caching_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
         lines = content.split('\n')
-        total_lines = len(lines)  # ADD THIS
-        detection_count = 0        # ADD THIS
         
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
@@ -179,53 +238,41 @@ class AdvancedSkillExtractor:
                     if isinstance(stmt, ast.If):
                         test_str = ast.unparse(stmt.test) if hasattr(ast, 'unparse') else ''
                         if 'is None' in test_str or '== None' in test_str:
-                            detection_count += 1  # ADD THIS
-                            
-                            # CHANGE THIS SECTION:
                             snippet = self._extract_code_snippet(content, stmt.lineno, context_lines=2)
-                            confidence = self._calculate_confidence(detection_count, 'pattern', total_lines)
-                            
-                            analysis.advanced_skills.append('lazy-initialization')
-                            analysis.evidence.append(SkillEvidence(
+                            self._add_evidence(
+                                analysis,
                                 skill='lazy-initialization',
                                 evidence_type='pattern',
-                                location=snippet,  # ← Now shows actual code!
                                 reasoning='Detected lazy initialization pattern with None check',
-                                confidence=confidence  # ← Now dynamic!
-                            ))
+                                location=snippet
+                            )
                             break
         
         if '@lru_cache' in content or '@cache' in content:
-            confidence = self._calculate_confidence(1, 'decorator', total_lines)  # CHANGE THIS
-            analysis.advanced_skills.append('memoization')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='memoization',
                 evidence_type='decorator',
-                location='File-level',
                 reasoning='Uses functools caching decorators for performance',
-                confidence=confidence  # ← Now dynamic!
-            ))
-    
+            )
     def _detect_design_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        
         has_enum = 'Enum' in content or 'from enum import' in content
         has_dict_dispatch = False
         
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                if isinstance(node.value, ast.Dict):
-                    if len(node.value.keys) > 2:
-                        has_dict_dispatch = True
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict):
+                if len(node.value.keys) > 2:
+                    has_dict_dispatch = True
         
         if has_enum and has_dict_dispatch:
-            analysis.design_patterns.append('strategy-pattern')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='strategy-pattern',
                 evidence_type='pattern',
-                location='Class-level',
                 reasoning='Enum + dictionary dispatch indicates Strategy pattern',
-                confidence=0.8
-            ))
+                location='Class-level',
+                bucket='design'
+            )
         
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == '__init__':
@@ -233,14 +280,14 @@ class AdvancedSkillExtractor:
                     if arg.annotation:
                         annotation_str = ast.unparse(arg.annotation) if hasattr(ast, 'unparse') else ''
                         if 'Optional' in annotation_str or 'Union' in annotation_str:
-                            analysis.design_patterns.append('dependency-injection')
-                            analysis.evidence.append(SkillEvidence(
+                            self._add_evidence(
+                                analysis,
                                 skill='dependency-injection',
                                 evidence_type='pattern',
-                                location=f'__init__ method',
                                 reasoning='Optional dependencies injected via constructor',
-                                confidence=0.85
-                            ))
+                                location='__init__ method',
+                                bucket='design'
+                            )
                             break
         custom_exceptions = []
         for node in ast.walk(tree):
@@ -251,17 +298,16 @@ class AdvancedSkillExtractor:
                         custom_exceptions.append(node.name)
         
         if custom_exceptions:
-            analysis.design_patterns.append('custom-exception-hierarchy')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='custom-exception-hierarchy',
                 evidence_type='pattern',
-                location=f'Classes: {", ".join(custom_exceptions)}',
                 reasoning='Defines domain-specific exceptions for fine-grained error handling',
-                confidence=1.0
-            ))
-    
+                location=f'Classes: {", ".join(custom_exceptions)}',
+                bucket='design'
+            )
+
     def _detect_complexity_awareness(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        
         set_usage_count = 0
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
@@ -269,62 +315,54 @@ class AdvancedSkillExtractor:
                 if isinstance(node.func, ast.Name):
                     func_name = node.func.id
                 if func_name == 'list' and len(node.args) > 0:
-                    if isinstance(node.args[0], ast.Call):
-                        if isinstance(node.args[0].func, ast.Name):
-                            if node.args[0].func.id == 'set':
-                                set_usage_count += 1
+                    if isinstance(node.args[0], ast.Call) and isinstance(node.args[0].func, ast.Name):
+                        if node.args[0].func.id == 'set':
+                            set_usage_count += 1
         
         if set_usage_count > 0:
-            analysis.advanced_skills.append('algorithmic-optimization')
             analysis.complexity_insights['set_deduplication'] = set_usage_count
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='algorithmic-optimization',
                 evidence_type='data-structure',
-                location=f'{set_usage_count} occurrences',
-                reasoning='Uses set for O(n) deduplication instead of O(n²) list iteration',
-                confidence=0.95
-            ))
-        if 'hashlib' in content or 'sha256' in content or 'md5' in content:
-            analysis.advanced_skills.append('cryptographic-hashing')
-            analysis.evidence.append(SkillEvidence(
+                reasoning='Uses set conversion to deduplicate data in O(n)',
+                location=f'{set_usage_count} set() conversions'
+            )
+        
+        if any(token in content for token in ['hashlib', 'sha256', 'md5']):
+            self._add_evidence(
+                analysis,
                 skill='cryptographic-hashing',
                 evidence_type='library',
-                location='Import-level',
-                reasoning='Uses cryptographic hashing for O(1) lookups and integrity',
-                confidence=0.9
-            ))
-    
+                reasoning='Uses cryptographic hashing for data integrity or IDs',
+                location='hashlib/md5 usage'
+            )
+
     def _detect_error_handling(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        
         try_except_count = 0
         graceful_degradation = False
         
         for node in ast.walk(tree):
             if isinstance(node, ast.Try):
                 try_except_count += 1
-                if len(node.handlers) > 0:
+                if node.handlers:
                     for handler in node.handlers:
-                        if len(handler.body) > 1 or (
-                            len(handler.body) == 1 and 
-                            not isinstance(handler.body[0], (ast.Pass, ast.Raise))
-                        ):
+                        if len(handler.body) > 1 or (len(handler.body) == 1 and not isinstance(handler.body[0], (ast.Pass, ast.Raise))):
                             graceful_degradation = True
         
         if try_except_count > 0:
-            analysis.basic_skills.append('exception-handling')
+            self._append_unique(analysis.basic_skills, 'exception-handling')
         
         if graceful_degradation:
-            analysis.advanced_skills.append('graceful-degradation')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='graceful-degradation',
                 evidence_type='pattern',
-                location=f'{try_except_count} try-except blocks',
-                reasoning='Implements fallback mechanisms instead of failing completely',
-                confidence=0.85
-            ))
-    
+                reasoning='Implements fallback logic inside exception handlers',
+                location=f'{try_except_count} try-except blocks'
+            )
+
     def _detect_type_safety(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        
         type_hint_count = 0
         return_type_count = 0
         
@@ -336,114 +374,418 @@ class AdvancedSkillExtractor:
                 if node.returns:
                     return_type_count += 1
         
-        if type_hint_count + return_type_count >= 5:
-            analysis.advanced_skills.append('static-type-checking')
-            analysis.evidence.append(SkillEvidence(
+        total_annotations = type_hint_count + return_type_count
+        if total_annotations >= 5:
+            self._add_evidence(
+                analysis,
                 skill='static-type-checking',
                 evidence_type='annotation',
-                location=f'{type_hint_count} parameters, {return_type_count} returns',
                 reasoning='Comprehensive type hints enable static analysis and IDE support',
-                confidence=0.9
-            ))
+                location=f'{type_hint_count} parameters, {return_type_count} returns'
+            )
         if '@dataclass' in content:
-            analysis.advanced_skills.append('modern-python-features')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='modern-python-features',
                 evidence_type='decorator',
-                location='Class definitions',
                 reasoning='Uses dataclasses for structured data with automatic methods',
-                confidence=1.0
-            ))
-    
+                location='Class definitions'
+            )
+
     def _detect_data_structures(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
-        
         comprehension_count = 0
         for node in ast.walk(tree):
             if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp)):
                 comprehension_count += 1
         
         if comprehension_count > 3:
-            analysis.advanced_skills.append('pythonic-idioms')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='pythonic-idioms',
                 evidence_type='syntax',
-                location=f'{comprehension_count} comprehensions',
                 reasoning='Uses comprehensions for concise, efficient iteration',
-                confidence=0.8
-            ))
+                location=f'{comprehension_count} comprehensions'
+            )
         with_count = 0
         for node in ast.walk(tree):
             if isinstance(node, ast.With):
                 with_count += 1
-        
         if with_count > 0:
-            analysis.advanced_skills.append('resource-management')
-            analysis.evidence.append(SkillEvidence(
+            self._add_evidence(
+                analysis,
                 skill='resource-management',
                 evidence_type='pattern',
-                location=f'{with_count} with statements',
                 reasoning='Uses context managers for automatic resource cleanup',
-                confidence=0.9
-            ))
-    
+                location=f'{with_count} with statements'
+            )
+
     def _analyze_generic(self, content: str, language: str, analysis: DeepSkillAnalysis):
-        patterns = {
-            'java': {
-                'generics': r'<[A-Z][a-zA-Z0-9,\s<>]*>',
-                'interface': r'interface\s+\w+',
-                'abstract': r'abstract\s+class',
-                'stream': r'\.stream\(\)',
-                'lambda': r'->',
-                'annotation': r'@\w+',
-                'exception': r'class\s+\w+Exception\s+extends'
-            },
-            'cpp': {
-                'template': r'template\s*<',
-                'smart_ptr': r'(unique_ptr|shared_ptr|weak_ptr)',
-                'raii': r'(std::lock_guard|std::unique_lock)',
-                'move': r'std::move',
-                'constexpr': r'constexpr',
-                'namespace': r'namespace\s+\w+'
-            },
-            'c': {
-                'pointer': r'\*\w+',
-                'malloc': r'(malloc|calloc|realloc|free)',
-                'struct': r'struct\s+\w+',
-                'typedef': r'typedef\s+'
-            },
-            'javascript': {
-                'arrow': r'=>',
-                'async': r'async\s+',
-                'promise': r'Promise',
-                'destructure': r'(const|let)\s*\{[^}]+\}\s*=',
-                'spread': r'\.\.\.\w+'
-            },
-            'typescript': {
-                'interface': r'interface\s+\w+',
-                'type_alias': r'type\s+\w+\s*=',
-                'generic': r'<[A-Z][a-zA-Z0-9,\s]*>',
-                'readonly': r'readonly\s+'
-            }
+        pattern_library = {
+            'java': [
+                {
+                    'skill': 'java-generics',
+                    'pattern': r'<[A-Z][a-zA-Z0-9,\s<>]*>',
+                    'type': 'syntax',
+                    'reasoning': 'Uses parameterized Java generics for type safety'
+                },
+                {
+                    'skill': 'java-stream',
+                    'pattern': r'\.stream\(\)',
+                    'type': 'pattern',
+                    'reasoning': 'Uses Java Stream API for functional pipelines'
+                },
+                {
+                    'skill': 'java-lambda',
+                    'pattern': r'->',
+                    'type': 'syntax',
+                    'reasoning': 'Lambda expressions indicate functional style'
+                },
+                {
+                    'skill': 'exception-handling',
+                    'pattern': r'class\s+\w+Exception\s+extends',
+                    'type': 'pattern',
+                    'reasoning': 'Defines custom exception classes for error handling'
+                }
+            ],
+            'cpp': [
+                {
+                    'skill': 'cpp-template',
+                    'pattern': r'template\s*<',
+                    'type': 'syntax',
+                    'reasoning': 'Template definitions indicate generic programming'
+                },
+                {
+                    'skill': 'cpp-smart_ptr',
+                    'pattern': r'(unique_ptr|shared_ptr|weak_ptr)',
+                    'type': 'pattern',
+                    'reasoning': 'Modern smart pointers improve memory safety'
+                },
+                {
+                    'skill': 'cpp-move',
+                    'pattern': r'std::move',
+                    'type': 'syntax',
+                    'reasoning': 'Move semantics highlight performance awareness'
+                }
+            ],
+            'javascript': [
+                {
+                    'skill': 'javascript-arrow',
+                    'pattern': r'=>',
+                    'type': 'syntax',
+                    'reasoning': 'Arrow functions indicate modern JavaScript usage'
+                },
+                {
+                    'skill': 'javascript-async',
+                    'pattern': r'async\s+function',
+                    'type': 'pattern',
+                    'reasoning': 'Async functions for concurrent workflows'
+                },
+                {
+                    'skill': 'javascript-promise',
+                    'pattern': r'new\s+Promise|Promise\.',
+                    'type': 'pattern',
+                    'reasoning': 'Promise usage for async control flow'
+                }
+            ],
+            'typescript': [
+                {
+                    'skill': 'typescript-interface',
+                    'pattern': r'interface\s+\w+',
+                    'type': 'syntax',
+                    'reasoning': 'Interfaces define TypeScript contracts'
+                },
+                {
+                    'skill': 'typescript-generic',
+                    'pattern': r'<[A-Z][a-zA-Z0-9,\s]*>',
+                    'type': 'syntax',
+                    'reasoning': 'Generic declarations highlight reusable components'
+                }
+            ],
+            'c': [
+                {
+                    'skill': 'resource-management',
+                    'pattern': r'(malloc|calloc|realloc|free)',
+                    'type': 'pattern',
+                    'reasoning': 'Manual memory management primitives detected'
+                }
+            ]
         }
         
-        lang_patterns = patterns.get(language, {})
-        for skill, pattern in lang_patterns.items():
-            if re.search(pattern, content):
-                analysis.advanced_skills.append(f'{language}-{skill}')
+        for entry in pattern_library.get(language, []):
+            match = re.search(entry['pattern'], content)
+            if not match:
+                continue
+            snippet = self._snippet_from_match(content, match.start())
+            self._add_evidence(
+                analysis,
+                skill=entry['skill'],
+                evidence_type=entry['type'],
+                reasoning=entry['reasoning'],
+                location=snippet
+            )
         
-        if re.search(r'(HashMap|HashSet|unordered_map|unordered_set|dict|Map|Set)', content):
-            analysis.advanced_skills.append('hash-based-structures')
-            analysis.evidence.append(SkillEvidence(
+        hash_match = re.search(r'(HashMap|HashSet|unordered_map|unordered_set|dict|Map|Set)', content)
+        if hash_match:
+            snippet = self._snippet_from_match(content, hash_match.start())
+            self._add_evidence(
+                analysis,
                 skill='hash-based-structures',
                 evidence_type='data-structure',
-                location='File-level',
-                reasoning='Uses hash-based data structures for O(1) operations',
-                confidence=0.85
-            ))
+                reasoning='Uses hash-based collections for O(1) lookups',
+                location=snippet
+            )
         
         if re.search(r'(try|catch|except|throw|throws)', content, re.IGNORECASE):
-            analysis.basic_skills.append('exception-handling')
-    
+            self._append_unique(analysis.basic_skills, 'exception-handling')
+
+        self._detect_generic_cs_concepts(language, content, analysis)
+
+    def _detect_python_cs_concepts(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        self._detect_oop_structure(tree, content, analysis)
+        self._detect_abstraction(tree, content, analysis)
+        self._detect_encapsulation(tree, content, analysis)
+        self._detect_polymorphism(tree, content, analysis)
+        self._detect_inheritance(tree, content, analysis)
+        self._detect_function_purity(tree, content, analysis)
+        self._detect_side_effects(tree, content, analysis)
+        self._detect_algorithm_usage(content, analysis)
+        self._detect_functional_constructs(tree, content, analysis)
+        self._detect_memory_management_patterns(tree, content, analysis)
+        self._detect_module_architecture(content, analysis)
+        self._detect_coupling_and_cohesion(content, analysis)
+
+    def _detect_oop_structure(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                methods = [n for n in node.body if isinstance(n, ast.FunctionDef)]
+                if methods:
+                    self._add_evidence(
+                        analysis,
+                        skill='oop-structure',
+                        evidence_type='pattern',
+                        reasoning='Class with methods detected indicating object-oriented structure',
+                        location=f'class {node.name}',
+                        bucket='design'
+                    )
+                    break
+
+    def _detect_abstraction(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    base_name = getattr(base, 'id', getattr(base, 'attr', ''))
+                    if base_name in {'ABC', 'ABCMeta'}:
+                        self._add_evidence(
+                            analysis,
+                            skill='abstraction-principle',
+                            evidence_type='pattern',
+                            reasoning='Class inherits from abstract base',
+                            location=f'class {node.name}',
+                            bucket='design'
+                        )
+                        return
+        if 'NotImplementedError' in content:
+            self._add_evidence(
+                analysis,
+                skill='abstraction-principle',
+                evidence_type='pattern',
+                reasoning='Methods raise NotImplementedError to enforce abstraction',
+                location='NotImplementedError usage',
+                bucket='design'
+            )
+
+    def _detect_encapsulation(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.attr.startswith('_'):
+                self._add_evidence(
+                    analysis,
+                    skill='encapsulation-principle',
+                    evidence_type='pattern',
+                    reasoning='Prefixed attributes indicate encapsulation practices',
+                    location=f'attribute {node.attr}',
+                    bucket='design'
+                )
+                return
+
+    def _detect_polymorphism(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if any(isinstance(dec, ast.Name) and dec.id in {'singledispatch', 'abstractmethod'} for dec in node.decorator_list):
+                    self._add_evidence(
+                        analysis,
+                        skill='polymorphism-principle',
+                        evidence_type='pattern',
+                        reasoning='Function decorated for dispatch or abstract behavior',
+                        location=f'function {node.name}',
+                        bucket='design'
+                    )
+                    return
+        if 'isinstance' in content:
+            self._add_evidence(
+                analysis,
+                skill='polymorphism-principle',
+                evidence_type='pattern',
+                reasoning='Type checks suggest polymorphic handling',
+                location='isinstance usage',
+                bucket='design'
+            )
+
+    def _detect_inheritance(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.bases:
+                self._add_evidence(
+                    analysis,
+                    skill='inheritance-pattern',
+                    evidence_type='pattern',
+                    reasoning='Class inherits from another base class',
+                    location=f'class {node.name}',
+                    bucket='design'
+                )
+                return
+
+    def _detect_function_purity(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                has_side_effect = any(isinstance(n, (ast.Assign, ast.AugAssign, ast.Raise)) for n in ast.walk(node))
+                calls = {getattr(n.func, 'id', getattr(n.func, 'attr', '')) for n in ast.walk(node) if isinstance(n, ast.Call)}
+                impure_calls = {'print', 'open', 'requests', 'logging', 'write'}
+                if not has_side_effect and calls.isdisjoint(impure_calls):
+                    self._add_evidence(
+                        analysis,
+                        skill='function-purity',
+                        evidence_type='pattern',
+                        reasoning='Function appears pure with return-only behavior',
+                        location=f'function {node.name}'
+                    )
+                    return
+
+    def _detect_side_effects(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func_name = getattr(node.func, 'id', getattr(node.func, 'attr', ''))
+                if func_name in {'print', 'open', 'write', 'logging', 'requests'}:
+                    self._add_evidence(
+                        analysis,
+                        skill='side-effects-detected',
+                        evidence_type='pattern',
+                        reasoning='Function call indicates observable side effects',
+                        location=f'call {func_name}'
+                    )
+                    return
+
+    def _detect_algorithm_usage(self, content: str, analysis: DeepSkillAnalysis):
+        keywords = ['heapq', 'bisect', 'deque', 'sorted(', 'bfs', 'dfs', 'dynamic programming']
+        for keyword in keywords:
+            if keyword in content:
+                self._add_evidence(
+                    analysis,
+                    skill='algorithm-usage',
+                    evidence_type='pattern',
+                    reasoning=f'Algorithmic keyword detected: {keyword}',
+                    location=f'keyword {keyword}'
+                )
+                return
+
+    def _detect_functional_constructs(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ListComp, ast.GeneratorExp, ast.Lambda)):
+                self._add_evidence(
+                    analysis,
+                    skill='functional-constructs',
+                    evidence_type='pattern',
+                    reasoning='Functional construct (comprehension or lambda) detected',
+                    location='functional construct usage'
+                )
+                return
+        if re.search(r'\b(map|filter|reduce)\(', content):
+            self._add_evidence(
+                analysis,
+                skill='functional-constructs',
+                evidence_type='pattern',
+                reasoning='Functional helper (map/filter/reduce) detected',
+                location='functional helper usage'
+            )
+
+    def _detect_memory_management_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.With):
+                self._add_evidence(
+                    analysis,
+                    skill='memory-management-patterns',
+                    evidence_type='pattern',
+                    reasoning='Context manager manages resources safely',
+                    location='with-statement'
+                )
+                return
+        if 'gc.' in content:
+            self._add_evidence(
+                analysis,
+                skill='memory-management-patterns',
+                evidence_type='pattern',
+                reasoning='Garbage-collection utilities referenced',
+                location='gc usage'
+            )
+
+    def _detect_module_architecture(self, content: str, analysis: DeepSkillAnalysis):
+        if '__all__' in content or 'if __name__' in content:
+            self._add_evidence(
+                analysis,
+                skill='module-architecture',
+                evidence_type='pattern',
+                reasoning='Module exports or entry points defined',
+                location='module structure declaration',
+                bucket='design'
+            )
+
+    def _detect_coupling_and_cohesion(self, content: str, analysis: DeepSkillAnalysis):
+        import_count = len(re.findall(r'^\s*(import|from)\s+', content, re.MULTILINE))
+        if import_count >= 5:
+            self._add_evidence(
+                analysis,
+                skill='coupling-cohesion',
+                evidence_type='pattern',
+                reasoning='High number of imports suggests coupling considerations',
+                location='import section',
+                bucket='design'
+            )
+
+    def _detect_generic_cs_concepts(self, language: str, content: str, analysis: DeepSkillAnalysis):
+        def add(skill, reasoning, location='file-level', bucket='advanced'):
+            self._add_evidence(
+                analysis,
+                skill=skill,
+                evidence_type='pattern',
+                reasoning=reasoning,
+                location=location,
+                bucket=bucket
+            )
+
+        if re.search(r'class\s+\w+\s*[{:]', content):
+            add('oop-structure', 'Class definitions imply OOP structure', 'class declaration', bucket='design')
+        if re.search(r'\b(abstract|interface)\b', content):
+            add('abstraction-principle', 'Abstract class or interface detected', 'abstract/interface declaration', bucket='design')
+        if re.search(r'\bprivate\s+\w+', content):
+            add('encapsulation-principle', 'Private fields indicate encapsulation', 'private field', bucket='design')
+        if re.search(r'\b(override|virtual|implements)\b', content):
+            add('polymorphism-principle', 'Override/virtual keywords suggest polymorphism', 'method override', bucket='design')
+        if re.search(r'\b(extends|:)\s*\w+', content) and language in {'java', 'cpp', 'typescript', 'csharp'}:
+            add('inheritance-pattern', 'Inheritance hierarchy detected', 'inheritance clause', bucket='design')
+        if re.search(r'\b(lambda|=>)\b', content) and language in {'javascript', 'typescript', 'cpp', 'csharp', 'go', 'rust'}:
+            add('functional-constructs', 'Lambda expression detected', 'lambda usage')
+        if re.search(r'\b(map|filter|reduce|stream\.|collect)\b', content):
+            add('functional-constructs', 'Functional helper detected', 'functional helper usage')
+        if re.search(r'\b(console\.log|System\.out|fmt\.Print|printf)\b', content):
+            add('side-effects-detected', 'Output/logging indicates side effects', 'logging statement')
+        if re.search(r'\b(sort|search|DFS|BFS|heap|priority queue)\b', content):
+            add('algorithm-usage', 'Algorithmic keyword detected', 'algorithm keyword')
+        if re.search(r'\b(new\s+\w+|delete|malloc|free)\b', content):
+            add('memory-management-patterns', 'Manual memory management detected', 'memory management section')
+        if re.search(r'\b(namespace|module|package)\b', content):
+            add('module-architecture', 'Namespace or module declaration found', 'module declaration', bucket='design')
+        import_count = len(re.findall(r'^\s*(import|using|require)\s+', content, re.MULTILINE))
+        if import_count >= 5:
+            add('coupling-cohesion', 'Multiple imports suggest coupling considerations', 'import block', bucket='design')
+
     def analyze_directory(self, directory: Path) -> Dict[str, DeepSkillAnalysis]:
         results = {}
         extensions = tuple(self.language_extensions.keys())
@@ -459,29 +801,8 @@ class AdvancedSkillExtractor:
                 results[str(code_file)] = analysis
             except Exception as e:
                 print(f"Error analyzing {code_file}: {e}")
-        import json
-
         output_path = Path(directory) / "skill_analysis_results.json"
-        serializable = {}
-
-        for file_path, analysis in results.items():
-            serializable[file_path] = {
-                "basic_skills": analysis.basic_skills,
-                "advanced_skills": analysis.advanced_skills,
-                "design_patterns": analysis.design_patterns,
-                "skill_categories": analysis.skill_categories,
-                "evidence": [
-                    {
-                        "skill": e.skill,
-                        "type": e.evidence_type,
-                        "reasoning": e.reasoning,
-                        "confidence": e.confidence,
-                        "location": e.location,
-                    }
-                    for e in analysis.evidence
-                ],
-            }
-
+        serializable = {file_path: analysis.to_dict() for file_path, analysis in results.items()}
         output_path.write_text(json.dumps(serializable, indent=2))
         print(f"Saved analysis to {output_path}")            
         return results
@@ -498,7 +819,11 @@ class AdvancedSkillExtractor:
             all_patterns.update(analysis.design_patterns)
             
             for evidence in analysis.evidence:
-                evidence_by_skill[evidence.skill].append(evidence)
+                evidence_by_skill[evidence.skill].append({
+                    "type": evidence.evidence_type,
+                    "reasoning": evidence.reasoning,
+                    "location": evidence.location,
+                })
         
         return {
             'basic_skills': sorted(list(all_basic)),
@@ -508,27 +833,6 @@ class AdvancedSkillExtractor:
             'evidence_by_skill': dict(evidence_by_skill),
             'total_files_analyzed': len(analyses)
         }
-
-
-    def _calculate_confidence(self, detection_count, pattern_type, total_lines):
-        base_confidence = {
-            'decorator': 1.0,
-            'import': 0.95,
-            'library': 0.95,
-            'annotation': 0.95,
-            'data-structure': 0.9,
-            'pattern': 0.85,
-            'syntax': 0.8
-        }.get(pattern_type, 0.7)
-
-        if detection_count > 1:
-            frequency_boost = min((detection_count - 1) * 0.05, 0.2)
-            base_confidence = min(base_confidence + frequency_boost, 1.0)
-
-        if total_lines < 10:
-            base_confidence *= 0.95
-
-        return round(base_confidence, 2)
 
 
     def _extract_code_snippet(self, content, line_number, context_lines=2):
@@ -541,6 +845,11 @@ class AdvancedSkillExtractor:
             marker = "→" if i == line_idx else " "
             snippet.append(f"{marker} {i+1:3d} | {lines[i]}")
         return '\n'.join(snippet)
+
+    def _snippet_from_match(self, content: str, start_idx: int) -> str:
+        """Create a snippet for a regex match index."""
+        line_number = content[:start_idx].count('\n') + 1
+        return self._extract_code_snippet(content, line_number)
 
 
 def analyze_single_file(file_path):
@@ -559,12 +868,12 @@ def analyze_single_file(file_path):
         "advanced_skills": analysis.advanced_skills,
         "design_patterns": analysis.design_patterns,
         "skill_categories": analysis.skill_categories,
+        "complexity_insights": analysis.complexity_insights,
         "evidence": [
             {
                 "skill": e.skill,
                 "type": e.evidence_type,
                 "reasoning": e.reasoning,
-                "confidence": e.confidence,
                 "location": e.location,
             }
             for e in analysis.evidence

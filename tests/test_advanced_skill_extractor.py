@@ -138,8 +138,6 @@ def test_evidence_structure(extractor, sample_code_with_caching, tmp_path):
         assert hasattr(evidence, 'evidence_type')
         assert hasattr(evidence, 'location')
         assert hasattr(evidence, 'reasoning')
-        assert hasattr(evidence, 'confidence')
-        assert 0.0 <= evidence.confidence <= 1.0
 
 
 def test_dataclass_detection(extractor, tmp_path):
@@ -373,26 +371,6 @@ def optimize(items):
     assert 'algorithmic-optimization' in analysis.skill_categories['performance']
 
 
-def test_confidence_calculation_method(extractor):
-    """Test the _calculate_confidence method directly"""
-    # Single occurrence, pattern type
-    conf1 = extractor._calculate_confidence(1, 'pattern', 100)
-    assert 0.85 == conf1
-    
-    # Multiple occurrences (should boost confidence)
-    conf2 = extractor._calculate_confidence(3, 'pattern', 100)
-    assert conf2 > conf1
-    assert conf2 <= 1.0
-    
-    # Decorator type (highest confidence)
-    conf3 = extractor._calculate_confidence(1, 'decorator', 100)
-    assert conf3 == 1.0
-    
-    # Small file penalty
-    conf4 = extractor._calculate_confidence(1, 'pattern', 5)
-    assert conf4 < 0.85
-
-
 def test_code_snippet_extraction(extractor):
     """Test the _extract_code_snippet method directly"""
     code = """line 1
@@ -437,30 +415,6 @@ def get_data(self):
     assert "if self._cache is None" in location
     assert "|" in location  # Line number separator
     assert "→" in location  # Target line marker
-
-
-def test_dynamic_confidence_in_real_analysis(extractor, tmp_path):
-    """Verify confidence is actually calculated dynamically in file analysis"""
-    code = """
-x1 = list(set([1]))
-x2 = list(set([2]))
-x3 = list(set([3]))
-"""
-    file = tmp_path / "test.py"
-    file.write_text(code)
-    
-    analysis = extractor.analyze_file(file)
-    
-    # Find optimization evidence
-    opt_evidence = [e for e in analysis.evidence if 'optimization' in e.skill]
-    assert len(opt_evidence) > 0
-    
-    # Confidence should be reasonable and not hardcoded
-    for evidence in opt_evidence:
-        assert isinstance(evidence.confidence, float)
-        assert 0.0 <= evidence.confidence <= 1.0
-        # Should not be exactly 0.95 (the old hardcoded value)
-        # It should be dynamically calculated
 
 
 def test_categorize_skills_method(extractor, tmp_path):
