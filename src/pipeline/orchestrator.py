@@ -8,7 +8,7 @@ import zipfile
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
@@ -17,6 +17,7 @@ from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
+from src.insights import ProjectInsightsStore
 from src.project.presentation import generate_portfolio_item, generate_resume_item
 
 
@@ -33,13 +34,32 @@ class ArtifactPipeline:
     # Video file extensions to detect in "other" category
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.wmv'}
     
-    def __init__(self):
-        """Initialize the pipeline orchestrator and all analyzers"""
+    def __init__(
+        self,
+        insights_store: Optional[ProjectInsightsStore] = None,
+        enable_insights: bool = True,
+    ):
+        """
+        Initialize the pipeline orchestrator and all analyzers.
+
+        Args:
+            insights_store: Optional ProjectInsightsStore used to persist pipeline output.
+            enable_insights: When True, automatically initialize the default store if one
+                isn't provided (requires INSIGHTS_ENCRYPTION_KEY).
+        """
         self.text_analyzer = TextAnalyzer()
         self.code_analyzer = CodeAnalyzer()
         self.video_analyzer = VideoAnalyzer()
         self.image_processor = ImageProcessor()
         self.temp_dir = None
+        self.insights_store = insights_store
+
+        if self.insights_store is None and enable_insights:
+            try:
+                self.insights_store = ProjectInsightsStore()
+            except Exception as exc:  # pragma: no cover - warning path
+                print(f"⚠️  Insights storage disabled: {exc}")
+                self.insights_store = None
     
     def start(self, zip_path: str) -> Dict[str, Any]:
         """
@@ -116,6 +136,11 @@ class ArtifactPipeline:
                 },
                 "projects": project_results
             }
+
+            # Optional persistence to SQLite insights store
+            if self.insights_store:
+                print(f"\n[5b/6] Persisting insights to database...")
+                self._persist_insights(zip_path, result)
             
             # Step 6: Print summary
             print(f"\n[6/6] Generating summary...")
@@ -530,6 +555,23 @@ class ArtifactPipeline:
             results['videos'] = None
         
         return results
+
+    def _persist_insights(self, zip_path: Path, payload: Dict[str, Any]) -> None:
+        """Persist pipeline output to the configured insights store."""
+        if not self.insights_store:
+            return
+        try:
+            stats = self.insights_store.record_pipeline_run(
+                str(zip_path),
+                payload,
+                pipeline_version="artifact-pipeline/v1",
+            )
+            print(
+                f"     ✓ Stored insights ({stats.project_count} projects, "
+                f"{stats.inserted} inserted / {stats.updated} updated / {stats.deleted} deleted)"
+            )
+        except Exception as exc:
+            print(f"     ⚠️  Warning: Unable to persist insights: {exc}")
     
     def _print_summary(self, result: Dict[str, Any]) -> None:
         """Print a summary of the analysis results"""
