@@ -854,7 +854,7 @@ def resolve_llm_consent(zip_path: str, user_id: str) -> bool:
     return consent
 
 
-def main():
+def main():  # pragma: no cover - CLI entry point
     """
     Example usage / CLI entry point
     """
