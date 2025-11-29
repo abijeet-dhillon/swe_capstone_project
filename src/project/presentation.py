@@ -6,7 +6,10 @@ by the artifact pipeline. It is pure (no I/O, no LLM, no DB) and template-based.
 """
 
 from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.insights.storage import ProjectInsightsStore
 
 
 @dataclass
@@ -330,4 +333,80 @@ def _build_resume_bullets(metrics: ProjectMetrics) -> List[str]:
         )
     
     return bullets
+
+
+def generate_items_from_project_id(
+    project_id: int,
+    db_path: Optional[str] = None,
+    store: Optional["ProjectInsightsStore"] = None,
+    regenerate: bool = True,
+) -> Dict[str, Any]:
+    """
+    Generate portfolio and resume items from a stored project by its database ID.
+    
+    This function fetches a project's stored insights from the SQLite database
+    and regenerates portfolio/resume items using the current template logic.
+    This allows updating presentation items for old projects when templates change.
+    
+    Args:
+        project_id: The project.id primary key from the SQLite insights database.
+        db_path: Optional database path. If None, uses default from environment.
+            Ignored if `store` is provided.
+        store: Optional ProjectInsightsStore instance. If None, creates a new one.
+        regenerate: If True (default), always regenerate portfolio/resume items
+            from the stored payload. If False, return existing items if present.
+    
+    Returns:
+        Dictionary containing:
+            - "project_id": The provided project_id
+            - "project_payload": The full decrypted project payload from storage
+            - "portfolio_item": Generated portfolio item dict
+            - "resume_item": Generated resume item dict
+    
+    Raises:
+        ValueError: If project_id is not found in the database.
+        RuntimeError: If database access fails or payload is invalid.
+    """
+    # Import here to avoid circular dependency
+    from src.insights.storage import ProjectInsightsStore
+    
+    # Initialize store if not provided
+    if store is None:
+        store = ProjectInsightsStore(db_path=db_path)
+    
+    # Load project insight by ID
+    project_payload = store.load_project_insight_by_id(project_id)
+    if project_payload is None:
+        raise ValueError(f"Project with ID {project_id} not found in database")
+    
+    # If regenerate is False and items already exist, return them
+    if not regenerate:
+        portfolio_item = project_payload.get("portfolio_item")
+        resume_item = project_payload.get("resume_item")
+        if portfolio_item and resume_item and "error" not in portfolio_item and "error" not in resume_item:
+            return {
+                "project_id": project_id,
+                "project_payload": project_payload,
+                "portfolio_item": portfolio_item,
+                "resume_item": resume_item,
+            }
+    
+    # Regenerate portfolio and resume items from the stored payload
+    # Remove existing items if present to ensure fresh generation
+    project_dict = dict(project_payload)
+    project_dict.pop("portfolio_item", None)
+    project_dict.pop("resume_item", None)
+    
+    try:
+        portfolio_item = generate_portfolio_item(project_dict)
+        resume_item = generate_resume_item(project_dict)
+    except Exception as e:
+        raise RuntimeError(f"Failed to generate presentation items: {e}") from e
+    
+    return {
+        "project_id": project_id,
+        "project_payload": project_payload,
+        "portfolio_item": portfolio_item,
+        "resume_item": resume_item,
+    }
 
