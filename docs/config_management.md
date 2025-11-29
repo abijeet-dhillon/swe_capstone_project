@@ -5,7 +5,8 @@ This guide shows how to run the pipeline with per-user configuration and toggle 
 ## 0) Rebuild backend image (optional when dependencies change)
 
 ```bash
-docker-compose build --no-cache
+docker compose build backend
+docker compose up -d backend
 ```
 
 ## 1) Run pipeline with default consent behavior
@@ -23,7 +24,7 @@ Using `--user-id` (or `PIPELINE_USER_ID`) makes consent and the last zip path pe
 ```bash
 docker-compose run --rm backend \
   python -m src.pipeline.orchestrator \
-  --user-id [testuser] \
+  --user-id testuser \
   tests/categorize/demo_projects.zip
 ```
 
