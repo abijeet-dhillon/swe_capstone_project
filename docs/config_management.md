@@ -1,6 +1,7 @@
 # Config Management & Consent
 
-This guide shows how to run the pipeline with per-user configuration and toggle LLM consent using the built-in SQLite-backed config manager. Replace `testuser` with your own user id if needed.
+This guide shows how to run the pipeline with per-user configuration and toggle LLM consent using the built-in SQLite-backed config manager. The default user id is `root`. Replace `root` with your own user id if needed (in
+the document, I am using `testuser` but you can also `root`).
 
 ## 0) Rebuild backend image (optional when dependencies change)
 
@@ -12,6 +13,7 @@ docker compose up -d backend
 ## 1) Run pipeline with default consent behavior
 
 If no config exists for your user, you will be prompted once for LLM consent; the choice is stored locally and reused.
+The user id being stored for this run is `root`.
 
 ```bash
 docker-compose run --rm backend python -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
