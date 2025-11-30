@@ -10,6 +10,7 @@
 [Week 10 Personal Logs](#week-10)
 [Week 11 Personal Logs](#week-11)
 [Week 12 Personal Logs](#week-12)
+[Week 13 Personal Logs](#week-13)
 
 ## Week 3
 ### Date Range 
@@ -251,3 +252,31 @@ Since there are no peer evaluations, here is a list of tasks worked on:
 **Future cycle plans**:
 - Integrate presentation items with database persistence layer for storage and retrieval
 - Implement ranking/filtering system to highlight most significant projects in portfolio summaries
+
+## Week 13
+### Date Range 
+24th November 2025 - 30th November 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 13](images/tahsin-week-13.png)
+
+### Weekly Goals
+**My features**:
+* Enhanced portfolio and resume generation system with comprehensive metrics extraction
+* Extended ProjectMetrics dataclass with additional fields: documentation metrics (doc_files, doc_words), media metrics (image_files, video_files), test metrics (test_files), and boolean flags for quick reference
+* Enhanced PortfolioItem dataclass with new fields: project_type (auto-detected category), complexity (calculated level), key_features (extracted characteristics), and quality indicators (has_documentation, has_tests)
+* Improved extract_project_metrics() to extract metrics from documentation analysis, categorized contents, and test files for more comprehensive data
+* Improved description generation with engaging multi-sentence descriptions that mention quality indicators (tests, documentation, collaboration)
+* Enhanced resume bullet generation with more action-oriented language, varied verbs, and more professional phrasing
+* Added load_project_insight_by_id() method to ProjectInsightsStore for direct project lookup by database ID
+* Created comprehensive test suite with 46 tests total (40 unit tests, 5 integration tests, 1 demo test) covering all new functionality
+* Updated integration tests to work with improved output format while maintaining backwards compatibility
+
+**Task from project board**:
+* Generate Portfolio/Resume Item using Database #31
+
+**Completed/In-progress tasks**: 
+* Generate Portfolio/Resume Item using Database #31 (Completed)
+
+**Future cycle plans**:
+- Add export functionality for portfolio items (JSON, Markdown, HTML formats)
