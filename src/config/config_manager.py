@@ -298,7 +298,7 @@ def _print_config(config: UserConfig, pretty: bool) -> None:
     print(json.dumps(config.as_dict(), indent=indent))
 
 
-def run_cli() -> None:
+def run_cli() -> None:  # pragma: no cover - CLI utility wiring
     """Command-line interface for saving, loading, and updating configs."""
     import argparse
 

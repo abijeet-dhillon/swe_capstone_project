@@ -4,11 +4,13 @@ Connects ZIP parser, file categorizer, and local analyzer components
 """
 
 import json
+import os
 import zipfile
 import tempfile
 import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+import getpass
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
@@ -19,6 +21,7 @@ from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
 from src.project.presentation import generate_portfolio_item, generate_resume_item
+from src.config.config_manager import UserConfigManager
 
 
 class ArtifactPipeline:
@@ -61,12 +64,13 @@ class ArtifactPipeline:
                 print(f"⚠️  Insights storage disabled: {exc}")
                 self.insights_store = None
     
-    def start(self, zip_path: str) -> Dict[str, Any]:
+    def start(self, zip_path: str, use_llm: bool = False) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
         
         Args:
             zip_path: Path to the ZIP file to analyze
+            use_llm: When True, also run the optional LLM summarization step
             
         Returns:
             Dictionary containing:
@@ -145,6 +149,12 @@ class ArtifactPipeline:
             # Step 6: Print summary
             print(f"\n[6/6] Generating summary...")
             self._print_summary(result)
+
+            # Optional LLM summarization (gated by user consent)
+            if use_llm:
+                print(f"\n🤖 LLM summarization enabled by user consent. Running summarization service...")
+                llm_output = self._run_llm_summarization(project_results)
+                result["llm_summaries"] = llm_output
             
             return result
             
@@ -556,6 +566,57 @@ class ArtifactPipeline:
         
         return results
 
+    def _run_llm_summarization(self, projects: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run the optional LLM summarization service against documentation files.
+
+        Args:
+            projects: The project results dictionary produced by the pipeline.
+
+        Returns:
+            Dictionary keyed by project name containing LLM summaries or errors.
+        """
+        try:
+            from src.services.summarization_service import SummarizationService
+        except Exception as exc:
+            print(f"     ⚠️  LLM summarization unavailable: {exc}")
+            return {"error": f"LLM summarization unavailable: {exc}"}
+
+        try:
+            summarizer = SummarizationService()
+        except Exception as exc:
+            print(f"     ⚠️  LLM summarization unavailable: {exc}")
+            return {"error": f"LLM summarization unavailable: {exc}"}
+        summaries: Dict[str, Any] = {}
+
+        for project_name, project_data in projects.items():
+            docs = project_data.get("categorized_contents", {}).get("documentation", [])
+            if not docs:
+                continue
+
+            project_summaries = []
+            for doc_path in docs:
+                try:
+                    summary = summarizer.summarize_document(doc_path)
+                    summary.setdefault("file_path", doc_path)
+                    project_summaries.append(summary)
+                except Exception as exc:
+                    project_summaries.append({
+                        "file_path": doc_path,
+                        "status": "error",
+                        "error": str(exc)
+                    })
+
+            if project_summaries:
+                summaries[project_name] = project_summaries
+
+        if summaries:
+            print(f"     ✓ LLM summarization complete for {len(summaries)} project(s)")
+        else:
+            print("     ℹ️  No documentation found for LLM summarization")
+
+        return summaries
+
     def _persist_insights(self, zip_path: Path, payload: Dict[str, Any]) -> None:
         """Persist pipeline output to the configured insights store."""
         if not self.insights_store:
@@ -748,23 +809,76 @@ class ArtifactPipeline:
         return f"{bytes_size:.2f} TB"
 
 
-def main():
+def _prompt_for_llm_consent() -> bool:
+    """
+    Prompt the user for LLM consent with a short privacy explanation.
+    """
+    print(
+        "\n  IMPORTANT: This pipeline can call an LLM summarization service to generate an AI-written analysis."
+        "\n  If you choose 'n', only the local analyzers will run and your data stays on this machine."
+        "\n  Privacy notice: enabling the external LLM service will send derived summaries "
+        "\n  to a hosted API. No raw files leave the machine, but continue only if you are comfortable "
+        "\n  with that data flow. Local-only analysis is available if you opt out."
+    )
+
+    while True:
+        response = input("\n  Enable LLM summarization? (y/n): ").strip().lower()
+        if response in {"y", "yes"}:
+            return True
+        if response in {"n", "no"}:
+            return False
+        print("Please respond with 'y' or 'n'.")
+
+
+def resolve_llm_consent(zip_path: str, user_id: str) -> bool:
+    """
+    Load stored consent from the user configuration; prompt and persist if missing.
+    """
+    manager = UserConfigManager()
+    zip_str = str(Path(zip_path))
+
+    existing = manager.load_config(user_id, silent=True)
+    if existing:
+        if existing.zip_file != zip_str:
+            manager.update_config(user_id, zip_file=zip_str)
+        status = "enabled" if existing.llm_consent else "disabled"
+        print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
+        return existing.llm_consent
+
+    consent = _prompt_for_llm_consent()
+    stored = manager.create_config(user_id, zip_str, consent)
+    if not stored:
+        print("⚠️  Unable to persist consent choice; proceeding with this selection for the current run.")
+    else:
+        print(f"✅ Saved consent choice for user '{user_id}' to local configuration.")
+    return consent
+
+
+def main():  # pragma: no cover - CLI entry point
     """
     Example usage / CLI entry point
     """
     import sys
+    import argparse
     
-    if len(sys.argv) < 2:
-        print("Usage: python -m src.pipeline.orchestrator <path_to_zip_file>")
-        print("Example: python -m src.pipeline.orchestrator ./tests/categorize/demo_projects.zip")
-        sys.exit(1)
-    
-    zip_path = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description="Run the artifact pipeline against a ZIP file."
+    )
+    parser.add_argument("zip_path", help="Path to the ZIP file to analyze")
+    parser.add_argument(
+        "--user-id",
+        help="Identifier for storing consent in the local configuration (default: $PIPELINE_USER_ID or current user)",
+    )
+
+    args = parser.parse_args()
+
+    user_id = args.user_id or os.getenv("PIPELINE_USER_ID") or getpass.getuser() or "default"
+    llm_consent = resolve_llm_consent(args.zip_path, user_id)
     
     try:
         # Create pipeline and run
         pipeline = ArtifactPipeline()
-        result = pipeline.start(zip_path)
+        result = pipeline.start(args.zip_path, use_llm=llm_consent)
         
         # Print detailed analysis results by project
         print("\n" + "="*70)
@@ -939,6 +1053,16 @@ def main():
                 print(json.dumps(video_data, indent=2))
             else:
                 print("No video files")
+        
+        if llm_consent:
+            llm_output = result.get("llm_summaries")
+            print("\n" + "="*70)
+            print("🤖 LLM SUMMARIZATION OUTPUT")
+            print("="*70)
+            if llm_output:
+                print(json.dumps(llm_output, indent=2))
+            else:
+                print("No LLM summaries were generated for this run.")
         
         print("\n" + "="*70)
         print("✅ Analysis Complete - All results printed above")

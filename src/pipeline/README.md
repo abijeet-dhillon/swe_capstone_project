@@ -41,6 +41,12 @@ orchestrator.py
 python3 -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
 ```
 
+The CLI now prompts once for consent before using the optional LLM summarization
+service. Your choice is stored in the local user configuration database (keyed
+by `--user-id` or `$PIPELINE_USER_ID`, defaulting to the current OS user). If you
+opt out, only the local analyzers run; opting in adds the LLM summaries at the
+end of the pipeline run.
+
 ## Output Format
 
 The `start()` method returns a **project-centric** dictionary with two main sections:
