@@ -8,7 +8,53 @@
 [Week 8 Individual Logs](#week-8)<br>
 [Week 9 Individual Logs](#week-9)<br>
 [Week 10 Individual Logs](#week-10)<br>
-[Week 12 Individual Logs](#week-12)
+[Week 12 Individual Logs](#week-12)<br>
+[Week 13 Individual Logs](#week-13)
+
+---
+
+## Week 13
+
+### November 24 2025 to November 30 2025
+
+### 1. Type of Tasks Worked On
+
+![Abijeet Dhillon Week 12 Task Types Screenshot](images/abijeetdhillon_week13_tasks.png)
+
+---
+
+### 2. Recap of Weekly Goals
+
+TO DO
+
+---
+
+### 3. Features Owned in Project Plan
+
+- Store Project Insights (#30)
+- Connect User Configuration to Pipeline (#148)
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+
+- Store Project Insights (#30)
+- Connect User Configuration to Pipeline (#148)
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+
+| Task ID | Issue Title                            | Status    | Notes                                                                                                                                                                                                                               |
+| ------- | -------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 30      | Store Project Insights                 | Completed | Implemented an **encrypted SQLite-backed ProjectInsightsStore** and wired the pipeline orchestrator to persist each run into `zipfile` and `project` tables in `data/app.db`, including a retrieval CLI and backup/restore helpers. |
+| 148     | Connect User Configuration to Pipeline | Completed | Integrated the existing user configuration system into the pipeline's CLI so that the pipeline asks for LLM consent using a simple y/n prompt. The consent is updatable and retrievable as well from our SQLite database.           |
+
+---
+
+### 6. Future Cycle Plans & Reflection On This Week
+
+TO DO
 
 ---
 
