@@ -25,7 +25,7 @@
 
 ### 2. Recap of Weekly Goals
 
-TO DO
+This week, I focused on integrating LLM consent cleanly into the artifact pipeline’s CLI and making sure it’s wired through our existing SQLite-backed user configuration system in a way that feels “one and done” for the user. I updated the orchestrator so it now shows a single y/n consent prompt with a short privacy notice, persists that choice via UserConfigManager (defaulting to --user-id root but supporting per-user IDs), and then branches behavior so that runs with consent enabled execute the LLM summarization step on top of the local analyzers, while opt-out runs stick to local analysis only. I documented this flow end-to-end in docs/config_management.md, including concrete docker-compose commands for running the pipeline with different --user-id values, flipping --llm-consent yes|no via the config manager CLI, and re-running the pipeline to confirm that prompts are skipped once consent is stored. On the testing side, I expanded the pytest suite (e.g., test_llm_consent_flow.py and test_orchestrator_coverage.py) and ran it inside Docker to bring coverage up over the orchestrator and config manager, validating both the CLI behavior and the consent-driven code paths. As a team, we also held a group meeting to walk through the updated pipeline, synced on how we want our presentation slides to clearly explain the pipeline architecture and privacy model, and double-checked the milestone 1 requirements to ensure that our implementation, tests, and documentation are all on track for the upcoming deadline.
 
 ---
 
@@ -54,7 +54,9 @@ TO DO
 
 ### 6. Future Cycle Plans & Reflection On This Week
 
-TO DO
+This week was pretty stressful since all of my courses are starting to wrap up for the end of the semester, and it really felt like time was running out faster than usual. Even with that pressure, I was able to manage my time effectively and get my COSC 499 work done: I integrated LLM consent cleanly into the artifact pipeline’s CLI, wired it through the existing SQLite-backed UserConfigManager, and made sure the orchestrator only prompts once with a clear privacy notice before branching between LLM + local analyzers or local-only runs. I also documented the end-to-end flow in docs/config_management.md, added the necessary Docker/CLI examples for toggling consent, and expanded the pytest coverage around the consent and orchestrator paths, all while syncing with my teammates in our group meeting to review the updated UX and milestone requirements.
+
+For the next cycle, I plan to shift focus toward storing and retrieving the generated portfolio and résumé items, building on the functionality that Tahsin implemented this sprint so that we can plug those outputs cleanly into our database-backed flow. The goal is to close the loop from analyzed projects to reusable, queryable presentation artifacts in time for Milestone 1. Overall, despite the busy week, things went well. I feel confident about our upcoming video demo and presentation, and as a team we’re on track to meet all of the Milestone 1 requirements by the due date.
 
 ---
 
