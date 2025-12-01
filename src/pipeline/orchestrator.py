@@ -17,6 +17,7 @@ from src.categorize.file_categorizer import categorize_folder_structure
 from src.analyze.text_analyzer import TextAnalyzer
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
+from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
 from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
@@ -54,6 +55,7 @@ class ArtifactPipeline:
         self.code_analyzer = CodeAnalyzer()
         self.video_analyzer = VideoAnalyzer()
         self.image_processor = ImageProcessor()
+        self.skill_extractor = AdvancedSkillExtractor()
         self.temp_dir = None
         self.insights_store = insights_store
 
@@ -498,10 +500,17 @@ class ArtifactPipeline:
             try:
                 # CodeAnalyzer needs to be called per file
                 code_results = []
+                skill_analyses = []
+                
                 for code_file in code_files:
                     try:
+                        # Run standard code analysis
                         analysis = self.code_analyzer.analyze_file(code_file)
                         code_results.append(analysis.to_dict())
+                        
+                        # Run advanced skill extraction
+                        skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
+                        skill_analyses.append(skill_analysis)
                     except Exception as e:
                         print(f"     ⚠️  Warning: Could not analyze {Path(code_file).name}: {e}")
                         continue
@@ -514,11 +523,21 @@ class ArtifactPipeline:
                 
                 metrics = self.code_analyzer.calculate_contribution_metrics(analysis_objs)
                 
+                # Aggregate skill extraction results
+                skill_aggregate = self.skill_extractor.aggregate_skills({
+                    sa.file_path: sa for sa in skill_analyses
+                })
+                
                 results['code'] = {
                     'files': code_results,
-                    'metrics': metrics.to_dict()
+                    'metrics': metrics.to_dict(),
+                    'skill_analysis': {
+                        'per_file': [sa.to_dict() for sa in skill_analyses],
+                        'aggregate': skill_aggregate
+                    }
                 }
                 print(f"     ✓ Code analysis complete ({len(code_results)} files)")
+                print(f"     ✓ Skill extraction complete ({skill_aggregate['total_files_analyzed']} files, {len(skill_aggregate['advanced_skills'])} advanced skills)")
             except Exception as e:
                 print(f"     ✗ Error analyzing code: {e}")
                 results['code'] = {"error": str(e)}
@@ -723,6 +742,21 @@ class ArtifactPipeline:
                     langs = metrics.get('languages', [])
                     if langs:
                         print(f"        Languages: {', '.join(langs)}")
+                    
+                    # Display skill analysis insights
+                    skill_data = code_analysis.get('skill_analysis', {})
+                    if skill_data:
+                        aggregate = skill_data.get('aggregate', {})
+                        advanced_skills = aggregate.get('advanced_skills', [])
+                        design_patterns = aggregate.get('design_patterns', [])
+                        if advanced_skills:
+                            print(f"        Advanced Skills: {', '.join(advanced_skills[:5])}")
+                            if len(advanced_skills) > 5:
+                                print(f"          ... and {len(advanced_skills) - 5} more")
+                        if design_patterns:
+                            print(f"        Design Patterns: {', '.join(design_patterns[:3])}")
+                            if len(design_patterns) > 3:
+                                print(f"          ... and {len(design_patterns) - 3} more")
                 
                 # Video analysis
                 video_analysis = analysis.get('videos')
@@ -792,6 +826,17 @@ class ArtifactPipeline:
                 if code_analysis and 'error' not in code_analysis:
                     metrics = code_analysis.get('metrics', {})
                     print(f"      • Code: {metrics.get('total_files', 0)} files, {metrics.get('total_lines', 0):,} lines")
+                    
+                    # Display skill analysis insights
+                    skill_data = code_analysis.get('skill_analysis', {})
+                    if skill_data:
+                        aggregate = skill_data.get('aggregate', {})
+                        advanced_skills = aggregate.get('advanced_skills', [])
+                        design_patterns = aggregate.get('design_patterns', [])
+                        if advanced_skills:
+                            print(f"        Advanced Skills: {', '.join(advanced_skills[:5])}")
+                        if design_patterns:
+                            print(f"        Design Patterns: {', '.join(design_patterns[:3])}")
                 
                 video_analysis = analysis.get('videos')
                 if video_analysis and 'error' not in video_analysis:
