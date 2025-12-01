@@ -7,6 +7,8 @@
 1. [Week 8](#week-8)
 1. [Week 9](#week-9)
 1. [Week 10](#week-10)
+1. [Week 10](#week-12)
+1. [Week 10](#week-13)
 
 ## Week 3 
 
@@ -365,3 +367,45 @@ This section outlines the individual log for week 12
 - Begin completing **Milestone 1** with a focus on stability and end-to-end workflow validation.  
 - Add any missing tests required for integration with upstream components.  
 - Prepare the branch for review and merging into the main pipeline.
+
+
+## Week 13
+This section outlines the individual log for week 13
+
+### November 24 – November 30
+
+### Tasks
+![](images/abdur-week13.png)
+
+### Weekly Goals
+
+1. **My Features:**  
+   - Implement full **insights deletion capabilities** (`delete_all`, `delete_zip`, `delete_project`) within the storage layer.  
+   - Add a **deletion audit log** and ensure changes are compatible with the existing encrypted database structure.  
+   - Integrate deletion routes into the FastAPI layer with stable DELETE endpoints.
+
+2. **Associated Tasks:**  
+   - Write storage-level tests covering all delete operations, including edge cases with multiple ZIPs and nested project data.  
+   - Add API-level tests verifying the DELETE endpoints (with auto skip when FastAPI is not installed).  
+   - Conduct manual testing on the real database (`data/app.db`) to confirm irreversible deletion behavior.  
+   - Validate that shared data structures remain intact after project-level deletion.  
+   - Update documentation explaining deletion behavior and API usage.
+
+### Reflection Points
+
+**What went well:**  
+- Successfully implemented all delete operations with clear, predictable behavior.  
+- All automated tests passed, and manual testing confirmed correct deletion in the real database.  
+- The deletion audit log provides useful transparency for irreversible actions.
+
+**What didn’t go well:**  
+- Creating consistent deletion behavior across nested structures required more coordination than expected.  
+- Integrating FastAPI routes revealed some serialization edge cases that needed patching.
+
+### Planning Activities for Next Cycle
+
+**Week 14 Goals:**  
+- Finalize all integration points for Milestone 1 and conduct end-to-end pipeline validation.  
+- Improve documentation for the insights lifecycle (generation → storage → retrieval → deletion).  
+- Identify any remaining gaps in test coverage and address them before merging.  
+- Prepare a clean branch for review and inclusion in the main pipeline.
