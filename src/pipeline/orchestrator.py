@@ -99,26 +99,26 @@ class ArtifactPipeline:
         
         try:
             # Step 1: Parse ZIP metadata
-            print(f"\n[1/6] Parsing ZIP file metadata...")
+            print(f"\n[1/9] Parsing ZIP file metadata...")
             zip_index = parse_zip(str(zip_path))
             print(f"✓ Parsed {zip_index.file_count} files")
             
             # Step 2: Extract to temporary directory
-            print(f"\n[2/6] Extracting ZIP contents...")
+            print(f"\n[2/9] Extracting ZIP contents...")
             self.temp_dir = Path(tempfile.mkdtemp(prefix="unzipped_"))
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(self.temp_dir)
             print(f"✓ Extracted to: {self.temp_dir}")
             
             # Step 3: Identify top-level projects and loose files
-            print(f"\n[3/6] Identifying projects (top-level directories)...")
+            print(f"\n[3/9] Identifying projects (top-level directories)...")
             projects, loose_files = self._identify_projects()
             print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}")
             if loose_files:
                 print(f"✓ Found {len(loose_files)} loose file(s) not in any project")
             
             # Step 4: Process each project
-            print(f"\n[4/6] Processing each project...")
+            print(f"\n[4/9] Processing each project...")
             project_results = {}
             
             for project_name, project_path in projects.items():
@@ -132,7 +132,7 @@ class ArtifactPipeline:
                 project_results['_misc_files'] = misc_result
             
             # Step 5: Build final result
-            print(f"\n[5/6] Compiling results...")
+            print(f"\n[5/9] Compiling results...")
             result = {
                 "zip_metadata": {
                     "root_name": zip_index.root_name,
@@ -142,14 +142,9 @@ class ArtifactPipeline:
                 },
                 "projects": project_results
             }
-
-            # Optional persistence to SQLite insights store
-            if self.insights_store:
-                print(f"\n[5b/6] Persisting insights to database...")
-                self._persist_insights(zip_path, result)
             
             # Step 6: Print summary
-            print(f"\n[6/6] Generating summary...")
+            print(f"\n[6/9] Generating summary...")
             self._print_summary(result)
 
             # Optional LLM summarization (gated by user consent)
@@ -157,6 +152,39 @@ class ArtifactPipeline:
                 print(f"\n🤖 LLM summarization enabled by user consent. Running summarization service...")
                 llm_output = self._run_llm_summarization(project_results)
                 result["llm_summaries"] = llm_output
+            
+            # Step 7: Rank projects and generate summaries
+            print(f"\n[7/9] Ranking projects and generating summaries...")
+            ranking_results = self._rank_and_summarize_projects(project_results)
+            result["project_ranking"] = ranking_results
+            
+            if ranking_results.get("ranked_projects"):
+                top_count = len(ranking_results["ranked_projects"])
+                print(f"     ✓ Ranked {ranking_results['total_projects_ranked']} projects (top {top_count} selected)")
+            else:
+                print(f"     ℹ️  {ranking_results.get('message', 'No projects to rank')}")
+            
+            # Step 8: Build chronological skills timeline
+            print(f"\n[8/9] Building chronological skills timeline...")
+            skills_timeline = self._build_chronological_skills()
+            result["chronological_skills"] = skills_timeline
+            
+            if skills_timeline.get("timeline"):
+                event_count = skills_timeline.get("total_events", 0)
+                categories = skills_timeline.get("categories", [])
+                print(f"     ✓ Generated timeline with {event_count} skill events across {len(categories)} categories")
+            else:
+                print(f"     ℹ️  {skills_timeline.get('message', 'No skill timeline generated')}")
+            
+            # Step 9: Persist to database (after all analysis including ranking and skills)
+            if self.insights_store:
+                print(f"\n[9/9] Persisting insights to database...")
+                # Ensure all data is JSON serializable before persisting
+                serializable_result = self._make_json_serializable(result)
+                self._persist_insights(zip_path, serializable_result)
+                print(f"     ✓ All results including ranking and skills saved to database")
+            else:
+                print(f"\n[9/9] Compilation complete (database persistence disabled)")
             
             return result
             
@@ -843,6 +871,84 @@ class ArtifactPipeline:
                     metrics = video_analysis.get('metrics', {})
                     print(f"      • Videos: {metrics.get('total_videos', 0)} files, {metrics.get('total_duration', 0):.1f}s duration")
         
+        # Project ranking summary
+        ranking = result.get('project_ranking', {})
+        if ranking and ranking.get('ranked_projects'):
+            print(f"\n{'─'*70}")
+            print(f"🏆 Top Ranked Projects")
+            print(f"{'─'*70}")
+            
+            for proj in ranking.get('ranked_projects', [])[:5]:
+                rank = proj.get('rank', 0)
+                name = proj.get('name', 'Unknown')
+                score = proj.get('score', 0.0)
+                collab = "Collaborative" if proj.get('is_collaborative') else "Individual"
+                commits = proj.get('commits', 0)
+                loc = proj.get('lines_of_code', 0)
+                
+                print(f"\n   #{rank}. {name} (Score: {score:.2f})")
+                print(f"      • Type: {collab}")
+                if commits > 0:
+                    print(f"      • Commits: {commits}")
+                if loc > 0:
+                    print(f"      • Lines of Code: {loc:,}")
+                
+                languages = proj.get('languages', [])
+                if languages:
+                    print(f"      • Languages: {', '.join(languages[:3])}")
+            
+            # Show summaries if available
+            summaries = ranking.get('top_summaries', [])
+            if summaries:
+                print(f"\n   📝 Project Summaries:")
+                for summary in summaries[:3]:
+                    print(f"\n      #{summary.get('rank')}: {summary.get('summary', '')}")
+        
+        # Chronological skills summary
+        chron_skills = result.get('chronological_skills', {})
+        if chron_skills and chron_skills.get('timeline'):
+            print(f"\n{'─'*70}")
+            print(f"📅 Chronological Skills Timeline")
+            print(f"{'─'*70}")
+            
+            total_events = chron_skills.get('total_events', 0)
+            categories = chron_skills.get('categories', [])
+            
+            print(f"\n   • Total skill events: {total_events}")
+            print(f"   • Categories: {', '.join(categories)}")
+            
+            # Show first 5 and last 5 events
+            timeline = chron_skills.get('timeline', [])
+            if timeline:
+                print(f"\n   📊 First 5 Events:")
+                for event in timeline[:5]:
+                    timestamp = event.get('timestamp', '')
+                    if 'T' in timestamp:
+                        timestamp = timestamp.split('T')[0]
+                    category = event.get('category', 'unknown')
+                    skills = event.get('skills', [])
+                    file_path = event.get('file', '')
+                    file_name = file_path.split('/')[-1] if '/' in file_path else file_path
+                    
+                    print(f"      • [{timestamp}] {category.upper()}: {file_name}")
+                    if skills:
+                        print(f"        Skills: {', '.join(skills[:3])}")
+                
+                if len(timeline) > 5:
+                    print(f"\n   📊 Most Recent 5 Events:")
+                    for event in timeline[-5:]:
+                        timestamp = event.get('timestamp', '')
+                        if 'T' in timestamp:
+                            timestamp = timestamp.split('T')[0]
+                        category = event.get('category', 'unknown')
+                        skills = event.get('skills', [])
+                        file_path = event.get('file', '')
+                        file_name = file_path.split('/')[-1] if '/' in file_path else file_path
+                        
+                        print(f"      • [{timestamp}] {category.upper()}: {file_name}")
+                        if skills:
+                            print(f"        Skills: {', '.join(skills[:3])}")
+        
         print(f"\n{'='*70}\n")
     
     def _format_bytes(self, bytes_size: int) -> str:
@@ -852,6 +958,296 @@ class ArtifactPipeline:
                 return f"{bytes_size:.2f} {unit}"
             bytes_size /= 1024.0
         return f"{bytes_size:.2f} TB"
+    
+    def _make_json_serializable(self, obj: Any) -> Any:
+        """
+        Recursively convert NumPy types, PIL types, and other non-serializable objects to JSON-serializable types.
+        
+        Args:
+            obj: Object to convert
+            
+        Returns:
+            JSON-serializable version of the object
+        """
+        import numpy as np
+        from datetime import datetime, date
+        
+        # Handle None, strings, numbers first (most common cases)
+        if obj is None or isinstance(obj, (str, int, float, bool)):
+            return obj
+        
+        # Handle collections recursively
+        if isinstance(obj, dict):
+            return {key: self._make_json_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self._make_json_serializable(item) for item in obj]
+        
+        # Handle NumPy types
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        
+        # Handle datetime types
+        elif isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        
+        # Handle bytes
+        elif isinstance(obj, bytes):
+            try:
+                return obj.decode('utf-8')
+            except UnicodeDecodeError:
+                return obj.hex()
+        
+        # Handle PIL/Pillow types (IFDRational, etc.)
+        elif hasattr(obj, '__class__') and 'PIL' in obj.__class__.__module__:
+            # Try to convert to basic types
+            if hasattr(obj, 'numerator') and hasattr(obj, 'denominator'):
+                # IFDRational or Fraction-like object
+                try:
+                    return float(obj)
+                except:
+                    return f"{obj.numerator}/{obj.denominator}"
+            else:
+                return str(obj)
+        
+        # Handle numpy scalar types with .item() method
+        elif hasattr(obj, 'item'):
+            try:
+                return obj.item()
+            except:
+                return str(obj)
+        
+        # Handle objects with __dict__ (custom classes)
+        elif hasattr(obj, '__dict__'):
+            return self._make_json_serializable(obj.__dict__)
+        
+        # Fallback: convert to string
+        else:
+            try:
+                # Check if it's already JSON serializable
+                import json
+                json.dumps(obj)
+                return obj
+            except (TypeError, ValueError):
+                return str(obj)
+    
+    def _convert_to_project_info(self, project_name: str, project_data: Dict[str, Any]):
+        """
+        Convert orchestrator project result to ProjectInfo object for ranking.
+        
+        Args:
+            project_name: Name of the project
+            project_data: Project data from orchestrator results
+            
+        Returns:
+            ProjectInfo object or None if conversion fails
+        """
+        from src.project.aggregator import ProjectInfo, compute_rank_inputs, compute_preliminary_score
+        
+        try:
+            git_analysis = project_data.get("git_analysis", {})
+            code_analysis = project_data.get("analysis_results", {}).get("code", {})
+            
+            # Extract duration info from git analysis
+            duration_info = {"start": None, "end": None, "days": 0}
+            if git_analysis and not isinstance(git_analysis, dict) or "error" not in git_analysis:
+                if "first_commit_at" in git_analysis:
+                    duration_info = {
+                        "start": git_analysis.get("first_commit_at"),
+                        "end": git_analysis.get("last_commit_at"),
+                        "days": git_analysis.get("duration_days", 0)
+                    }
+            
+            # Determine if collaborative
+            is_collaborative = False
+            if project_data.get("is_git_repo") and git_analysis:
+                is_collaborative = git_analysis.get("total_contributors", 0) > 1
+            
+            # Extract contributors
+            authors = []
+            if git_analysis and "contributors" in git_analysis:
+                for contrib in git_analysis.get("contributors", []):
+                    author_info = contrib.get("author", {})
+                    authors.append({
+                        "name": author_info.get("name", "Unknown"),
+                        "email": author_info.get("email", ""),
+                        "commits": contrib.get("commits", 0)
+                    })
+            
+            # Extract languages and frameworks
+            languages = []
+            frameworks = []
+            if code_analysis and "error" not in code_analysis:
+                metrics = code_analysis.get("metrics", {})
+                languages = metrics.get("languages", [])
+                frameworks = metrics.get("frameworks", [])
+            
+            # Extract skills
+            skills = []
+            if code_analysis and "error" not in code_analysis:
+                skill_data = code_analysis.get("skill_analysis", {})
+                if skill_data:
+                    aggregate = skill_data.get("aggregate", {})
+                    skills = aggregate.get("advanced_skills", [])
+            
+            # Extract activity mix
+            activity_mix = {}
+            if git_analysis and "error" not in git_analysis:
+                activity_mix = git_analysis.get("activity_mix", {})
+            
+            # Extract totals
+            total_commits = 0
+            total_files = 0
+            total_loc = 0
+            
+            if git_analysis and "error" not in git_analysis:
+                total_commits = git_analysis.get("total_commits", 0)
+            
+            if code_analysis and "error" not in code_analysis:
+                metrics = code_analysis.get("metrics", {})
+                total_files = metrics.get("total_files", 0)
+                total_loc = metrics.get("total_lines", 0)
+            
+            # Create ProjectInfo
+            project_info = ProjectInfo(
+                id=project_name,
+                name=project_name,
+                source="merged",
+                duration=duration_info,
+                is_collaborative=is_collaborative,
+                authors=authors,
+                languages=languages,
+                frameworks=frameworks,
+                skills=skills,
+                activity_mix=activity_mix,
+                lines_of_code=total_loc,
+                totals={"files": total_files, "commits": total_commits},
+                notes=[],
+                rank_inputs={},
+                preliminary_score=0.0
+            )
+            
+            # Compute ranking metrics
+            project_info.rank_inputs = compute_rank_inputs(project_info)
+            project_info.preliminary_score = compute_preliminary_score(project_info.rank_inputs)
+            
+            return project_info
+            
+        except Exception as e:
+            print(f"     ⚠️  Could not convert project {project_name} to ProjectInfo: {e}")
+            return None
+    
+    def _rank_and_summarize_projects(self, project_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Rank projects and generate summaries for top N projects.
+        
+        Args:
+            project_results: Dictionary of project results from orchestrator
+            
+        Returns:
+            Dictionary containing ranked_projects and top_summaries
+        """
+        from src.project.top_summary import rank_projects, generate_summaries
+        
+        try:
+            # Convert to ProjectInfo objects (skip _misc_files)
+            project_infos = []
+            for proj_name, proj_data in project_results.items():
+                if proj_name == '_misc_files':
+                    continue
+                
+                project_info = self._convert_to_project_info(proj_name, proj_data)
+                if project_info:
+                    project_infos.append(project_info)
+            
+            if not project_infos:
+                return {
+                    "ranked_projects": [],
+                    "top_summaries": [],
+                    "message": "No projects available for ranking"
+                }
+            
+            # Rank projects
+            top_projects = rank_projects(project_infos, n=5, criteria="score")
+            
+            # Generate summaries
+            summaries = generate_summaries(project_infos, n=5, criteria="score")
+            
+            return {
+                "ranked_projects": [
+                    {
+                        "rank": idx + 1,
+                        "name": p.name,
+                        "score": p.preliminary_score,
+                        "is_collaborative": p.is_collaborative,
+                        "languages": p.languages,
+                        "frameworks": p.frameworks,
+                        "commits": p.totals.get("commits", 0),
+                        "lines_of_code": p.lines_of_code,
+                        "duration_days": p.duration.get("days", 0),
+                    }
+                    for idx, p in enumerate(top_projects)
+                ],
+                "top_summaries": summaries,
+                "total_projects_ranked": len(project_infos)
+            }
+            
+        except Exception as e:
+            print(f"     ⚠️  Project ranking failed: {e}")
+            return {
+                "ranked_projects": [],
+                "top_summaries": [],
+                "error": str(e)
+            }
+    
+    def _build_chronological_skills(self) -> Dict[str, Any]:
+        """
+        Build chronological timeline of skills across all analyzed files.
+        
+        Returns:
+            Dictionary containing chronological skill timeline
+        """
+        from src.analyze.chronological_skills import ChronologicalSkillList
+        
+        try:
+            if not self.temp_dir or not self.temp_dir.exists():
+                return {
+                    "timeline": [],
+                    "message": "No temporary directory available for skill timeline"
+                }
+            
+            skill_tracker = ChronologicalSkillList()
+            timeline = skill_tracker.build_skill_timeline(str(self.temp_dir))
+            
+            # Convert timeline to serializable format
+            serializable_timeline = []
+            for event in timeline:
+                event_data = {
+                    "file": event["file"],
+                    "timestamp": event["timestamp"].isoformat() if hasattr(event["timestamp"], "isoformat") else str(event["timestamp"]),
+                    "category": event["category"],
+                    "skills": event["skills"],
+                    "metadata": self._make_json_serializable(event.get("metadata", {}))
+                }
+                serializable_timeline.append(event_data)
+            
+            return {
+                "timeline": serializable_timeline,
+                "total_events": len(serializable_timeline),
+                "categories": list(set(e["category"] for e in serializable_timeline))
+            }
+            
+        except Exception as e:
+            print(f"     ⚠️  Chronological skills timeline failed: {e}")
+            return {
+                "timeline": [],
+                "error": str(e)
+            }
 
 
 def _prompt_for_llm_consent() -> bool:
@@ -1010,6 +1406,13 @@ def main():  # pragma: no cover - CLI entry point
                 print(f"\n{'─'*70}")
                 print("Aggregate Metrics Summary:")
                 print(json.dumps(metrics, indent=2))
+                
+                # Print advanced skill analysis
+                skill_analysis = code_data.get('skill_analysis', {})
+                if skill_analysis:
+                    print(f"\n{'─'*70}")
+                    print("Advanced Skill Analysis:")
+                    print(json.dumps(skill_analysis, indent=2))
             else:
                 print("No code files found")
             
@@ -1083,6 +1486,13 @@ def main():  # pragma: no cover - CLI entry point
                 print(f"\n{'─'*70}")
                 print("Aggregate Metrics Summary:")
                 print(json.dumps(metrics, indent=2))
+                
+                # Print advanced skill analysis
+                skill_analysis = code_data.get('skill_analysis', {})
+                if skill_analysis:
+                    print(f"\n{'─'*70}")
+                    print("Advanced Skill Analysis:")
+                    print(json.dumps(skill_analysis, indent=2))
             else:
                 print("No code files")
             
@@ -1108,6 +1518,42 @@ def main():  # pragma: no cover - CLI entry point
                 print(json.dumps(llm_output, indent=2))
             else:
                 print("No LLM summaries were generated for this run.")
+        
+        # Print project ranking results
+        ranking_data = result.get("project_ranking")
+        print("\n" + "="*70)
+        print("🏆 PROJECT RANKING & SUMMARIES")
+        print("="*70)
+        if ranking_data:
+            if 'error' in ranking_data:
+                print(f"Error: {ranking_data['error']}")
+            else:
+                print(json.dumps(ranking_data, indent=2))
+        else:
+            print("No project ranking data available")
+        
+        # Print chronological skills timeline
+        skills_data = result.get("chronological_skills")
+        print("\n" + "="*70)
+        print("📅 CHRONOLOGICAL SKILLS TIMELINE")
+        print("="*70)
+        if skills_data:
+            if 'error' in skills_data:
+                print(f"Error: {skills_data['error']}")
+            else:
+                # Print summary stats
+                print(f"\nTotal Events: {skills_data.get('total_events', 0)}")
+                print(f"Categories: {', '.join(skills_data.get('categories', []))}")
+                
+                # Print full timeline in JSON (should already be serializable from _build_chronological_skills)
+                print("\nFull Timeline:")
+                try:
+                    print(json.dumps(skills_data.get('timeline', []), indent=2))
+                except (TypeError, ValueError) as e:
+                    print(f"Warning: Could not serialize timeline to JSON: {e}")
+                    print("Timeline data contains non-serializable types. Showing basic info only.")
+        else:
+            print("No chronological skills data available")
         
         print("\n" + "="*70)
         print("✅ Analysis Complete - All results printed above")
