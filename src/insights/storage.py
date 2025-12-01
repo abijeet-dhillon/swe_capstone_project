@@ -25,7 +25,7 @@ DEFAULT_DB_PATH = os.getenv("DATABASE_URL", "sqlite:///data/app.db").replace("sq
 DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "")
 ZIP_TABLE = "zipfile"
 PROJECT_TABLE = "project"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _utcnow() -> str:
@@ -120,9 +120,8 @@ class ProjectInsightsStore:
         self._lock = threading.RLock()
         self._apply_migrations()
 
-    # ------------------------------------------------------------------
+ 
     # DB bootstrap & migrations
-    # ------------------------------------------------------------------
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.execute("PRAGMA foreign_keys=ON;")
@@ -148,6 +147,13 @@ class ProjectInsightsStore:
                     conn.execute(
                         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
                         (1, _utcnow()),
+                    )
+                    current_version = 1
+                if current_version < 2:
+                    self._apply_audit_schema(conn)
+                    conn.execute(
+                        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
+                        (2, _utcnow()),
                     )
                 conn.commit()
 
@@ -194,9 +200,23 @@ class ProjectInsightsStore:
             f"CREATE INDEX IF NOT EXISTS idx_{PROJECT_TABLE}_zip ON {PROJECT_TABLE}(zip_id);"
         )
 
-    # ------------------------------------------------------------------
+    def _apply_audit_schema(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deletion_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                details TEXT,
+                deleted_projects INTEGER NOT NULL DEFAULT 0,
+                deleted_zips INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+
+
     # Public API
-    # ------------------------------------------------------------------
     def record_pipeline_run(
         self,
         zip_path: str,
@@ -335,6 +355,89 @@ class ProjectInsightsStore:
             ).fetchall()
         return [row[0] for row in rows]
 
+   
+    # Deletion API
+    def _audit(self, conn: sqlite3.Connection, action: str, scope: str, details: Optional[Dict[str, Any]], deleted_projects: int, deleted_zips: int) -> None:
+        conn.execute(
+            """
+            INSERT INTO deletion_audit (action, scope, details, deleted_projects, deleted_zips, created_at)
+            VALUES (?, ?, ?, ?, ?, ?);
+            """,
+            (action, scope, json.dumps(details or {}), deleted_projects, deleted_zips, _utcnow()),
+        )
+
+    def delete_all(self) -> Dict[str, int]:
+        """Hard-delete all insights (irreversible). Returns counts."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    # Count before deletion
+                    zcount = conn.execute(f"SELECT COUNT(*) FROM {ZIP_TABLE};").fetchone()[0]
+                    pcount = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_TABLE};").fetchone()[0]
+                    conn.execute(f"DELETE FROM {ZIP_TABLE};")  # cascades projects
+                    self._audit(conn, action="delete_all", scope="all", details=None, deleted_projects=pcount, deleted_zips=zcount)
+                    conn.execute("COMMIT;")
+                    return {"deleted_projects": pcount, "deleted_zips": zcount}
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def delete_zip(self, zip_hash: str) -> Dict[str, int]:
+        """Hard-delete a specific stored run by zip_hash. Preserves other runs."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    row = conn.execute(f"SELECT id FROM {ZIP_TABLE} WHERE zip_hash = ?;", (zip_hash,)).fetchone()
+                    if not row:
+                        conn.execute("ROLLBACK;")
+                        return {"deleted_projects": 0, "deleted_zips": 0}
+                    zip_id = row[0]
+                    pcount = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_TABLE} WHERE zip_id = ?;", (zip_id,)).fetchone()[0]
+                    conn.execute(f"DELETE FROM {ZIP_TABLE} WHERE id = ?;", (zip_id,))
+                    self._audit(conn, action="delete_zip", scope=zip_hash, details={"zip_id": zip_id}, deleted_projects=pcount, deleted_zips=1)
+                    conn.execute("COMMIT;")
+                    return {"deleted_projects": pcount, "deleted_zips": 1}
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def delete_project(self, zip_hash: str, project_name: str) -> Dict[str, int]:
+        """Hard-delete a single project under a given zip. Cleans up zip if empty."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    row = conn.execute(f"SELECT id FROM {ZIP_TABLE} WHERE zip_hash = ?;", (zip_hash,)).fetchone()
+                    if not row:
+                        conn.execute("ROLLBACK;")
+                        return {"deleted_projects": 0, "deleted_zips": 0}
+                    zip_id = row[0]
+                    prow = conn.execute(
+                        f"SELECT id FROM {PROJECT_TABLE} WHERE zip_id = ? AND project_name = ?;",
+                        (zip_id, project_name),
+                    ).fetchone()
+                    if not prow:
+                        conn.execute("ROLLBACK;")
+                        return {"deleted_projects": 0, "deleted_zips": 0}
+                    conn.execute(f"DELETE FROM {PROJECT_TABLE} WHERE id = ?;", (prow[0],))
+                    # If no projects remain, delete the zip row too
+                    remaining = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_TABLE} WHERE zip_id = ?;", (zip_id,)).fetchone()[0]
+                    zdel = 0
+                    if remaining == 0:
+                        conn.execute(f"DELETE FROM {ZIP_TABLE} WHERE id = ?;", (zip_id,))
+                        zdel = 1
+                    self._audit(conn, action="delete_project", scope=f"{zip_hash}:{project_name}", details={"zip_id": zip_id}, deleted_projects=1, deleted_zips=zdel)
+                    conn.execute("COMMIT;")
+                    return {"deleted_projects": 1, "deleted_zips": zdel}
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
     def backup(self, backup_path: str) -> str:
         if not os.path.exists(self.db_path):
             raise FileNotFoundError(f"Database does not exist at {self.db_path}")
@@ -384,9 +487,7 @@ class ProjectInsightsStore:
                 conn.commit()
         return len(purge_ids)
 
-    # ------------------------------------------------------------------
     # Internal helpers
-    # ------------------------------------------------------------------
     def _validate_pipeline_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(payload, dict):
             raise PayloadValidationError("Pipeline output must be a dict.")
@@ -583,7 +684,7 @@ class ProjectInsightsStore:
         stats["project_count"] = len(active_names)
         return stats
 
-    def _mark_backup(self) -> None:  # pragma: no cover - best effort info
+    def _mark_backup(self) -> None:  
         try:
             with self._connect() as conn:
                 conn.execute(
@@ -592,7 +693,7 @@ class ProjectInsightsStore:
                 )
                 conn.commit()
         except Exception:
-            # Avoid breaking backup flow for telemetry failures
+
             pass
 
 
