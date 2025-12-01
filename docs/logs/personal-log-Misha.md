@@ -77,3 +77,29 @@ Planning on expanding it and working for more file types.
 #### Impact / Next
 - Work on image summary
 - Work on code summary
+
+## Week 13
+This section outlines the individual log for week 13
+
+### November 23 2025 to November 30  
+
+### Tasks
+![Misha Gavura Week 13 Task Type Screenshot](images/misha_tasks_13.png)
+
+### Weekly Goals
+
+#### What I did
+I'm in a progress of implementation of a chronological timeline generator that analyzes project artifacts by modification date and builds a unified skills timeline. The system processes code files, documents, images, and videos, extracting skills and metadata from each. It sorts all artifacts chronologically, tracking when specific skills first appeared and how they evolved over time. The analyzer integrates outputs from multiple specialized analyzers (code, text, image, video) into a single timeline view. Results export to JSON, CSV, and plain text formats, showing skill progression across the entire project history. This enables portfolio creators to demonstrate skill development and project evolution with concrete timestamps.
+Output: Chronological skill timeline with timestamps, categories, and detected skills per artifact.
+
+Worked on a presentation and prepared slide for the Git Code Analysis and History
+
+#### Project board
+- **Task:** 
+External LLM Analysis #33: https://github.com/orgs/COSC-499-W2025/projects/19/views/2?pane=issue&itemId=133282130&issue=COSC-499-W2025%7Ccapstone-project-team-14%7C33
+
+#### Status
+In progress, most part is done, doing some testing
+
+#### Impact / Next
+- Generate Chronological Project List Issue #35
