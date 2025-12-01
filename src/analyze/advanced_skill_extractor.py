@@ -37,6 +37,7 @@ CATEGORY_MAP = {
     'typescript-interface': 'language-feature',
     'typescript-generic': 'language-feature',
     'hash-based-structures': 'data-structure',
+    'time-complexity-analysis': 'performance',
     'oop-structure': 'architecture',
     'abstraction-principle': 'architecture',
     'encapsulation-principle': 'architecture',
@@ -76,7 +77,7 @@ class DeepSkillAnalysis:
         self.skill_categories = {}
         all_skills = self.advanced_skills + self.design_patterns
         for skill in all_skills:
-            category = CATEGORY_MAP.get(skill, 'uncategorized')
+            category = CATEGORY_MAP.get(skill, 'other')
             self.skill_categories.setdefault(category, []).append(skill)
         for cat in self.skill_categories:
             self.skill_categories[cat].sort()
@@ -191,6 +192,9 @@ class AdvancedSkillExtractor:
         location: str = "File-level",
         bucket: str = "advanced",
     ) -> None:
+        for ev in analysis.evidence:
+            if ev.skill == skill and (ev.location == location or ev.reasoning == reasoning or ev.evidence_type == evidence_type):
+                return
         target = analysis.advanced_skills if bucket == "advanced" else analysis.design_patterns
         self._append_unique(target, skill)
         analysis.evidence.append(
@@ -222,11 +226,14 @@ class AdvancedSkillExtractor:
                 self._detect_type_safety(tree, content, analysis)
                 self._detect_data_structures(tree, content, analysis)
                 self._detect_python_cs_concepts(tree, content, analysis)
+                self._detect_time_complexity(tree, content, analysis)
             except SyntaxError:
                 analysis.basic_skills.append('syntax-error-detected')
         else:
             self._analyze_generic(content, language, analysis)
-        
+            self._detect_time_complexity(None, content, analysis)
+
+        self._order_skills(analysis)
         return analysis
     
     def _detect_caching_patterns(self, tree: ast.AST, content: str, analysis: DeepSkillAnalysis):
@@ -674,15 +681,23 @@ class AdvancedSkillExtractor:
                     return
 
     def _detect_algorithm_usage(self, content: str, analysis: DeepSkillAnalysis):
-        keywords = ['heapq', 'bisect', 'deque', 'sorted(', 'bfs', 'dfs', 'dynamic programming']
-        for keyword in keywords:
-            if keyword in content:
+        clean = self._strip_comments_strings(content)
+        patterns = {
+            'heapq': r'\bheapq\b',
+            'bisect': r'\bbisect\b',
+            'deque': r'\bdeque\b',
+            'sorted': r'\bsorted\s*\(',
+            'bfs': r'\bbfs\b',
+            'dfs': r'\bdfs\b'
+        }
+        for label, pat in patterns.items():
+            if re.search(pat, clean):
                 self._add_evidence(
                     analysis,
                     skill='algorithm-usage',
                     evidence_type='pattern',
-                    reasoning=f'Algorithmic keyword detected: {keyword}',
-                    location=f'keyword {keyword}'
+                    reasoning=f'Algorithmic keyword detected: {label}',
+                    location=f'keyword {label}'
                 )
                 return
 
@@ -749,7 +764,115 @@ class AdvancedSkillExtractor:
                 bucket='design'
             )
 
+    # Time Complexity Detection
+    def _detect_time_complexity(self, tree: Optional[ast.AST], content: str, analysis: DeepSkillAnalysis):
+        if analysis.language == 'python':
+            self._detect_time_complexity_python(tree, content, analysis)
+        else:
+            self._detect_time_complexity_generic(content, analysis)
+
+    def _detect_time_complexity_python(self, tree: Optional[ast.AST], content: str, analysis: DeepSkillAnalysis):
+        max_depth = 0
+        recursion_found = False
+        algo_hits: List[str] = []
+
+        def loop_depth(node, depth=0):
+            nonlocal max_depth
+            if isinstance(node, (ast.For, ast.While)):
+                depth += 1
+                max_depth = max(max_depth, depth)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in {'sorted', 'heapq', 'bisect', 'deque'}:
+                    algo_hits.append(node.func.id)
+            for child in ast.iter_child_nodes(node):
+                loop_depth(child, depth)
+
+        if tree:
+            loop_depth(tree)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    fname = node.name
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id == fname:
+                            recursion_found = True
+                if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+                    max_depth = max(max_depth, 2)
+
+        clean = self._strip_comments_strings(content)
+        patterns = [r'\bbfs\b', r'\bdfs\b', r'\bheapq\b', r'\bbisect\b', r'\bdeque\b', r'\bsorted\s*\(', r'\bsort\s*\(']
+        algo_hits.extend([pat for pat in patterns if re.search(pat, clean)])
+
+        label = 'low'
+        if max_depth >= 3:
+            label = 'high'
+        elif recursion_found or algo_hits:
+            label = 'moderate'
+
+        analysis.complexity_insights['max_loop_nesting'] = max_depth
+        if recursion_found:
+            analysis.complexity_insights['recursion'] = True
+        if algo_hits:
+            analysis.complexity_insights['algorithms'] = list(set(algo_hits))
+        analysis.complexity_insights['overall_complexity'] = label
+
+        self._add_evidence(
+            analysis,
+            skill='time-complexity-analysis',
+            evidence_type='pattern',
+            reasoning=f'Detected nested loops up to depth {max_depth}; recursion={recursion_found}; algorithms={bool(algo_hits)}',
+            location='complexity scan'
+        )
+
+    def _detect_time_complexity_generic(self, content: str, analysis: DeepSkillAnalysis):
+        loop_hits = len(re.findall(r'for\s*\(.*?\)', content))
+        max_depth = 1 if loop_hits else 0
+        if loop_hits >= 3:
+            max_depth = 3
+        elif loop_hits == 2:
+            max_depth = 2
+
+        recursion_found = False
+        func_defs = re.findall(r'\b(\w+)\s*\(', content)
+        for name in set(func_defs):
+            pattern = rf'{name}\s*\(.*{name}\s*\('
+            if re.search(pattern, content, re.DOTALL):
+                recursion_found = True
+                break
+
+        algo_keywords = ['sort', 'binarySearch', 'Collections.sort', 'std::sort', 'Arrays.sort', 'BFS', 'DFS']
+        algo_hits = [kw for kw in algo_keywords if re.search(kw, content)]
+
+        label = 'low'
+        if max_depth >= 3:
+            label = 'high'
+        elif recursion_found or algo_hits:
+            label = 'moderate'
+
+        analysis.complexity_insights['max_loop_nesting'] = max_depth
+        if recursion_found:
+            analysis.complexity_insights['recursion'] = True
+        if algo_hits:
+            analysis.complexity_insights['algorithms'] = list(set(algo_hits))
+        analysis.complexity_insights['overall_complexity'] = label
+
+        self._add_evidence(
+            analysis,
+            skill='time-complexity-analysis',
+            evidence_type='pattern',
+            reasoning=f'Detected nested loops up to depth {max_depth}; recursion={recursion_found}; algorithms={bool(algo_hits)}',
+            location='complexity scan'
+        )
+
+    def _strip_comments_strings(self, content: str) -> str:
+        content = re.sub(r'//.*', '', content)
+        content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+        content = re.sub(r'#.*', '', content)
+        content = re.sub(r'\".*?\"', '', content, flags=re.DOTALL)
+        content = re.sub(r"\'.*?\'", '', content, flags=re.DOTALL)
+        return content
+
     def _detect_generic_cs_concepts(self, language: str, content: str, analysis: DeepSkillAnalysis):
+        clean = self._strip_comments_strings(content)
         def add(skill, reasoning, location='file-level', bucket='advanced'):
             self._add_evidence(
                 analysis,
@@ -760,31 +883,201 @@ class AdvancedSkillExtractor:
                 bucket=bucket
             )
 
-        if re.search(r'class\s+\w+\s*[{:]', content):
+        if re.search(r'\bclass\s+\w+\s*[{:]', clean):
             add('oop-structure', 'Class definitions imply OOP structure', 'class declaration', bucket='design')
-        if re.search(r'\b(abstract|interface)\b', content):
+        if re.search(r'\b(abstract|interface)\b', clean):
             add('abstraction-principle', 'Abstract class or interface detected', 'abstract/interface declaration', bucket='design')
-        if re.search(r'\bprivate\s+\w+', content):
+        if re.search(r'\bprivate\s+\w+', clean):
             add('encapsulation-principle', 'Private fields indicate encapsulation', 'private field', bucket='design')
-        if re.search(r'\b(override|virtual|implements)\b', content):
+        if re.search(r'\b(override|virtual|implements)\b', clean):
             add('polymorphism-principle', 'Override/virtual keywords suggest polymorphism', 'method override', bucket='design')
-        if re.search(r'\b(extends|:)\s*\w+', content) and language in {'java', 'cpp', 'typescript', 'csharp'}:
+        if re.search(r'\b(extends|:)\s*\w+', clean) and language in {'java', 'cpp', 'typescript', 'csharp'}:
             add('inheritance-pattern', 'Inheritance hierarchy detected', 'inheritance clause', bucket='design')
-        if re.search(r'\b(lambda|=>)\b', content) and language in {'javascript', 'typescript', 'cpp', 'csharp', 'go', 'rust'}:
+        if re.search(r'\b(lambda|=>)\b', clean) and language in {'javascript', 'typescript', 'cpp', 'csharp', 'go', 'rust'}:
             add('functional-constructs', 'Lambda expression detected', 'lambda usage')
-        if re.search(r'\b(map|filter|reduce|stream\.|collect)\b', content):
+        if re.search(r'\b(map|filter|reduce|stream\.|collect)\b', clean):
             add('functional-constructs', 'Functional helper detected', 'functional helper usage')
-        if re.search(r'\b(console\.log|System\.out|fmt\.Print|printf)\b', content):
+        if re.search(r'\b(console\.log|System\.out|fmt\.Print|printf)\b', clean):
             add('side-effects-detected', 'Output/logging indicates side effects', 'logging statement')
-        if re.search(r'\b(sort|search|DFS|BFS|heap|priority queue)\b', content):
+        if re.search(r'\b(sort|search|DFS|BFS|heap|priority\s+queue)\b', clean):
             add('algorithm-usage', 'Algorithmic keyword detected', 'algorithm keyword')
-        if re.search(r'\b(new\s+\w+|delete|malloc|free)\b', content):
+        if re.search(r'\b(new\s+\w+|delete|malloc|free)\b', clean):
             add('memory-management-patterns', 'Manual memory management detected', 'memory management section')
-        if re.search(r'\b(namespace|module|package)\b', content):
+        if re.search(r'\b(namespace|module|package)\b', clean):
             add('module-architecture', 'Namespace or module declaration found', 'module declaration', bucket='design')
-        import_count = len(re.findall(r'^\s*(import|using|require)\s+', content, re.MULTILINE))
+        import_count = len(re.findall(r'^\s*(import|using|require)\s+', clean, re.MULTILINE))
         if import_count >= 5:
             add('coupling-cohesion', 'Multiple imports suggest coupling considerations', 'import block', bucket='design')
+
+    def _detect_time_complexity(self, tree: Optional[ast.AST], content: str, analysis: DeepSkillAnalysis):
+        if analysis.language == 'python':
+            self._detect_time_complexity_python(tree, content, analysis)
+        else:
+            self._detect_time_complexity_generic(content, analysis)
+
+    def _detect_time_complexity_python(self, tree: Optional[ast.AST], content: str, analysis: DeepSkillAnalysis):
+        max_depth = 0
+        recursion_found = False
+        algo_hits: List[str] = []
+        branch_count = 0
+        return_count = 0
+        class_method_counts: List[int] = []
+
+        def loop_depth(node, depth=0):
+            nonlocal max_depth, branch_count, return_count
+            if isinstance(node, (ast.For, ast.While)):
+                depth += 1
+                max_depth = max(max_depth, depth)
+            if isinstance(node, (ast.If, ast.Try, ast.BoolOp)):
+                branch_count += 1
+            if isinstance(node, ast.Return):
+                return_count += 1
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in {'sorted', 'heapq', 'bisect', 'deque'}:
+                    algo_hits.append(node.func.id)
+            for child in ast.iter_child_nodes(node):
+                loop_depth(child, depth)
+
+        if tree:
+            loop_depth(tree)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    method_total = sum(1 for n in node.body if isinstance(n, ast.FunctionDef))
+                    if method_total:
+                        class_method_counts.append(method_total)
+                if isinstance(node, ast.FunctionDef):
+                    fname = node.name
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id == fname:
+                            recursion_found = True
+                if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+                    max_depth = max(max_depth, 2)
+
+        clean = self._strip_comments_strings(content)
+        algo_patterns = {
+            'bfs': r'\bbfs\b',
+            'dfs': r'\bdfs\b',
+            'heapq': r'\bheapq\b',
+            'bisect': r'\bbisect\b',
+            'deque': r'\bdeque\b',
+            'sorted': r'\bsorted\s*\(',
+            'sort': r'\bsort\s*\('
+        }
+        for label_key, pat in algo_patterns.items():
+            if re.search(pat, clean):
+                algo_hits.append(label_key)
+
+        label = 'low'
+        if max_depth >= 3:
+            label = 'high'
+        elif recursion_found or algo_hits:
+            label = 'moderate'
+
+        analysis.complexity_insights['max_loop_nesting'] = max_depth
+        if recursion_found:
+            analysis.complexity_insights['recursion'] = True
+        if algo_hits:
+            analysis.complexity_insights['algorithms'] = list(set(algo_hits))
+        if branch_count:
+            analysis.complexity_insights['cyclomatic_estimate'] = branch_count + 1
+        if return_count:
+            analysis.complexity_insights['return_count'] = return_count
+        if class_method_counts:
+            analysis.complexity_insights['methods_per_class_mean'] = sum(class_method_counts) / len(class_method_counts)
+            analysis.complexity_insights['largest_class_methods'] = max(class_method_counts)
+        analysis.complexity_insights['overall_complexity'] = label
+
+        self._add_evidence(
+            analysis,
+            skill='time-complexity-analysis',
+            evidence_type='pattern',
+            reasoning=f'Detected nested loops up to depth {max_depth}; recursion={recursion_found}; algorithms={bool(algo_hits)}',
+            location='complexity scan'
+        )
+
+    def _detect_time_complexity_generic(self, content: str, analysis: DeepSkillAnalysis):
+        clean = self._strip_comments_strings(content)
+        loop_hits = len(re.findall(r'\b(for|while|foreach|forEach)\s*\(.*?\)', clean))
+        max_depth = 1 if loop_hits else 0
+        if loop_hits >= 3:
+            max_depth = 3
+        elif loop_hits == 2:
+            max_depth = 2
+
+        recursion_found = False
+        def_locs = []
+        for m in re.finditer(r'\b(?:function\s+|def\s+|[A-Za-z_<>\[\]]+\s+)?([A-Za-z_]\w*)\s*\([^;{]*\)\s*{', clean):
+            def_locs.append((m.group(1), m.end()))
+        for name, end in def_locs:
+            call_pat = rf'\b{name}\s*\('
+            if re.search(call_pat, clean[end:]):
+                recursion_found = True
+                break
+
+        algo_patterns = [
+            ('sort', r'\bsort\s*\('),
+            ('binarySearch', r'\bbinarySearch\b'),
+            ('Collections.sort', r'\bCollections\.sort\b'),
+            ('std::sort', r'\bstd::sort\b'),
+            ('Arrays.sort', r'\bArrays\.sort\b'),
+            ('BFS', r'\bBFS\b'),
+            ('DFS', r'\bDFS\b')
+        ]
+        algo_hits = [label for label, pat in algo_patterns if re.search(pat, clean)]
+
+        branch_count = len(re.findall(r'\b(if|else if|switch|case)\b', clean))
+        return_count = len(re.findall(r'\breturn\b', clean))
+        class_blocks = list(re.finditer(r'\bclass\s+\w+\s*{([^}]*)}', clean, re.DOTALL))
+        class_method_counts: List[int] = []
+        for m in class_blocks:
+            body = m.group(1)
+            methods = re.findall(r'\b(?:public|private|protected)?\s*(?:static\s+)?[A-Za-z_][\w<>\[\]]*\s+([A-Za-z_]\w*)\s*\([^;{]*\)\s*{', body)
+            class_method_counts.append(len(methods))
+
+        label = 'low'
+        if max_depth >= 3:
+            label = 'high'
+        elif recursion_found or algo_hits:
+            label = 'moderate'
+
+        analysis.complexity_insights['max_loop_nesting'] = max_depth
+        if recursion_found:
+            analysis.complexity_insights['recursion'] = True
+        if algo_hits:
+            analysis.complexity_insights['algorithms'] = [re.sub(r'\\b', '', a) for a in algo_hits]
+        if branch_count:
+            analysis.complexity_insights['cyclomatic_estimate'] = branch_count + 1
+        if return_count:
+            analysis.complexity_insights['return_count'] = return_count
+        if class_method_counts:
+            analysis.complexity_insights['methods_per_class_mean'] = sum(class_method_counts) / len(class_method_counts)
+            analysis.complexity_insights['largest_class_methods'] = max(class_method_counts)
+        analysis.complexity_insights['overall_complexity'] = label
+
+        self._add_evidence(
+            analysis,
+            skill='time-complexity-analysis',
+            evidence_type='pattern',
+            reasoning=f'Detected nested loops up to depth {max_depth}; recursion={recursion_found}; algorithms={bool(algo_hits)}',
+            location='complexity scan'
+        )
+
+    def _order_skills(self, analysis: DeepSkillAnalysis):
+        priority = {
+            'architecture': 0,
+            'performance': 1,
+            'code-quality': 2,
+            'language-feature': 3,
+            'security': 4,
+            'error-handling': 5,
+            'resource-management': 6,
+            'data-structure': 7,
+        }
+        def sort_skills(skills: List[str]) -> List[str]:
+            return sorted(skills, key=lambda s: priority.get(CATEGORY_MAP.get(s, ''), 99))
+        analysis.advanced_skills = sort_skills(analysis.advanced_skills)
+        analysis.design_patterns = sort_skills(analysis.design_patterns)
+        analysis.categorize_skills()
 
     def analyze_directory(self, directory: Path) -> Dict[str, DeepSkillAnalysis]:
         results = {}
@@ -792,6 +1085,15 @@ class AdvancedSkillExtractor:
         
         for code_file in directory.rglob('*'):
             if code_file.suffix.lower() not in self.language_extensions:
+                continue
+            if any(part.lower() in {'vendor', 'dist', 'build'} for part in code_file.parts):
+                continue
+            if code_file.name.endswith(('.min.js', '.bundle.js')):
+                continue
+            try:
+                if code_file.stat().st_size > 10000:
+                    continue
+            except OSError:
                 continue
             if any(skip in code_file.parts for skip in ['__pycache__', '.venv', 'venv', 'node_modules', 'build', 'dist']):
                 continue
