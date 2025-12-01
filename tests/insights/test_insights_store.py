@@ -133,3 +133,26 @@ def test_metadata_and_project_listing_helpers(temp_store):
 
     project_names = temp_store.list_projects_for_zip(zip_hash)
     assert project_names == ["ProjectAlpha", "ProjectBeta"]
+
+
+def test_load_project_insight_by_id(temp_store):
+    """Test loading project insight by project ID"""
+    payload = build_pipeline_payload()
+    temp_store.record_pipeline_run("/tmp/demo.zip", payload)
+    
+    # Get project ID from database
+    with sqlite3.connect(temp_store.db_path) as conn:
+        row = conn.execute(
+            f"SELECT id FROM {PROJECT_TABLE} WHERE project_name = ?;",
+            ("ProjectAlpha",)
+        ).fetchone()
+        project_id = row[0]
+    
+    # Load by ID
+    insight = temp_store.load_project_insight_by_id(project_id)
+    assert insight is not None
+    assert insight["project_name"] == "ProjectAlpha"
+    assert insight["analysis_results"]["documentation"]["totals"]["total_words"] == 120
+    
+    # Test with non-existent ID
+    assert temp_store.load_project_insight_by_id(99999) is None

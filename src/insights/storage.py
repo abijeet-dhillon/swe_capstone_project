@@ -257,6 +257,29 @@ class ProjectInsightsStore:
                 return None
             return self.serializer.decrypt(row[0])
 
+    def load_project_insight_by_id(self, project_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Load project insight payload by project ID (primary key).
+        
+        Args:
+            project_id: The project.id primary key from the database.
+            
+        Returns:
+            Decrypted project payload dict, or None if project_id not found.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT insights_encrypted
+                FROM {PROJECT_TABLE}
+                WHERE id = ?;
+                """,
+                (project_id,),
+            ).fetchone()
+            if not row:
+                return None
+            return self.serializer.decrypt(row[0])
+
     def list_recent_zipfiles(self, limit: int = 10) -> List[Dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
