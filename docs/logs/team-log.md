@@ -749,3 +749,165 @@ Key achievements:
 
 The next cycle will focus on tightening integration across modules, adding the remaining complexity and chronological skill logic, and ensuring project insights, presentation data, and ranking outputs all connect cleanly. The team will finalize end-to-end behavior and verify that all Milestone 1 requirements are fully met.
 
+
+
+
+
+## Week 13 
+
+### November 23 2025 to November 30  
+
+### 1. Milestone Goals Recap  
+
+This one-week cycle focused on closing the loop on our Milestone 1 pipeline by:  
+
+- Implementing a **complete deletion lifecycle** for stored insights (storage layer, API layer, and audit logging).  
+- Finalizing **LLM consent integration** into the pipeline CLI and SQLite-backed user config system.  
+- Integrating the **advanced skill extractor**, **project ranking**, and **chronological skills timeline** into the orchestrator and persistence layer.  
+- Generating **portfolio and résumé items directly from the database**, including richer metrics and quality indicators.  
+
+Key milestone goals included:  
+
+- Add irreversible, audited deletion for project insights (delete_all, delete_zip, delete_project) across storage, API, and docs.  
+- Wire LLM consent into the config system so users see a one-time prompt backed by persistent configuration.  
+- Integrate advanced skill analysis, project ranking/summaries, and a chronological skills timeline into the main pipeline and ensure they’re persisted.  
+- Enhance portfolio/resume generation with more expressive metrics and copy, and load items directly from stored project insights.  
+
+---  
+
+### 2. Burnup Chart  
+
+![Burnup Chart For Week 13](images/week13-burnup.png)  
+
+---  
+
+### 3. Username → Student Name Mapping  
+
+| GitHub Username | Student Name    |
+| --------------- | --------------- |
+| abijeet-dhillon | Abijeet Dhillon |
+| tahsinj         | Tahsin Jawwad   |
+| kmerchant1      | Kaiden Merchant |
+| Malik-Abhinav   | Abhinav Malik   |
+| abdur026        | Abdur Rehman    |
+| mishagavura     | Misha Gavura    |
+
+---  
+
+### 4. Completed / In Progress Tasks  
+
+![Kanban Board for Week 13](images/week13-tasks.png)  
+
+| Task ID | Issue Title                                              | Username        | Associated Feature                               | Status      |
+| ------- | -------------------------------------------------------- | --------------- | ------------------------------------------------ | ----------- |
+| 30      | Store Project Insights (Deletion & Audit Log)            | abijeet-dhillon | Database Insights Layer                          | Completed   |
+| 148     | Connect User Configuration to Pipeline (LLM Consent)     | abijeet-dhillon | Config Persistence & Consent Flow                | Completed   |
+| 31      | Generate Portfolio/Resume Item using Database            | tahsinj         | Presentation Generator                           | Completed   |
+| –       | Integrate AdvancedSkillExtractor into Orchestrator       | abdur026        | Advanced Skill Extractor Integration             | Completed   |
+| –       | Project Ranking & Summary Generation Integration         | abdur026        | Project Ranking & Summaries                      | Completed   |
+| –       | Chronological Skills Timeline Integration                | abdur026        | Skills Timeline                                  | Completed   |
+| –       | JSON Serialization Bug Fixes for Persistence             | abdur026        | Pipeline Robustness / Persistence                | Completed   |
+| –       | Deletion Routes & Tests in FastAPI Layer                 | abijeet-dhillon | API Layer (DELETE Endpoints)                     | Completed   |
+| –       | Generate Chronological Project List                      | mishagavura     | Project Analytics                                | In Progress |
+| –       | Rank Projects by Contribution Significanc                | mishagavura     | Project Analytics                                | In Progress |
+
+---  
+
+### 5. Test Report  
+
+All automated tests for new and updated modules passed successfully, and we performed targeted manual validation against the real SQLite database.  
+
+- **Deletion Lifecycle (Insights Store + API)**  
+  - Storage-level tests covering `delete_all`, `delete_zip`, and `delete_project`, including multiple ZIPs and nested project data.  
+  - API-level tests for FastAPI DELETE endpoints, with auto-skip behavior when FastAPI isn’t installed.  
+  - Manual testing against `data/app.db` to confirm irreversible deletion behavior and verify that shared data structures remain intact after project-level deletion.  
+  - Deletion audit log verified for correct entries and compatibility with the encrypted database structure.  
+
+- **LLM Consent & Config Integration**  
+  - Expanded pytest coverage around the LLM consent flow and orchestrator branching logic (e.g., `test_llm_consent_flow.py`, `test_orchestrator_coverage.py`).  
+  - Validated that:  
+    - A one-time y/n prompt appears with a clear privacy notice.  
+    - Choices persist via `UserConfigManager` (default `--user-id root` with support for custom user IDs).  
+    - Subsequent runs skip prompts and correctly branch between LLM + local analyzers vs local-only runs.  
+  - Tests executed inside Docker to ensure behavior matches real deployment.  
+
+- **Advanced Skill Extractor, Ranking, and Skills Timeline**  
+  - Verified integration of `AdvancedSkillExtractor` across all analyzed code files, including per-file skill analysis and aggregate metrics stored in `code.skill_analysis`.  
+  - Confirmed `_convert_to_project_info()` and `_rank_and_summarize_projects()` produce ranked projects with human-readable summaries, persisted under `project_ranking`.  
+  - Tested `_build_chronological_skills()` to ensure chronological skills timeline output is stored in `chronological_skills` and printed cleanly via console output for manual inspection.  
+  - JSON serialization tests validate `_make_json_serializable()` handles NumPy types, PIL EXIF types (e.g., `IFDRational`), datetimes, bytes, and custom classes before persistence.  
+
+- **Portfolio & Résumé Generation from Database**  
+  - Comprehensive test suite (46 tests: 40 unit, 5 integration, 1 demo) covering:  
+    - Extended `ProjectMetrics` and `PortfolioItem` dataclasses (documentation metrics, media metrics, test metrics, quality flags, project_type, complexity, key_features).  
+    - `extract_project_metrics()` coverage for documentation, tests, images, and videos.  
+    - Enhanced description and résumé bullet generation (multi-sentence, action-oriented, professional phrasing).  
+    - `load_project_insight_by_id()` behavior for direct project lookup from `ProjectInsightsStore`.  
+  - Integration tests updated for the richer output format while maintaining backward compatibility.  
+
+All components were also validated manually using CLI commands and Dockerized runs to confirm behavior matches expectations in a realistic environment.  
+
+---  
+
+### 6. Additional Context  
+
+This week’s work tightened the entire insights lifecycle and made the pipeline feel much closer to “production-ready”:  
+
+- The **insights deletion flow** is now end-to-end: storage operations, audit logging, and FastAPI DELETE routes are implemented, tested, and documented, with irreversible behavior clearly validated.  
+- **LLM consent** is fully wired through our existing SQLite-backed `UserConfigManager`, making consent feel like a one-and-done decision that can still be updated via the config CLI.  
+- The **advanced skill extractor**, **project ranking**, and **chronological skills timeline** are now first-class pieces of the orchestrator, with results stored in the encrypted JSON blob and surfaced via console output for easy manual inspection.  
+- **Portfolio and résumé items** are generated directly from database-backed insights with richer metrics and quality indicators (tests, documentation, media, etc.), setting us up for later UI and export features.  
+- As a team, we also synced on how these flows will be communicated in Milestone 1: slides, video demo, and documentation (including the updated `docs/config_management.md` and deletion/insights lifecycle docs).  
+
+---  
+
+### 7. Future Cycle Plans  
+
+Looking ahead to Week 14 and beyond, the team plans to:  
+
+- **Finalize Milestone 1 integration**  
+  - Conduct full end-to-end validation: pipeline → database → retrieval → deletion → portfolio/resume generation.  
+  - Ensure all integration points for Milestone 1 are stable and well-documented.  
+
+- **Strengthen Documentation & Lifecycle Narratives**  
+  - Improve documentation for the full insights lifecycle: generation → storage → retrieval → ranking/timeline → portfolio/resume → deletion.  
+  - Clarify LLM consent behavior and privacy guarantees in user-facing docs and slides.  
+
+- **Close Remaining Testing Gaps**  
+  - Identify any remaining edge cases in deletion, consent flows, ranking, and portfolio/resume generation.  
+  - Add tests to cover those gaps before merging into the main pipeline branches.  
+
+- **Extend Portfolio/Resume Outputs**  
+  - Add export functionality for portfolio items (JSON, Markdown, HTML) to support future UI and reporting layers.  
+  - Build on the new metrics and quality indicators to support richer visualizations and filters.  
+
+- **Milestone 2 Preparation**  
+  - Begin research and planning for Milestone 2 deliverables, using the now-stable pipeline as the foundation.  
+
+---  
+
+### 8. Reflection on This Cycle  
+
+**What went well:**  
+
+- The **deletion lifecycle** was successfully implemented end-to-end, with clear, predictable behavior and a useful audit log for irreversible operations.  
+- **LLM consent integration** into the CLI and config system feels smooth for users and is thoroughly tested, including Docker-based runs.  
+- The **advanced skill extractor**, **project ranking**, and **chronological skills timeline** now function as integrated, test-covered components in the main pipeline.  
+- **Portfolio/resume generation** is significantly more expressive and data-rich, thanks to extended metrics and improved language generation.  
+- Despite end-of-semester stress and time pressure, the team managed to ship meaningful, well-tested features that directly support Milestone 1.  
+
+**What could be improved:**  
+
+- Achieving consistent deletion behavior across nested data structures required more coordination and iteration than expected.  
+- JSON serialization edge cases (especially around NumPy and PIL EXIF types like `IFDRational`) took multiple passes to fully resolve.  
+- Integrating new FastAPI routes and richer pipeline outputs exposed some serialization and formatting edge cases that needed patching.  
+
+**How this informs us for the next cycle:**  
+
+The team will continue to:  
+
+- Plan extra time for integration-heavy work (API endpoints, persistence, complex serialization), since those stages tend to surface hidden edge cases.  
+- Lean on end-to-end tests and Dockerized runs earlier in the cycle to catch environment-specific issues.  
+- Keep refining docs and UX (consent flow, deletion messaging, portfolio outputs) so that the pipeline is both technically solid and easy to explain for Milestone 1 reviewers.  
+
+Overall, the project is on track for Milestone 1, with a now-complete loop from analysis → storage → ranking/timeline → portfolio/resume → deletion, all backed by the SQLite persistence and config layers.  
