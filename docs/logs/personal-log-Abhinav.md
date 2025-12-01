@@ -395,3 +395,53 @@ My contributions included:
 ### 8. Next Week’s Focus
 - Implement the final complexity analysis module for deeper algorithmic reasoning.  
 - Add chronological ordering logic for skill evidence and structured output.  
+
+
+## Week 13 – November 17 to November 23
+
+### 1. Type of Tasks Worked On  
+![Week 13 Task Screenshot](images/week13-abhinav.png)
+
+---
+
+### 3. Recap of Weekly Goals  
+This week focused on finalizing the **Advanced Skill Extractor** by completing the time-complexity analysis module and preparing it for integration into the pipeline.  
+My contributions included:  
+- implementing a multi-language time-complexity detection module using AST and regex heuristics  
+- extending the extractor to generate aggregated complexity insights such as loop depth, recursion, algorithm usage, branch count, and class method metrics  
+- improving snippet extraction, evidence formatting, and category prioritization  
+- validating the new design by running the full test suite and ensuring all 25 tests passed successfully  
+- performing manual checks inside Docker to confirm consistent behavior in isolated environments  
+
+---
+
+### 4. Features Owned in Project Plan  
+- Advanced Skill Extractor – Time Complexity Module  
+- Evidence + Category Ordering Logic  
+- Multi-Language Complexity Support  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features  
+- Issue #153 – Implement and integrate time-complexity analysis into the Advanced Skill Extractor  
+
+---
+
+### 6. Tasks Completed / In Progress in the Last 2 Weeks  
+| Task ID | Issue Title                                          | Status     | Notes |
+|---------|-------------------------------------------------------|------------|-------|
+| 153     | Time Complexity Analysis for Skill Extractor          | Completed  | Added multi-language loop-depth, recursion, and algorithm detection with full test validation |
+
+---
+
+### 7. Additional Context  
+- Confirmed that the output remains a single JSON-serializable object, ensuring compatibility with the orchestrator and downstream systems.  
+- Verified that the updated extractor works consistently in Docker and does not break existing pipeline tests.  
+- Improved maintainability by consolidating pattern libraries and removing duplicate logic across languages.
+
+---
+
+### 8. Next Week’s Focus  
+- Fix any remaining issues or inconsistencies across analyzer modules.  
+- Clean up and polish logic across the extractor to ensure stable integration.  
+- Support teammates during final integration to ensure all components work smoothly together.
