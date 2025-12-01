@@ -437,11 +437,7 @@ except Exception:
     
     analysis = extractor.analyze_file(file)
     
-    # Before categorization
-    assert len(analysis.skill_categories) == 0
-    
-    # After categorization
-    analysis.categorize_skills()
+    # Categories should be available after analysis (ordering step)
     assert len(analysis.skill_categories) > 0
     
     # Check expected categories
