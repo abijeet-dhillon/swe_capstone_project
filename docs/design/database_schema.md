@@ -1,7 +1,7 @@
 # User Configuration Database Schema
 
 ## Overview
-The `UserConfigManager` located in `src/config/config_manager.py` stores CLI-submitted upload information and consent flags in a local SQLite database. The database path is read from the `DATABASE_URL` environment variable and defaults to `sqlite:///data/app.db` (resolved to `data/app.db`). All user-facing helpers (`create_config`, `update_config`, `load_config`, and `save_config_to_db`) go through this schema, so keeping it well documented ensures consistent persistence logic across the project.
+The `UserConfigManager` located in `src/config/config_manager.py` stores CLI-submitted upload information and consent flags in a local SQLite database. The database path is fixed to `sqlite:///data/app.db` (resolved to `data/app.db`). All user-facing helpers (`create_config`, `update_config`, `load_config`, and `save_config_to_db`) go through this schema, so keeping it well documented ensures consistent persistence logic across the project. Tests may override the path by passing `db_path` directly to `UserConfigManager`.
 
 ## Table Definition
 The schema is initialized on demand via `UserConfigManager.init_db()`. It creates a single normalized table named `user_configurations`.
@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS user_configurations (
     user_id TEXT PRIMARY KEY,
     zip_file TEXT NOT NULL,
     llm_consent INTEGER NOT NULL,
+    llm_consent_asked INTEGER NOT NULL DEFAULT 0,
+    data_access_consent INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT
 );
@@ -22,6 +24,8 @@ CREATE TABLE IF NOT EXISTS user_configurations (
 | `user_id`   | `TEXT` | No       | Serves as the primary key; maps 1:1 to the CLI `--user-id` argument. |
 | `zip_file`  | `TEXT` | No       | Absolute or relative path to the uploaded ZIP archive for the user. |
 | `llm_consent` | `INTEGER` | No | Stores `1` for consent and `0` otherwise. The manager converts Python booleans to ints when persisting and back to booleans when loading. |
+| `llm_consent_asked` | `INTEGER` | No | Tracks whether LLM consent has been collected (1) or not (0) so we only prompt once. |
+| `data_access_consent` | `INTEGER` | No | Stores `1` for data-access consent and `0` otherwise; we prompt once and reuse. |
 | `created_at` | `TEXT` | No | ISO-8601 timestamp (`datetime.now(timezone.utc).isoformat()`) recorded once at creation. |
 | `updated_at` | `TEXT` | Yes | ISO-8601 timestamp captured whenever `update_config` runs; remains `NULL` until the first update. |
 
@@ -54,7 +58,9 @@ This document should be kept up to date whenever the `user_configurations` table
 # Insights Storage Schema
 
 ## Overview
-The `ProjectInsightsStore` in `src/insights/storage.py` persists encrypted pipeline output so previously analyzed ZIP files can be revisited without rerunning the entire pipeline. It shares the same SQLite database (`DATABASE_URL`, default `sqlite:///data/app.db`) and maintains two primary tables: `zipfile` (one row per analyzed archive) and `project` (one row per project or `_misc_files`). Serialized payloads are compressed and encrypted before writing to disk, so only derived metadata (counts, hashes, timestamps) is readable directly from SQLite.
+The `ProjectInsightsStore` in `src/insights/storage.py` persists encrypted pipeline output so previously analyzed ZIP files can be revisited without rerunning the entire pipeline. It uses the fixed SQLite path `sqlite:///data/app.db` (resolved to `data/app.db`) and maintains two primary tables: `zipfile` (one row per analyzed archive) and `project` (one row per project or `_misc_files`). Serialized payloads are compressed and encrypted before writing to disk, so only derived metadata (counts, hashes, timestamps) is readable directly from SQLite. Tests and tooling can override the path by passing `db_path` to the store constructor.
+
+**Encryption note:** For local convenience a fixed key (`local-insights-key`) is used when `INSIGHTS_ENCRYPTION_KEY` is not provided; set the env var to override with a stronger secret in production.
 
 ## Schema Migrations
 `ProjectInsightsStore` bootstraps a `schema_migrations` table and records version `1` the first time it applies the insights schema. Future migrations should append new rows here so the store can upgrade in place.
@@ -114,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_project_zip ON project(zip_id);
 - `project_name`: top-level directory (or `_misc_files` for loose files) as reported by the pipeline.
 - `slug`: sanitized version of the name for potential UI routing.
 - `insight_hash`: SHA-256 of the plaintext payload (including `zip_id`/`project_name`) used to detect incremental changes.
-- `insights_encrypted`: compressed+encrypted JSON containing the full project analysis, categorized file lists, etc.
+- `insights_encrypted`: compressed+encrypted JSON containing the full project analysis, categorized file lists, generated presentation artifacts (`project_metrics`, `portfolio_item`, `resume_item` including resume bullets), and any additional insights produced by the pipeline.
 - `code_files`, `doc_files`, `image_files`, `video_files`: cached counts to support quick dashboards without decrypting payloads.
 
 The `(zip_id, project_name)` unique constraint ensures incremental runs update the existing rows instead of duplicating them.

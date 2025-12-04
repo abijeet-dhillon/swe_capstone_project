@@ -21,8 +21,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
-DEFAULT_DB_PATH = os.getenv("DATABASE_URL", "sqlite:///data/app.db").replace("sqlite:///", "")
-DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "")
+DEFAULT_DB_URL = "sqlite:///data/app.db"
+DEFAULT_DB_PATH = DEFAULT_DB_URL.replace("sqlite:///", "")
+# Fixed local encryption key (overridable via INSIGHTS_ENCRYPTION_KEY env var)
+DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "local-insights-key")
 ZIP_TABLE = "zipfile"
 PROJECT_TABLE = "project"
 SCHEMA_VERSION = 2

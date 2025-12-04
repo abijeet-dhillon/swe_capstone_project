@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-DB_PATH = os.getenv("DATABASE_URL", "sqlite:///data/app.db").replace("sqlite:///", "")
+DB_PATH = "data/app.db"
 TABLE_NAME = "user_configurations"
 
 
@@ -31,6 +31,8 @@ class UserConfig:
     user_id: str
     zip_file: str
     llm_consent: bool
+    llm_consent_asked: bool
+    data_access_consent: bool
     created_at: str
     updated_at: Optional[str] = None
 
@@ -39,6 +41,8 @@ class UserConfig:
             "user_id": self.user_id,
             "zip_file": self.zip_file,
             "llm_consent": self.llm_consent,
+            "llm_consent_asked": self.llm_consent_asked,
+            "data_access_consent": self.data_access_consent,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -65,11 +69,23 @@ class UserConfigManager:
                     user_id TEXT PRIMARY KEY,
                     zip_file TEXT NOT NULL,
                     llm_consent INTEGER NOT NULL,
+                    llm_consent_asked INTEGER NOT NULL DEFAULT 0,
+                    data_access_consent INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT
                 );
                 """
             )
+            # Backfill column if missing in older DBs
+            cols = {row[1] for row in conn.execute(f"PRAGMA table_info({TABLE_NAME});")}
+            if "data_access_consent" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN data_access_consent INTEGER NOT NULL DEFAULT 0;"
+                )
+            if "llm_consent_asked" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN llm_consent_asked INTEGER NOT NULL DEFAULT 0;"
+                )
             conn.commit()
 
     def _persist_config(self, config: UserConfig) -> bool:
@@ -78,17 +94,21 @@ class UserConfigManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     f"""
-                    INSERT INTO {TABLE_NAME} (user_id, zip_file, llm_consent, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO {TABLE_NAME} (user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET
                         zip_file = excluded.zip_file,
                         llm_consent = excluded.llm_consent,
+                        llm_consent_asked = excluded.llm_consent_asked,
+                        data_access_consent = excluded.data_access_consent,
                         updated_at = excluded.updated_at;
                     """,
                     (
                         config.user_id,
                         config.zip_file,
                         int(config.llm_consent),
+                        int(config.llm_consent_asked),
+                        int(config.data_access_consent),
                         config.created_at,
                         config.updated_at,
                     ),
@@ -104,6 +124,8 @@ class UserConfigManager:
         user_id: str,
         zip_file: str,
         llm_consent: bool,
+        llm_consent_asked: bool = False,
+        data_access_consent: bool = False,
     ) -> bool:
         """Insert a brand-new config row for the given user."""
         if self.load_config(user_id, silent=True):
@@ -115,6 +137,8 @@ class UserConfigManager:
             user_id=user_id,
             zip_file=zip_file,
             llm_consent=llm_consent,
+            llm_consent_asked=llm_consent_asked,
+            data_access_consent=data_access_consent,
             created_at=timestamp,
             updated_at=None,
         )
@@ -125,6 +149,8 @@ class UserConfigManager:
         user_id: str,
         zip_file: Optional[str] = None,
         llm_consent: Optional[bool] = None,
+        llm_consent_asked: Optional[bool] = None,
+        data_access_consent: Optional[bool] = None,
     ) -> bool:
         """Update an existing config row."""
         existing = self.load_config(user_id, silent=True)
@@ -136,6 +162,10 @@ class UserConfigManager:
             existing.zip_file = zip_file
         if llm_consent is not None:
             existing.llm_consent = llm_consent
+        if llm_consent_asked is not None:
+            existing.llm_consent_asked = llm_consent_asked
+        if data_access_consent is not None:
+            existing.data_access_consent = data_access_consent
 
         existing.updated_at = datetime.now(timezone.utc).isoformat()
         return self._persist_config(existing)
@@ -147,7 +177,7 @@ class UserConfigManager:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
                     f"""
-                    SELECT user_id, zip_file, llm_consent, created_at, updated_at
+                    SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at
                     FROM {TABLE_NAME}
                     WHERE user_id = ?
                     """,
@@ -166,8 +196,10 @@ class UserConfigManager:
             user_id=row[0],
             zip_file=row[1],
             llm_consent=bool(row[2]),
-            created_at=row[3],
-            updated_at=row[4],
+            llm_consent_asked=bool(row[3]),
+            data_access_consent=bool(row[4]),
+            created_at=row[5],
+            updated_at=row[6],
         )
 
 
@@ -182,6 +214,8 @@ def save_config_to_db(config: Dict[str, Any], user_id: str) -> bool:
         raise ValueError("zip_file is required to save a configuration")
 
     llm_consent = bool(config.get("llm_consent", False))
+    llm_consent_asked = bool(config.get("llm_consent_asked", False))
+    data_access_consent = bool(config.get("data_access_consent", False))
 
     manager = UserConfigManager()
     if manager.load_config(user_id, silent=True):
@@ -189,12 +223,16 @@ def save_config_to_db(config: Dict[str, Any], user_id: str) -> bool:
             user_id,
             zip_file=zip_file,
             llm_consent=llm_consent,
+            llm_consent_asked=llm_consent_asked,
+            data_access_consent=data_access_consent,
         )
 
     return manager.create_config(
         user_id,
         zip_file=zip_file,
         llm_consent=llm_consent,
+        llm_consent_asked=llm_consent_asked,
+        data_access_consent=data_access_consent,
     )
 
 
@@ -207,11 +245,15 @@ def update_config_in_db(
     user_id: str,
     zip_file: Optional[str] = None,
     llm_consent: Optional[bool] = None,
+    llm_consent_asked: Optional[bool] = None,
+    data_access_consent: Optional[bool] = None,
 ) -> bool:
     return UserConfigManager().update_config(
         user_id,
         zip_file=zip_file,
         llm_consent=llm_consent,
+        llm_consent_asked=llm_consent_asked,
+        data_access_consent=data_access_consent,
     )
 
 

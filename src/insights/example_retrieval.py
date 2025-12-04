@@ -71,6 +71,28 @@ def video_summary(analysis: Dict[str, Any]) -> Tuple[int, float]:
     return 0, 0.0
 
 
+def print_presentation(payload: Dict[str, Any]) -> None:
+    portfolio = payload.get("portfolio_item")
+    resume = payload.get("resume_item")
+    if not portfolio and not resume:
+        return
+    print("\n   Presentation:")
+    if portfolio:
+        print("      - Portfolio:")
+        try:
+            print(json.dumps(portfolio, indent=8))
+        except Exception:
+            print(f"        {portfolio}")
+    if resume:
+        bullets = resume.get("bullets", [])
+        print("      - Resume bullets:")
+        if bullets:
+            for b in bullets:
+                print(f"         • {b}")
+        else:
+            print("         (none)")
+
+
 def print_project_summary(project_name: str, payload: Dict[str, Any]) -> None:
     print("\n" + "-" * 70)
     print(f"Project: {project_name}")
@@ -113,6 +135,7 @@ def print_project_summary(project_name: str, payload: Dict[str, Any]) -> None:
     print(f"        Languages: {langs_display}")
     video_count, duration = video_summary(analysis)
     print(f"      - Videos: {video_count} files, {duration:.1f}s duration")
+    print_presentation(payload)
 
 
 def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) -> None:
@@ -191,6 +214,16 @@ def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) ->
         print(json.dumps(video_data, indent=2))
     else:
         print("No video files found")
+
+    presentation = {
+        "portfolio_item": payload.get("portfolio_item"),
+        "resume_item": payload.get("resume_item"),
+    }
+    if presentation["portfolio_item"] or presentation["resume_item"]:
+        print("\n" + "-" * 70)
+        print("PRESENTATION ITEMS")
+        print("-" * 70)
+        print(json.dumps(presentation, indent=2))
 
 
 def select_zip_hash(store: ProjectInsightsStore, provided: Optional[str]) -> Optional[str]:
