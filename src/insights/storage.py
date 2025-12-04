@@ -228,6 +228,7 @@ class ProjectInsightsStore:
         payload = self._validate_pipeline_result(pipeline_result)
         metadata = payload["zip_metadata"]
         projects = payload["projects"]
+        extras = payload.get("extras", {})
 
         zip_hash = self._derive_zip_hash(zip_path, metadata)
         now = _utcnow()
@@ -245,7 +246,7 @@ class ProjectInsightsStore:
                         pipeline_version,
                         now,
                     )
-                    stats = self._sync_projects(conn, zip_id, projects, now)
+                    stats = self._sync_projects(conn, zip_id, projects, extras, now)
                     conn.execute(
                         f"UPDATE {ZIP_TABLE} SET total_projects = ?, updated_at = ? WHERE id = ?;",
                         (stats["project_count"], now, zip_id),
@@ -510,7 +511,8 @@ class ProjectInsightsStore:
             cleaned[name] = data
         if not cleaned:
             raise PayloadValidationError("No valid project payloads found.")
-        return {"zip_metadata": metadata, "projects": cleaned}
+        extras = {k: v for k, v in payload.items() if k not in {"zip_metadata", "projects"}}
+        return {"zip_metadata": metadata, "projects": cleaned, "extras": extras}
 
     def _derive_zip_hash(self, zip_path: str, metadata: Dict[str, Any]) -> str:
         hasher = hashlib.sha256()
@@ -589,6 +591,7 @@ class ProjectInsightsStore:
         conn: sqlite3.Connection,
         zip_id: int,
         projects: Dict[str, Dict[str, Any]],
+        extras: Dict[str, Any],
         timestamp: str,
     ) -> Dict[str, int]:
         stats = {"inserted": 0, "updated": 0, "unchanged": 0, "deleted": 0}
@@ -608,6 +611,8 @@ class ProjectInsightsStore:
             payload_copy = dict(payload)
             payload_copy["project_name"] = project_name
             payload_copy["zip_id"] = zip_id
+            if extras:
+                payload_copy["global_insights"] = extras
             insight_hash = self._hash_dict(payload_copy)
             encrypted = self.serializer.encrypt(payload_copy)
             code_files, doc_files, image_files, video_files = self._summarize_counts(payload)
