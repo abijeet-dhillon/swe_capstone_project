@@ -23,15 +23,18 @@ This run satisfies: consent prompt, zip parsing, wrong-format guard, alternative
    docker compose run --rm backend python -m src.pipeline.orchestrator README.md
    ```
 
-   Confirms requirement #3 (non-zip rejected).
+   - Confirms requirement #3 (non-zip rejected).
+   - First prompt: **Data access consent** (answer once; stored).
+   - When prompted for LLM consent, answer **n** (requirements #1, #4, #5).
+   - User consent choice is stored in user config for reuse (#6).
 
 2. **Run proper ZIP, decline LLM (local-only analysis)**
+
    ```bash
    docker compose run --rm backend python -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
    ```
-   - First prompt: **Data access consent** (answer once; stored).
-   - When prompted for LLM consent, answer **n** (requirements #1, #4, #5).
-   - The run will: parse the ZIP (#2), separate projects (#7), detect languages/frameworks (#8), compute contributions (git) (#9), extract metrics (#10), extract skills (#11), output per-project info (#12), rank projects (#16), summarize top ranked (#17), build chronological projects/skills (#19, #20), and persist to DB (#13). User consent choice is stored in user config for reuse (#6).
+
+   - The run will: parse the ZIP (#2), separate projects (#7), detect languages/frameworks (#8), compute contributions (git) (#9), extract metrics (#10), extract skills (#11), output per-project info (#12), rank projects (#16), summarize top ranked (#17), build chronological projects/skills (#19, #20), and persist to DB (#13).
 
 ## 2) Second run with LLM enabled (stored consent for user `root`)
 
@@ -42,7 +45,7 @@ Pre-store LLM consent for user `root`, then run with that user so the prompt is 
 docker compose run --rm backend python -m src.config.config_manager --user-id root --update --zip-file tests/categorize/demo_project_2.zip --llm-consent yes
 
 # Run pipeline using stored consent
-docker compose run --rm backend python -m src.pipeline.orchestrator --user-id root tests/categorize/demo_project_2.zip
+docker compose run --rm backend python -m src.pipeline.orchestrator --user-id root tests/categorize/demo_projects_2.zip
 ```
 
 - This uses stored consent (requirements #1, #4, #5) and persists a second set of insights (different `zip_hash` unless contents unchanged) including portfolio/resume items.
@@ -60,106 +63,12 @@ for r in runs:
 PY
 ```
 
-## 4) Retrieve non-LLM run (portfolio + resume items)
-
-```bash
-docker compose run --rm -T backend python - <<'PY'
-from src.insights.storage import ProjectInsightsStore
-
-store = ProjectInsightsStore(db_path="data/app.db")
-zh = store.list_recent_zipfiles(limit=2)[-1]["zip_hash"]  # older run (assume non-LLM)
-projects = [p for p in store.list_projects_for_zip(zh) if p != "_misc_files"]
-if not projects:
-    print("No non-misc projects found.")
-else:
-    name = projects[0]
-    payload = store.load_project_insight(zh, name)
-    print("Project:", name)
-    print("Keys:", sorted(payload.keys()))
-    print("Portfolio:", payload.get("portfolio_item"))
-    print("Resume bullets:", payload.get("resume_item", {}).get("bullets", []))
-    print("Ranking info:", payload.get("project_ranking"))
-    print("Timeline:", payload.get("chronological_skills", {}).get("timeline", [])[:2])
-PY
-```
-
-**Quick-grab commands (LLM run):**
-
-- Analysis payload (project-level):
-  ```bash
-  docker compose run --rm -T backend python - <<'PY'
-  from src.insights.storage import ProjectInsightsStore
-  import json
-  s = ProjectInsightsStore(db_path="data/app.db")
-  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
-  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
-  payload = s.load_project_insight(zh, proj)
-  print(json.dumps(payload, indent=2, sort_keys=True))
-  PY
-  ```
-- Portfolio only:
-  ```bash
-  docker compose run --rm -T backend python - <<'PY'
-  from src.insights.storage import ProjectInsightsStore
-  import json
-  s = ProjectInsightsStore(db_path="data/app.db")
-  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
-  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
-  payload = s.load_project_insight(zh, proj)
-  print(json.dumps(payload.get("portfolio_item"), indent=2, sort_keys=True))
-  PY
-  ```
-- Resume bullets only:
-  ```bash
-  docker compose run --rm -T backend python - <<'PY'
-  from src.insights.storage import ProjectInsightsStore
-  import json
-  s = ProjectInsightsStore(db_path="data/app.db")
-  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
-  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
-  payload = s.load_project_insight(zh, proj)
-  print(json.dumps(payload.get("resume_item", {}).get("bullets", []), indent=2, sort_keys=True))
-  PY
-  ```
-
-## 5) Retrieve LLM run (same fields)
-
-````bash
-docker compose run --rm -T backend python - <<'PY'
-from src.insights.storage import ProjectInsightsStore
-
-store = ProjectInsightsStore(db_path="data/app.db")
-zh = store.list_recent_zipfiles(limit=2)[-1]["zip_hash"]  # older run (assume non-LLM)
-projects = [p for p in store.list_projects_for_zip(zh) if p != "_misc_files"]
-if not projects:
-    print("No non-misc projects found.")
-else:
-    name = projects[0]
-    payload = store.load_project_insight(zh, name)
-    print("Project:", name)
-    print("Keys:", sorted(payload.keys()))
-    print("Portfolio:", payload.get("portfolio_item"))
-    print("Resume bullets:", payload.get("resume_item", {}).get("bullets", []))
-    print("Ranking info:", payload.get("project_ranking"))
-    print("Timeline:", payload.get("chronological_skills", {}).get("timeline", [])[:2])
-PY
+## 4) Retrieve non-LLM run
 
 **Quick-grab commands (non-LLM run):**
 
-- Analysis payload (project-level):
-  ```bash
-  docker compose run --rm -T backend python - <<'PY'
-  from src.insights.storage import ProjectInsightsStore
-  import json
-  s = ProjectInsightsStore(db_path="data/app.db")
-  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
-  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
-  payload = s.load_project_insight(zh, proj)
-  print(json.dumps(payload, indent=2, sort_keys=True))
-  PY
-````
-
 - Portfolio only:
+
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
@@ -171,7 +80,11 @@ PY
   print(json.dumps(payload.get("portfolio_item"), indent=2, sort_keys=True))
   PY
   ```
+
+  - retrieve previously generated portfolio information (#14)
+
 - Resume bullets only:
+
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
@@ -183,21 +96,53 @@ PY
   print(json.dumps(payload.get("resume_item", {}).get("bullets", []), indent=2, sort_keys=True))
   PY
   ```
+
+  - retrieve previously generated résumé item (#15)
+
+- Advanced skills extraction + chronological timeline (global insights):
+  ```bash
+  docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
+  import json
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  extras = payload.get("global_insights", {})
+  skill_analysis = payload.get("analysis_results", {}).get("code", {}).get("skill_analysis", {})
+  print(json.dumps({"advanced_skill_analysis": skill_analysis, "chronological_skills": extras.get("chronological_skills")}, indent=2, sort_keys=True))
+  PY
+  ```
+- Project ranking & summaries (global insights):
+  ```bash
+  docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
+  import json
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  ranking = payload.get("global_insights", {}).get("project_ranking")
+  print(json.dumps(ranking, indent=2, sort_keys=True))
+  PY
+  ```
+- Whole analysis payload (everything stored for that project):
+  ```bash
+  docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
+  import json
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload, indent=2, sort_keys=True))
+  PY
+  ```
+
+## 5) Retrieve LLM run
 
 **Quick-grab commands (LLM run):**
 
-- Analysis payload (project-level):
-  ```bash
-  docker compose run --rm -T backend python - <<'PY'
-  from src.insights.storage import ProjectInsightsStore
-  import json
-  s = ProjectInsightsStore(db_path="data/app.db")
-  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
-  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
-  payload = s.load_project_insight(zh, proj)
-  print(json.dumps(payload, indent=2, sort_keys=True))
-  PY
-  ```
 - Portfolio only:
   ```bash
   docker compose run --rm -T backend python - <<'PY'
@@ -220,6 +165,45 @@ PY
   proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
   payload = s.load_project_insight(zh, proj)
   print(json.dumps(payload.get("resume_item", {}).get("bullets", []), indent=2, sort_keys=True))
+  PY
+  ```
+- Advanced skills extraction + chronological timeline (global insights):
+  ```bash
+  docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
+  import json
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  extras = payload.get("global_insights", {})
+  skill_analysis = payload.get("analysis_results", {}).get("code", {}).get("skill_analysis", {})
+  print(json.dumps({"advanced_skill_analysis": skill_analysis, "chronological_skills": extras.get("chronological_skills")}, indent=2, sort_keys=True))
+  PY
+  ```
+- Project ranking & summaries (global insights):
+  ```bash
+  docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
+  import json
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  ranking = payload.get("global_insights", {}).get("project_ranking")
+  print(json.dumps(ranking, indent=2, sort_keys=True))
+  PY
+  ```
+- Whole analysis payload (everything stored for that project):
+  ```bash
+  docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
+  import json
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload, indent=2, sort_keys=True))
   PY
   ```
 
@@ -231,6 +215,11 @@ docker compose run --rm backend python -m src.insights.example_retrieval --db-pa
 
 - Shows per-project outputs (#12), ranking (#16), top summaries (#17), timelines (#19, #20).
 - Portfolio/resume items are embedded in the decrypted payload.
+- For a more readable, report-like view in the terminal, pipe through `less`:
+  ```bash
+  docker compose run --rm backend python -m src.insights.example_retrieval --db-path data/app.db | less -R
+  ```
+  (`-R` preserves simple formatting/indentation; use `q` to quit the pager.)
 
 ## 7) Delete insights safely
 
@@ -263,3 +252,7 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
 - Show the wrong-format error step to prove validation.
 - Point out collaborative vs individual (git contributor counts) and language/framework detection in pipeline output.
 - Mention that portfolio and resume items, metrics, rankings, timelines, and skills are persisted and can be retrieved later.
+
+```
+
+```
