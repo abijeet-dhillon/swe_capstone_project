@@ -80,6 +80,6 @@ docker-compose run --rm backend \
 
 ### Notes
 
-- Consent is stored locally in `data/app.db` via `UserConfigManager`; prompts are skipped once stored.
+- Consent is stored locally in `data/app.db` via `UserConfigManager`; prompts are skipped once stored. Both LLM consent and data-access consent are persisted per user.
 - `--zip-file` updates the last-used zip path for that user but does not move files.
 - Use `--llm-consent yes|no` on `--update` to flip your preference without re-prompting.
