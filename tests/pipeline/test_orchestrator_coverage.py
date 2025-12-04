@@ -30,7 +30,10 @@ _ensure_module("pyzbar.pyzbar", types.ModuleType("pyzbar.pyzbar"))
 if "skimage" not in sys.modules:
     skimage_pkg = types.ModuleType("skimage")
     _ensure_module("skimage", skimage_pkg)
-    sys.modules["skimage.feature"] = types.ModuleType("skimage.feature")
+    feature_stub = types.ModuleType("skimage.feature")
+    feature_stub.graycomatrix = lambda *args, **kwargs: None
+    feature_stub.graycoprops = lambda *args, **kwargs: None
+    sys.modules["skimage.feature"] = feature_stub
     sys.modules["skimage.filters"] = types.ModuleType("skimage.filters")
     sys.modules["skimage.measure"] = types.ModuleType("skimage.measure")
     color_stub = types.ModuleType("skimage.color")
@@ -152,8 +155,8 @@ def test_process_project_local_only(monkeypatch, tmp_path):
     pipeline.video_analyzer.analyze_file = lambda f, transcribe=False: None
     pipeline.video_analyzer.calculate_collection_metrics = lambda results: types.SimpleNamespace(to_dict=lambda: {"total_videos": 0, "total_duration": 0.0})
 
-    monkeypatch.setattr(orchestrator, "generate_portfolio_item", lambda project: {"tagline": "t"})
-    monkeypatch.setattr(orchestrator, "generate_resume_item", lambda project: {"bullets": ["b1"]})
+    monkeypatch.setattr(orchestrator, "generate_portfolio_item", lambda project, **_: {"tagline": "t"})
+    monkeypatch.setattr(orchestrator, "generate_resume_item", lambda project, **_: {"bullets": ["b1"]})
 
     result = pipeline._process_project("proj", proj)
     assert result["project_name"] == "proj"
@@ -209,8 +212,8 @@ def test_process_project_with_git(monkeypatch, tmp_path):
     pipeline.video_analyzer.analyze_file = lambda f, transcribe=False: None
     pipeline.video_analyzer.calculate_collection_metrics = lambda results: types.SimpleNamespace(to_dict=lambda: {"total_videos": 0, "total_duration": 0.0})
 
-    monkeypatch.setattr(orchestrator, "generate_portfolio_item", lambda project: {"tagline": "t"})
-    monkeypatch.setattr(orchestrator, "generate_resume_item", lambda project: {"bullets": ["b1"]})
+    monkeypatch.setattr(orchestrator, "generate_portfolio_item", lambda project, **_: {"tagline": "t"})
+    monkeypatch.setattr(orchestrator, "generate_resume_item", lambda project, **_: {"bullets": ["b1"]})
 
     result = pipeline._process_project("gitproj", proj)
     assert result["is_git_repo"] is True
@@ -470,9 +473,10 @@ def test_print_summary_with_misc_and_llm(monkeypatch, capsys):
 
 def test_main_smoke(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(orchestrator, "resolve_llm_consent", lambda zip_path, user_id: False)
+    monkeypatch.setattr(orchestrator, "resolve_data_access_consent", lambda zip_path, user_id: True)
     called = {}
 
-    def fake_start(self, zip_path, use_llm=False):
+    def fake_start(self, zip_path, use_llm=False, data_access_consent=True, **_):
         called["zip"] = zip_path
         called["llm"] = use_llm
         return {

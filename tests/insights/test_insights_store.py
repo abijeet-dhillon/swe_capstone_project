@@ -85,6 +85,21 @@ def test_load_project_insight_returns_decrypted_payload(temp_store):
     assert insight["analysis_results"]["documentation"]["totals"]["total_words"] == 120
 
 
+def test_presentation_fields_round_trip(temp_store):
+    """Ensure presentation artifacts (metrics/portfolio/resume) are stored and retrievable."""
+    payload = build_pipeline_payload()
+    temp_store.record_pipeline_run("/tmp/demo.zip", payload)
+    zip_hash = temp_store.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+
+    insight = temp_store.load_project_insight(zip_hash, "ProjectAlpha")
+    assert "project_metrics" in insight
+    assert insight["project_metrics"]["total_lines"] == 42
+    assert "portfolio_item" in insight
+    assert insight["portfolio_item"]["project_name"] == "ProjectAlpha"
+    assert "resume_item" in insight
+    assert isinstance(insight["resume_item"].get("bullets", []), list)
+
+
 def test_backup_and_restore_round_trip(temp_store, tmp_path):
     payload = build_pipeline_payload()
     temp_store.record_pipeline_run("/tmp/demo.zip", payload)
