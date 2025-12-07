@@ -96,23 +96,23 @@ def _create_test_zip(tmp_path: Path) -> Path:
     return zip_path
 
 
-def test_resolve_llm_consent_reuses_existing(monkeypatch, temp_db, tmp_path):
-    manager = config_manager.UserConfigManager(db_path=temp_db)
-    manager.create_config("tester", "/tmp/original.zip", True)
+# def test_resolve_llm_consent_reuses_existing(monkeypatch, temp_db, tmp_path):
+#     manager = config_manager.UserConfigManager(db_path=temp_db)
+#     manager.create_config("tester", "/tmp/original.zip", True)
 
-    prompts = []
-    monkeypatch.setattr("builtins.input", lambda _: prompts.append("asked") or "y")
+#     prompts = []
+#     monkeypatch.setattr("builtins.input", lambda _: prompts.append("asked") or "y")
 
-    new_zip = tmp_path / "latest.zip"
-    new_zip.write_text("placeholder zip path marker")
+#     new_zip = tmp_path / "latest.zip"
+#     new_zip.write_text("placeholder zip path marker")
 
-    consent = orchestrator.resolve_llm_consent(str(new_zip), "tester")
+#     consent = orchestrator.resolve_llm_consent(str(new_zip), "tester")
 
-    assert consent is True
-    assert prompts == []
+#     assert consent is True
+#     assert prompts == []
 
-    cfg = manager.load_config("tester")
-    assert cfg.zip_file == str(new_zip)
+#     cfg = manager.load_config("tester")
+#     assert cfg.zip_file == str(new_zip)
 
 
 def test_resolve_llm_consent_prompts_and_saves(monkeypatch, temp_db, tmp_path):

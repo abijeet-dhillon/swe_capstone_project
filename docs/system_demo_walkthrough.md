@@ -54,12 +54,13 @@ docker compose run --rm backend python -m src.pipeline.orchestrator --user-id ro
 
 ```bash
 docker compose run --rm -T backend python - <<'PY'
+from pathlib import Path
 from src.insights.storage import ProjectInsightsStore
+
 store = ProjectInsightsStore(db_path="data/app.db")
-runs = store.list_recent_zipfiles(limit=5)
-for r in runs:
-    print("zip_hash:", r["zip_hash"], "projects:", r["total_projects"])
-    print("  names:", store.list_projects_for_zip(r["zip_hash"]))
+for row in store.list_recent_zipfiles(limit=20):
+    name = Path(row["zip_path"]).name
+    print(f"{row['zip_hash']}  {name}  projects={row['total_projects']}")
 PY
 ```
 
@@ -225,13 +226,12 @@ docker compose run --rm backend python -m src.insights.example_retrieval --db-pa
 
 Choose either per-zip or all. Deleting a zip only removes that run; other runs remain (requirement #18 about not affecting shared files across reports).
 
-- **Delete one run by zip_hash** (replace `zip_hash`):
+- **Delete one run by zip_hash** (replace `target`):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
   store = ProjectInsightsStore(db_path="data/app.db")
-  target = store.list_recent_zipfiles(limit=1)[0]["zip_hash"]
-  print("Deleting zip_hash:", target)
+  target = "<PUT_HASH_HERE>"
   print(store.delete_zip(target))
   PY
   ```
@@ -246,7 +246,7 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
   ```
 
 - **Delete all user configs**:
-  ```
+  ```bash
   docker compose run --rm -T backend python -c "import sqlite3,sys; db='data/app.db';
   conn=sqlite3.connect(db); conn.execute(\"DELETE FROM user_configurations\"); conn.commit();
   print('Deleted rows:', conn.execute('select changes()').fetchone()[0])"
