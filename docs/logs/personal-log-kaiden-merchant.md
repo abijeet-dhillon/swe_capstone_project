@@ -11,6 +11,8 @@
 1. [Week 9](#week-9)
 1. [Week 10](#week-10)
 1. [Week 12](#week-12)
+1. [Week 13](#week-13)
+1. [Week 14](#week-14)
 
 ## Week 3
 This section outlines the individual log for week 3
@@ -448,4 +450,88 @@ This section outlines the individual log for week 13
 **Future Weeks:**
 - Research and preparation for Milestone 2 deliverables
 - Planning for next phase of development
+
+## Week 14
+This section outlines the individual log for week 14
+
+### December 1 - December 7
+
+### Tasks
+![](images/kaiden_week14_tasks.png)
+
+### Weekly Goals
+
+1. My Features:
+    - Add JSON report generation functionality to pipeline for demo purposes
+    - Create structured output files in `reports/` directory with timestamp-based naming
+    - Develop comprehensive test suite for JSON report generation
+    - Ensure report structure is organized by project and file type for easy demonstration
+
+2. Associated Tasks
+    - JSON Report Generation Implementation
+    - Test Suite Development
+    - Report Structure Validation
+    - Documentation Updates
+
+3. Completed/In-Progress
+    - ✅ Implemented JSON report generation in orchestrator:
+      - Added `_save_json_report()` method to `ArtifactPipeline` class
+      - Creates `reports/` directory automatically if it doesn't exist
+      - Generates timestamped report files: `report_YYYYMMDD_HHMMSS.json`
+      - Leverages existing `_make_json_serializable()` for data preparation
+      - Outputs nicely formatted JSON with 2-space indentation
+      - Added datetime import for timestamp generation
+    - ✅ Integrated report generation into pipeline flow:
+      - Modified `start()` method to call `_save_json_report()` after all analysis
+      - Report saved after database persistence but before returning result
+      - Added console output showing report file location
+      - No breaking changes to existing functionality
+    - ✅ Created comprehensive test suite (`tests/pipeline/test_json_report.py`):
+      - 8 test cases covering all aspects of JSON report generation
+      - `test_json_report_is_created` - Verifies report file creation
+      - `test_json_report_is_valid_json` - Validates JSON format
+      - `test_json_report_has_required_structure` - Checks schema structure
+      - `test_json_report_organizes_by_project` - Validates project organization
+      - `test_json_report_organizes_by_file_type` - Validates file type grouping
+      - `test_json_report_filename_format` - Checks timestamp format
+      - `test_json_report_is_serializable` - Ensures no serialization errors
+      - Automatic cleanup of test reports via fixture
+    - ✅ Report structure maintains organization:
+      - Top-level: `zip_metadata`, `projects`, `project_ranking`, `chronological_skills`
+      - Per-project: `categorized_contents`, `analysis_results` (by file type)
+      - Per-file-type: `code`, `documentation`, `images`, `videos`
+      - Easy to navigate for demo presentation
+
+### Reflection Points
+
+**What went well:**
+- JSON report generation integrates seamlessly with existing pipeline architecture
+- Leveraging `_make_json_serializable()` eliminated need for duplicate serialization logic
+- Test suite is comprehensive and caught potential issues early
+- Report format is clean and well-structured for demo purposes
+- Timestamp-based naming prevents overwriting and allows tracking of multiple runs
+
+**What didn't go well:**
+- Initial filename included ZIP name but switched to timestamp-only for cleaner output
+- Had to ensure reports directory is created relative to execution path
+- Minor iteration on test fixture cleanup to avoid test pollution
+
+**Technical Decisions:**
+- Chose timestamp-only naming (`report_YYYYMMDD_HHMMSS.json`) for simplicity
+- Report saved after database persistence to ensure all data is included
+- Used `Path.mkdir(exist_ok=True)` for safe directory creation
+- Maintained same structure as in-memory result for consistency
+
+### Planning Activities for Next Cycle
+
+**Week 15 Goals:**
+- Research service API call architecture for external integrations
+- Investigate how to expose pipeline configuration options to users
+- Design user preference system for customizing pipeline flow:
+  - Toggle individual analyzers (code, text, image, video)
+  - Enable/disable Git analysis
+  - Control LLM summarization settings
+  - Configure ranking criteria and output formats
+- Explore configuration file formats (JSON, YAML, TOML) for user preferences
+- Plan API endpoint structure for triggering customized pipeline runs
 
