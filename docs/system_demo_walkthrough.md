@@ -226,7 +226,7 @@ docker compose run --rm backend python -m src.insights.example_retrieval --db-pa
 
 Choose either per-zip or all. Deleting a zip only removes that run; other runs remain (requirement #18 about not affecting shared files across reports).
 
-- **Delete one run by zip_hash** (replace `target`):
+- **Delete one run by zip_hash** (replace `<PUT_HASH_HERE>` with a hash from section 3's command used to list stored runs):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
