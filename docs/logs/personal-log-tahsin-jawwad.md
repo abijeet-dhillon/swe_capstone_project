@@ -287,6 +287,7 @@ Since there are no peer evaluations, here is a list of tasks worked on:
 
 ### Type of tasks worked on
 ![Tahsin Type of Tasks Week 14](images/tahsin-week-14.png)
+Also worked on creating/contributing towards Team Contract and Presentation Slides (Week 13/14)
 
 
 ### Weekly Goals
@@ -308,6 +309,5 @@ Since there are no peer evaluations, here is a list of tasks worked on:
 * Portfolio and Resume Generation Pipeline #166 (Completed)
 
 **Future cycle plans**:
-- Add filtering and sorting options to generation pipeline (by date, by complexity, by language)
+- Add filtering and sorting options to generation pipeline
 - Implement caching mechanism to avoid regenerating unchanged projects
-- Add progress callbacks for long-running batch operations
