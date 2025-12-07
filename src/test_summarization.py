@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+import pytest
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from services.summarization_service import SummarizationService
 
 
-def test_summarization(file_path: str):
+@pytest.mark.skip(reason="Integration helper; requires external API and file path")
+def test_summarization(file_path: str = ""):
     """
     Test summarization on a document file.
     
@@ -108,4 +110,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

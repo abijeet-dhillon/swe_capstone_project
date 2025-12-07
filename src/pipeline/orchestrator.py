@@ -118,6 +118,13 @@ class ArtifactPipeline:
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(self.temp_dir)
             print(f"✓ Extracted to: {self.temp_dir}")
+
+            # Capture file-level metadata for the entire archive
+            file_info = self._build_file_info(zip_index)
+            try:
+                categorized_contents_full = categorize_folder_structure(str(self.temp_dir))
+            except Exception as exc:
+                categorized_contents_full = {"error": str(exc)}
             
             # Step 3: Identify top-level projects and loose files
             print(f"\n[3/9] Identifying projects (top-level directories)...")
@@ -149,6 +156,8 @@ class ArtifactPipeline:
                     "total_uncompressed_bytes": zip_index.total_uncompressed_bytes,
                     "total_compressed_bytes": zip_index.total_compressed_bytes,
                 },
+                "file_info": file_info,
+                "categorized_contents": categorized_contents_full,
                 "projects": project_results
             }
             
@@ -280,6 +289,38 @@ class ArtifactPipeline:
             loose_files = top_level_files
         
         return projects, loose_files
+
+    def _build_file_info(self, zip_index) -> List[Dict[str, Any]]:
+        """
+        Build a list of file metadata entries for the extracted ZIP contents.
+        Mirrors categorize_parse_zip() output structure so tests can assert on it.
+        """
+        file_info = []
+        if not self.temp_dir:
+            return file_info
+
+        for entry in getattr(zip_index, "files", []):
+            # Skip macOS metadata
+            if "__MACOSX" in entry.rel_path or Path(entry.rel_path).name.startswith("._"):
+                continue
+
+            extracted_path = self.temp_dir / entry.rel_path
+            if not extracted_path.exists():
+                continue
+
+            file_info.append({
+                "abs_path": str(extracted_path.resolve()),
+                "rel_path": entry.rel_path,
+                "size": entry.size,
+                "compressed_size": entry.compressed_size,
+                "is_compressed": entry.is_compressed,
+                "sha256": entry.sha256,
+                "depth": entry.depth,
+                "ext": entry.ext,
+                "is_text_guess": entry.is_text_guess,
+            })
+
+        return file_info
     
     def _process_loose_files(self, loose_files: List[Path]) -> Dict[str, Any]:
         """
@@ -1066,7 +1107,7 @@ class ArtifactPipeline:
             
             # Extract duration info from git analysis
             duration_info = {"start": None, "end": None, "days": 0}
-            if git_analysis and not isinstance(git_analysis, dict) or "error" not in git_analysis:
+            if isinstance(git_analysis, dict) and ("error" not in git_analysis):
                 if "first_commit_at" in git_analysis:
                     duration_info = {
                         "start": git_analysis.get("first_commit_at"),
@@ -1293,10 +1334,17 @@ def resolve_llm_consent(zip_path: str, user_id: str) -> bool:
     if existing:
         if existing.zip_file != zip_str:
             manager.update_config(user_id, zip_file=zip_str)
-        if existing.llm_consent_asked:
-            status = "enabled" if existing.llm_consent else "disabled"
-            print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
-            return existing.llm_consent
+            existing.zip_file = zip_str
+        status = "enabled" if existing.llm_consent else "disabled"
+        print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
+        if not existing.llm_consent_asked:
+            manager.update_config(
+                user_id,
+                zip_file=existing.zip_file,
+                llm_consent=existing.llm_consent,
+                llm_consent_asked=True,
+            )
+        return existing.llm_consent
 
     consent = _prompt_for_llm_consent()
     stored = manager.update_config(
