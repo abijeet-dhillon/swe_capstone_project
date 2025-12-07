@@ -1335,16 +1335,19 @@ def resolve_llm_consent(zip_path: str, user_id: str) -> bool:
         if existing.zip_file != zip_str:
             manager.update_config(user_id, zip_file=zip_str)
             existing.zip_file = zip_str
-        status = "enabled" if existing.llm_consent else "disabled"
-        print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
-        if not existing.llm_consent_asked:
-            manager.update_config(
-                user_id,
-                zip_file=existing.zip_file,
-                llm_consent=existing.llm_consent,
-                llm_consent_asked=True,
-            )
-        return existing.llm_consent
+        if existing.llm_consent_asked:
+            status = "enabled" if existing.llm_consent else "disabled"
+            print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
+            return existing.llm_consent
+        # Consent not asked yet; prompt now
+        consent = _prompt_for_llm_consent()
+        manager.update_config(
+            user_id,
+            zip_file=existing.zip_file,
+            llm_consent=consent,
+            llm_consent_asked=True,
+        )
+        return consent
 
     consent = _prompt_for_llm_consent()
     stored = manager.update_config(

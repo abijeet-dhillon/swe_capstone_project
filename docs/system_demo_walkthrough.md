@@ -225,7 +225,7 @@ docker compose run --rm backend python -m src.insights.example_retrieval --db-pa
 
 Choose either per-zip or all. Deleting a zip only removes that run; other runs remain (requirement #18 about not affecting shared files across reports).
 
-- **Delete one run by zip_hash** (replace `<hash>`):
+- **Delete one run by zip_hash** (replace `zip_hash`):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
@@ -235,13 +235,21 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
   print(store.delete_zip(target))
   PY
   ```
-- **Delete everything**:
+- **Delete all insights**:
+
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
   store = ProjectInsightsStore(db_path="data/app.db")
   print(store.delete_all())
   PY
+  ```
+
+- **Delete all user configs**:
+  ```
+  docker compose run --rm -T backend python -c "import sqlite3,sys; db='data/app.db';
+  conn=sqlite3.connect(db); conn.execute(\"DELETE FROM user_configurations\"); conn.commit();
+  print('Deleted rows:', conn.execute('select changes()').fetchone()[0])"
   ```
 
 ## 8) Run all tests
