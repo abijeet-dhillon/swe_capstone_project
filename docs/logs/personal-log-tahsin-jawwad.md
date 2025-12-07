@@ -280,3 +280,34 @@ Since there are no peer evaluations, here is a list of tasks worked on:
 
 **Future cycle plans**:
 - Add export functionality for portfolio items (JSON, Markdown, HTML formats)
+
+## Week 14
+### Date Range 
+1st December 2025 - 7th December 2025
+
+### Type of tasks worked on
+![Tahsin Type of Tasks Week 14](images/tahsin-week-14.png)
+
+
+### Weekly Goals
+**My features**:
+* Implemented PresentationPipeline for generating portfolio and resume items from stored project insights
+* Created PresentationResult and BatchPresentationResult dataclasses for structured result handling
+* Developed multiple generation methods: by project ID, by project name, by zip file, and batch generation for all projects
+* Implemented list_available_projects() method to display all projects with metadata from the database
+* Built comprehensive CLI interface with argparse supporting single/batch generation modes and JSON output options
+* Added internal helper methods for database queries: _get_project_id(), _get_project_metadata(), _get_projects_for_zip(), _get_all_project_ids()
+* Implemented error handling with graceful failure reporting for missing projects and generation failures
+* Created comprehensive test suite covering all pipeline functionality: initialization, generation methods, batch processing, listing, and dataclass operations
+* Achieved full test coverage for success cases, error handling, empty databases, and data serialization
+
+**Task from project board**:
+* Portfolio and Resume Generation Pipeline #166
+
+**Completed/In-progress tasks**: 
+* Portfolio and Resume Generation Pipeline #166 (Completed)
+
+**Future cycle plans**:
+- Add filtering and sorting options to generation pipeline (by date, by complexity, by language)
+- Implement caching mechanism to avoid regenerating unchanged projects
+- Add progress callbacks for long-running batch operations
