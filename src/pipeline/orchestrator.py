@@ -701,10 +701,9 @@ class ArtifactPipeline:
         reports_dir = Path("reports")
         reports_dir.mkdir(exist_ok=True)
         
-        # Generate report filename with timestamp
+        # Generate report filename with timestamp only
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_basename = zip_path.stem  # Get filename without extension
-        report_filename = f"{zip_basename}_report_{timestamp}.json"
+        report_filename = f"report_{timestamp}.json"
         report_path = reports_dir / report_filename
         
         # Ensure result is JSON serializable
