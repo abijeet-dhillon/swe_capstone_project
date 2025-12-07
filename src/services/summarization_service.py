@@ -9,8 +9,12 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dotenv import load_dotenv
 from llm.openai_client import OpenAIClient
 from parsers.document_parser import DocumentParser
+
+# Load environment variables (e.g., OPENAI_API_KEY from .env)
+load_dotenv()
 
 
 class SummarizationService:
@@ -75,4 +79,3 @@ class SummarizationService:
                 "status": "error",
                 "error": str(e)
             }
-

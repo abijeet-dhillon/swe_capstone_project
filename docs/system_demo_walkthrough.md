@@ -244,7 +244,13 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
   PY
   ```
 
-## 8) Quick notes for the recording
+## 8) Run all tests
+
+```
+docker compose run --rm backend pytest -q
+```
+
+## 9) Quick notes for the recording
 
 - Total time should stay under 10 minutes if you follow the order above.
 - Call out that data access consent is prompted every run and is not persisted; saying **n** stops the pipeline immediately.
@@ -252,7 +258,3 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
 - Show the wrong-format error step to prove validation.
 - Point out collaborative vs individual (git contributor counts) and language/framework detection in pipeline output.
 - Mention that portfolio and resume items, metrics, rankings, timelines, and skills are persisted and can be retrieved later.
-
-```
-
-```
