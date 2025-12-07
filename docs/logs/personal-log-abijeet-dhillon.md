@@ -9,7 +9,55 @@
 [Week 9 Individual Logs](#week-9)<br>
 [Week 10 Individual Logs](#week-10)<br>
 [Week 12 Individual Logs](#week-12)<br>
-[Week 13 Individual Logs](#week-13)
+[Week 13 Individual Logs](#week-13)<br>
+[Week 14 Individual Logs](#week-14)
+
+---
+
+## Week 14
+
+### December 1 2025 to December 7 2025
+
+### 1. Type of Tasks Worked On
+
+![Abijeet Dhillon Week 14 Task Types Screenshot](images/abijeetdhillon_week14_tasks.png)
+
+---
+
+### 2. Recap of Weekly Goals
+
+This week I focused on closing PR #169 to finish the remaining Milestone 1 requirements across storage/retrieval and consent. On the storage side, I brought the ProjectInsightsStore and orchestrator back in sync by updating the run metadata we persist, refreshing the retrieval CLI to replay stored runs cleanly, and tightening the backup/restore helpers so we can safely move snapshots between environments. I also verified the end-to-end flow in Docker to make sure the pipeline writes into the refreshed schema and that retrieval still works even after reorganizing the data layout. On the consent side, I extended the UserConfigManager to capture a separate “data consent” flag alongside LLM consent, wired both prompts through the pipeline CLI so users can set them once and skip future prompts, and made sure they are persisted and retrievable via the config manager CLI. I updated the docs around configuration and storage so the new consent flag and retrieval steps are clear, and synced with the team to confirm this satisfies Milestone 1 before we pivot to the next set of deliverables.
+
+---
+
+### 3. Features Owned in Project Plan
+
+- Bring Storage & Retrieval Up To Date (#165)
+- Add Data Consent To User Configurations (#168)
+
+---
+
+### 4. Tasks from Project Board Associated with These Features
+
+- Bring Storage & Retrieval Up To Date (#165)
+- Add Data Consent To User Configurations (#168)
+
+---
+
+### 5. Tasks Completed / In Progress in the Last 2 Weeks
+
+| Task ID | Issue Title                            | Status    | Notes                                                                                                                                                                                                                               |
+| ------- | -------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 165     | Bring Storage & Retrieval Up To Date   | Completed | In PR #169 I refreshed the ProjectInsightsStore/orchestrator path to align with the latest schema, ensured runs persist correctly, tightened backup/restore helpers, and verified the retrieval CLI can replay stored runs end to end. |
+| 168     | Add Data Consent To User Configurations | Completed | PR #169 also added a persisted “data consent” flag to UserConfigManager, wired it (with LLM consent) into the pipeline CLI prompts, and documented the config manager/CLI paths so users can set or update both consents once.       |
+
+---
+
+### 6. Future Cycle Plans & Reflection On This Week
+
+This week felt good—I wrapped up PR #169 to land the storage/retrieval refresh and data consent work, which means our team has completed all of the Milestone 1 requirements without scrambling at the last minute. The flow feels stable, testing went smoothly, and it was nice to finish the sprint on schedule while already looking forward to a short winter break.
+
+For the next cycle, I plan to shift focus to Milestone 2 by building on the updated storage/retrieval paths so we can showcase richer portfolio/resume artifacts and tightening any consent/documentation gaps that show up during demos. With Milestone 1 behind us, the priority is to keep momentum while pacing myself for the holidays and making sure the next milestone is just as smooth.
 
 ---
 
