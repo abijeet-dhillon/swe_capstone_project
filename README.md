@@ -51,7 +51,7 @@ docker compose run --rm backend python -m src.pipeline.orchestrator tests/catego
 - Local-first ingestion of approved folders with configurable allow/deny rules and size caps
 - Normalized records for Git repos, Office/PDF docs, and media/design files
 - Optional OpenAI-driven summaries (portfolio bullets, resume items, timelines, rankings)
-- Exports (JSON/CSV/PDF) and retrieval via local API backed by SQLite
+- Exports (JSON/CSV/PDF) and retrieval via local SQLite database
 
 ## Testing
 
