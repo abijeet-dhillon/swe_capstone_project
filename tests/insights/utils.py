@@ -3,7 +3,15 @@
 from typing import Dict, Tuple
 
 
-def build_pipeline_payload(project_names: Tuple[str, ...] = ("ProjectAlpha", "ProjectBeta")) -> Dict[str, Dict]:
+def build_pipeline_payload(
+    project_names: Tuple[str, ...] = ("ProjectAlpha", "ProjectBeta"),
+    include_presentation: bool = True,
+) -> Dict[str, Dict]:
+    """
+    Build a synthetic pipeline payload used across insights tests.
+    When include_presentation is True, also attaches project_metrics, portfolio_item,
+    and resume_item to mirror what the orchestrator stores.
+    """
     projects = {}
     for idx, name in enumerate(project_names):
         projects[name] = {
@@ -28,6 +36,19 @@ def build_pipeline_payload(project_names: Tuple[str, ...] = ("ProjectAlpha", "Pr
                 },
             },
         }
+
+        if include_presentation:
+            from src.project.presentation import (
+                extract_project_metrics,
+                generate_portfolio_item,
+                generate_resume_item,
+            )
+
+            metrics = extract_project_metrics(projects[name])
+            projects[name]["project_metrics"] = metrics.to_dict()
+            projects[name]["portfolio_item"] = generate_portfolio_item(projects[name], metrics=metrics)
+            projects[name]["resume_item"] = generate_resume_item(projects[name], metrics=metrics)
+
     payload = {
         "zip_metadata": {
             "root_name": "demo-root",

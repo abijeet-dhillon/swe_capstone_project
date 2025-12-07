@@ -71,6 +71,59 @@ def video_summary(analysis: Dict[str, Any]) -> Tuple[int, float]:
     return 0, 0.0
 
 
+def print_presentation(payload: Dict[str, Any]) -> None:
+    portfolio = payload.get("portfolio_item")
+    resume = payload.get("resume_item")
+    if not portfolio and not resume:
+        return
+    print("\n   Presentation:")
+    if portfolio:
+        print("      - Portfolio:")
+        try:
+            print(json.dumps(portfolio, indent=8))
+        except Exception:
+            print(f"        {portfolio}")
+    if resume:
+        bullets = resume.get("bullets", [])
+        print("      - Resume bullets:")
+        if bullets:
+            for b in bullets:
+                print(f"         • {b}")
+        else:
+            print("         (none)")
+
+
+def print_global_sections(extras: Dict[str, Any]) -> None:
+    """Pretty-print ranking and timeline from stored global insights."""
+    if not extras:
+        return
+
+    ranking = extras.get("project_ranking") or extras.get("ranking_results") or {}
+    timeline = extras.get("chronological_skills") or {}
+
+    print("\n" + "=" * 70)
+    print("🏆 PROJECT RANKING & SUMMARIES (stored)")
+    print("=" * 70)
+    if ranking:
+        try:
+            print(json.dumps(ranking, indent=2, sort_keys=True))
+        except Exception:
+            print(ranking)
+    else:
+        print("No project ranking data available")
+
+    print("\n" + "=" * 70)
+    print("📅 CHRONOLOGICAL SKILLS TIMELINE (stored)")
+    print("=" * 70)
+    if timeline:
+        try:
+            print(json.dumps(timeline, indent=2, sort_keys=True))
+        except Exception:
+            print(timeline)
+    else:
+        print("No chronological skills data available")
+
+
 def print_project_summary(project_name: str, payload: Dict[str, Any]) -> None:
     print("\n" + "-" * 70)
     print(f"Project: {project_name}")
@@ -113,6 +166,9 @@ def print_project_summary(project_name: str, payload: Dict[str, Any]) -> None:
     print(f"        Languages: {langs_display}")
     video_count, duration = video_summary(analysis)
     print(f"      - Videos: {video_count} files, {duration:.1f}s duration")
+    print_presentation(payload)
+    if payload.get("global_insights"):
+        print("      - Global insights attached (see section below for full JSON)")
 
 
 def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) -> None:
@@ -192,6 +248,16 @@ def print_detailed_project_output(project_name: str, payload: Dict[str, Any]) ->
     else:
         print("No video files found")
 
+    presentation = {
+        "portfolio_item": payload.get("portfolio_item"),
+        "resume_item": payload.get("resume_item"),
+    }
+    if presentation["portfolio_item"] or presentation["resume_item"]:
+        print("\n" + "-" * 70)
+        print("PRESENTATION ITEMS")
+        print("-" * 70)
+        print(json.dumps(presentation, indent=2))
+
 
 def select_zip_hash(store: ProjectInsightsStore, provided: Optional[str]) -> Optional[str]:
     if provided:
@@ -229,6 +295,11 @@ def main() -> None:
         payload = store.load_project_insight(zip_hash, name)
         if payload:
             payloads[name] = payload
+    global_insights = None
+    for data in payloads.values():
+        if isinstance(data, dict) and "global_insights" in data:
+            global_insights = data.get("global_insights")
+            break
 
     misc_payload = payloads.pop("_misc_files", None)
 
@@ -247,6 +318,14 @@ def main() -> None:
         print(f"Miscellaneous Files: Yes ({loose_count} loose files)")
     else:
         print("Miscellaneous Files: No")
+
+    if global_insights is not None:
+        print("\nGlobal Insights (stored at project level):")
+        try:
+            print(json.dumps(global_insights, indent=2, sort_keys=True))
+        except Exception:
+            print(global_insights)
+        print_global_sections(global_insights)
 
     for project_name, data in payloads.items():
         print_project_summary(project_name, data)

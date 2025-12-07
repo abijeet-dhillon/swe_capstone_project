@@ -96,7 +96,7 @@ OPENAI_TEMPERATURE=0.7
 OPENAI_MAX_TOKENS=1500
 
 # Optional: Application Settings
-DATABASE_URL=sqlite:///./artifacts.db
+# DATABASE_URL is optional (default is sqlite:///data/app.db -> data/app.db)
 LOG_LEVEL=INFO
 ```
 
@@ -484,10 +484,7 @@ OPENAI_MODEL=gpt-4o-mini
 OPENAI_TEMPERATURE=0.7
 OPENAI_MAX_TOKENS=1500
 
-# Database
-DATABASE_URL=sqlite:///./artifacts.db
-
-# Logging
+# Database (optional; default is sqlite:///data/app.db -> data/app.db)
 LOG_LEVEL=INFO
 ```
 
@@ -496,4 +493,3 @@ LOG_LEVEL=INFO
 ---
 
 Good luck with your LLM integration! 🚀
-

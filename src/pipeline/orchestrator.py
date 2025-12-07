@@ -21,7 +21,11 @@ from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
 from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
-from src.project.presentation import generate_portfolio_item, generate_resume_item
+from src.project.presentation import (
+    extract_project_metrics,
+    generate_portfolio_item,
+    generate_resume_item,
+)
 from src.config.config_manager import UserConfigManager
 
 
@@ -66,13 +70,14 @@ class ArtifactPipeline:
                 print(f"⚠️  Insights storage disabled: {exc}")
                 self.insights_store = None
     
-    def start(self, zip_path: str, use_llm: bool = False) -> Dict[str, Any]:
+    def start(self, zip_path: str, use_llm: bool = False, data_access_consent: bool = True) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
         
         Args:
             zip_path: Path to the ZIP file to analyze
             use_llm: When True, also run the optional LLM summarization step
+            data_access_consent: When False, exits immediately without processing
             
         Returns:
             Dictionary containing:
@@ -91,6 +96,10 @@ class ArtifactPipeline:
         
         if not zip_path.suffix.lower() == '.zip':
             raise ValueError(f"File must be a ZIP archive, got: {zip_path.suffix}")
+        
+        if not data_access_consent:
+            print("\n✗ Data access consent not granted. Exiting without processing.\n")
+            return {}
         
         print(f"\n{'='*70}")
         print(f"🚀 Starting Artifact Pipeline")
@@ -410,8 +419,10 @@ class ArtifactPipeline:
         # Generate portfolio and resume items
         print(f"     📝 Generating presentation items...")
         try:
-            portfolio_item = generate_portfolio_item(result)
-            resume_item = generate_resume_item(result)
+            metrics = extract_project_metrics(result)
+            result["project_metrics"] = metrics.to_dict()
+            portfolio_item = generate_portfolio_item(result, metrics=metrics)
+            resume_item = generate_resume_item(result, metrics=metrics)
             result["portfolio_item"] = portfolio_item
             result["resume_item"] = resume_item
             print(f"     ✓ Presentation items generated")
@@ -1282,17 +1293,110 @@ def resolve_llm_consent(zip_path: str, user_id: str) -> bool:
     if existing:
         if existing.zip_file != zip_str:
             manager.update_config(user_id, zip_file=zip_str)
-        status = "enabled" if existing.llm_consent else "disabled"
-        print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
-        return existing.llm_consent
+        if existing.llm_consent_asked:
+            status = "enabled" if existing.llm_consent else "disabled"
+            print(f"\n🔐 Using stored LLM consent for user '{user_id}': {status}")
+            return existing.llm_consent
 
     consent = _prompt_for_llm_consent()
-    stored = manager.create_config(user_id, zip_str, consent)
+    stored = manager.update_config(
+        user_id,
+        zip_file=zip_str,
+        llm_consent=consent,
+        llm_consent_asked=True,
+    ) if existing else manager.create_config(
+        user_id,
+        zip_str,
+        consent,
+        llm_consent_asked=True,
+        data_access_consent=False,
+    )
     if not stored:
         print("⚠️  Unable to persist consent choice; proceeding with this selection for the current run.")
     else:
         print(f"✅ Saved consent choice for user '{user_id}' to local configuration.")
     return consent
+
+
+def _prompt_for_data_access_consent() -> bool:
+    """
+    Prompt the user for data-access consent with an official notice (stored once).
+    """
+    print(
+        "\n  IMPORTANT: This pipeline will read and analyze the files in your ZIP archive on this machine."
+        "\n  No data leaves your machine unless you explicitly enable LLM summarization later."
+        "\n  Proceed only if you consent to local processing of your files."
+    )
+
+    while True:
+        response = input("\n  Allow local analysis of your data? (y/n): ").strip().lower()
+        if response in {"y", "yes"}:
+            return True
+        if response in {"n", "no"}:
+            return False
+        print("Please respond with 'y' or 'n'.")
+
+
+def resolve_data_access_consent(zip_path: str, user_id: str) -> bool:
+    """
+    Load stored data-access consent; prompt and persist if missing.
+    """
+    manager = UserConfigManager()
+    zip_str = str(Path(zip_path))
+
+    existing = manager.load_config(user_id, silent=True)
+    if existing:
+        if existing.zip_file != zip_str:
+            manager.update_config(user_id, zip_file=zip_str)
+        status = "granted" if existing.data_access_consent else "denied"
+        print(f"\n🔐 Using stored data access consent for user '{user_id}': {status}")
+        return existing.data_access_consent
+
+    consent = _prompt_for_data_access_consent()
+    stored = manager.create_config(
+        user_id,
+        zip_str,
+        llm_consent=False,
+        llm_consent_asked=False,
+        data_access_consent=consent,
+    )
+    if not stored:
+        print("⚠️  Unable to persist consent choice; proceeding with this selection for the current run.")
+    else:
+        print(f"✅ Saved data access consent for user '{user_id}' to local configuration.")
+    return consent
+
+
+def _prompt_yes_no(message: str, default: bool = False) -> bool:
+    """
+    Simple yes/no prompt with default handling.
+    """
+    default_str = "Y/n" if default else "y/N"
+    while True:
+        resp = input(f"{message} ({default_str}): ").strip().lower()
+        if not resp:
+            return default
+        if resp in {"y", "yes"}:
+            return True
+        if resp in {"n", "no"}:
+            return False
+        print("Please respond with 'y' or 'n'.")
+
+
+def _prompt_for_data_access_consent() -> bool:
+    """
+    Prompt the user for data-access consent with an official notice.
+
+    - Always prompts; consent is NOT persisted. You will be asked each run.
+    - If declined, pipeline exits immediately without processing.
+    """
+    print(
+        "\n🔐 Data Access Consent Required\n\n"
+        "This pipeline will read and analyze the files contained in your ZIP archive on this machine.\n"
+        "No data leaves your machine unless you explicitly enable LLM summarization later in this run.\n"
+        "If you do not consent to local analysis of your files, the pipeline will terminate now."
+    )
+    return _prompt_yes_no("\nDo you consent to local analysis of your data?", default=False)
 
 
 def main():  # pragma: no cover - CLI entry point
@@ -1314,12 +1418,21 @@ def main():  # pragma: no cover - CLI entry point
     args = parser.parse_args()
 
     user_id = args.user_id or os.getenv("PIPELINE_USER_ID") or getpass.getuser() or "default"
+    data_access_consent = resolve_data_access_consent(args.zip_path, user_id)
+    if not data_access_consent:
+        print("\n✗ Data access consent not granted. Exiting without processing.\n")
+        return
+
     llm_consent = resolve_llm_consent(args.zip_path, user_id)
     
     try:
         # Create pipeline and run
         pipeline = ArtifactPipeline()
-        result = pipeline.start(args.zip_path, use_llm=llm_consent)
+        result = pipeline.start(args.zip_path, use_llm=llm_consent, data_access_consent=data_access_consent)
+
+        # If user declined data access or nothing to report, exit quietly
+        if not result:
+            return
         
         # Print detailed analysis results by project
         print("\n" + "="*70)

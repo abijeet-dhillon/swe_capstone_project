@@ -3,7 +3,6 @@ FastAPI router exposing insights deletion endpoints.
 """
 from __future__ import annotations
 
-import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,10 +13,7 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 
 
 def get_store(db_url: Optional[str] = None) -> ProjectInsightsStore:
- 
-    db_path = (db_url or os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")).replace(
-        "sqlite:///", ""
-    )
+    db_path = (db_url or f"sqlite:///{DEFAULT_DB_PATH}").replace("sqlite:///", "")
 
     return ProjectInsightsStore(db_path=db_path)
 

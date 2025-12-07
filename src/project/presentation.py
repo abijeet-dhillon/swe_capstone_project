@@ -75,6 +75,10 @@ class ProjectMetrics:
     has_videos: bool = False
     has_tests: bool = False
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert metrics to a plain dictionary for storage/serialization."""
+        return asdict(self)
+
 
 def extract_project_metrics(project_dict: Dict[str, Any]) -> ProjectMetrics:
     """
@@ -155,12 +159,16 @@ def extract_project_metrics(project_dict: Dict[str, Any]) -> ProjectMetrics:
     return metrics
 
 
-def generate_portfolio_item(project_dict: Dict[str, Any]) -> Dict[str, Any]:
+def generate_portfolio_item(
+    project_dict: Dict[str, Any],
+    metrics: Optional[ProjectMetrics] = None,
+) -> Dict[str, Any]:
     """
     Generate a portfolio item from a project analysis dict
     
     Args:
         project_dict: Project result dictionary from ArtifactPipeline._process_project()
+        metrics: Optional pre-extracted metrics to avoid recomputation
         
     Returns:
         Dictionary representation of a PortfolioItem
@@ -169,7 +177,7 @@ def generate_portfolio_item(project_dict: Dict[str, Any]) -> Dict[str, Any]:
     project_name = project_dict.get('project_name', 'Unnamed Project')
     
     # Extract metrics
-    metrics = extract_project_metrics(project_dict)
+    metrics = metrics or extract_project_metrics(project_dict)
     
     # Build tagline
     tagline = _build_tagline(metrics)
@@ -207,12 +215,16 @@ def generate_portfolio_item(project_dict: Dict[str, Any]) -> Dict[str, Any]:
     return portfolio.to_dict()
 
 
-def generate_resume_item(project_dict: Dict[str, Any]) -> Dict[str, Any]:
+def generate_resume_item(
+    project_dict: Dict[str, Any],
+    metrics: Optional[ProjectMetrics] = None,
+) -> Dict[str, Any]:
     """
     Generate a resume item with 2-3 bullet points from a project analysis dict
     
     Args:
         project_dict: Project result dictionary from ArtifactPipeline._process_project()
+        metrics: Optional pre-extracted metrics to avoid recomputation
         
     Returns:
         Dictionary representation of a ResumeItem
@@ -221,7 +233,7 @@ def generate_resume_item(project_dict: Dict[str, Any]) -> Dict[str, Any]:
     project_name = project_dict.get('project_name', 'Unnamed Project')
     
     # Extract metrics
-    metrics = extract_project_metrics(project_dict)
+    metrics = metrics or extract_project_metrics(project_dict)
     
     # Build bullets
     bullets = _build_resume_bullets(metrics)
@@ -658,4 +670,3 @@ def generate_items_from_project_id(
         "portfolio_item": portfolio_item,
         "resume_item": resume_item,
     }
-

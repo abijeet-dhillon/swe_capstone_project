@@ -62,6 +62,8 @@ def test_create_and_load_config_roundtrip(manager):
         "test_user",
         "/tmp/data.zip",
         llm_consent=False,
+        llm_consent_asked=True,
+        data_access_consent=False,
     )
     assert created is True
 
@@ -69,15 +71,19 @@ def test_create_and_load_config_roundtrip(manager):
     assert cfg is not None
     assert cfg.zip_file == "/tmp/data.zip"
     assert cfg.llm_consent is False
+    assert cfg.llm_consent_asked is True
+    assert cfg.data_access_consent is False
     assert cfg.updated_at is None
 
 
 def test_update_config_sets_updated_timestamp(manager):
-    manager.create_config("user", "/tmp/a.zip", False)
-    assert manager.update_config("user", llm_consent=True) is True
+    manager.create_config("user", "/tmp/a.zip", False, llm_consent_asked=True, data_access_consent=False)
+    assert manager.update_config("user", llm_consent=True, llm_consent_asked=True, data_access_consent=True) is True
 
     cfg = manager.load_config("user")
     assert cfg.llm_consent is True
+    assert cfg.llm_consent_asked is True
+    assert cfg.data_access_consent is True
     assert cfg.updated_at is not None
 
 
@@ -85,18 +91,24 @@ def test_save_config_helper_upserts(manager):
     payload = {
         "zip_file": "/tmp/original.zip",
         "llm_consent": False,
+        "llm_consent_asked": True,
+        "data_access_consent": False,
     }
     assert config_manager.save_config_to_db(payload, "helper_user") is True
 
     second = {
         "zip_file": "/tmp/new.zip",
         "llm_consent": True,
+        "llm_consent_asked": True,
+        "data_access_consent": True,
     }
     assert config_manager.save_config_to_db(second, "helper_user") is True
 
     cfg = manager.load_config("helper_user")
     assert cfg.zip_file == "/tmp/new.zip"
     assert cfg.llm_consent is True
+    assert cfg.llm_consent_asked is True
+    assert cfg.data_access_consent is True
     assert cfg.updated_at is not None
 
 
