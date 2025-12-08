@@ -103,3 +103,30 @@ In progress, most part is done, doing some testing
 
 #### Impact / Next
 - Generate Chronological Project List Issue #35
+
+
+### Week 14
+### December 1 2025 to December 7  
+
+### Tasks
+![Misha Gavura Week 14 Task Type Screenshot](images/misha_tasks_14.png)
+
+### Weekly Goals
+
+#### What I did
+Continued working on the chronological timeline generator and focused on **fixing and refining the chronological list updates**. I improved how artifacts are sorted and grouped, resolved issues with duplicate entries, and handled edge cases where timestamps or file metadata were inconsistent. The generator now produces a cleaner unified skills timeline that better reflects the real evolution of the project.
+
+I also **worked on the project presentation**, updating and polishing the slides for the Git code analysis and history. I clarified how the analyzer integrates data from multiple artifact types (code, documents, images, videos) and improved the flow of the presentation to match the demo storyline.
+
+Additionally, I **worked on video demo recordings**, capturing walkthroughs of the timeline generator, explaining the main features, and recording demo runs. This included preparing sample outputs (JSON/CSV/text) and drafting a narration script for the final demo video.
+
+#### Project board
+- **Task:** Generate Chronological Project List – Issue #35
+
+#### Status
+Done. Core functionality is working, most of the chronological list fixes are done, and I am testing outputs while refining the presentation and demo recordings.
+
+#### Impact / Next
+- Finish testing and validating the chronological project list (Issue #35)  
+- Finalize and rehearse the project presentation  
+- Edit and finalize the video demo recordings and attach them to the project documentation
