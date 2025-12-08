@@ -445,3 +445,38 @@ My contributions included:
 - Fix any remaining issues or inconsistencies across analyzer modules.  
 - Clean up and polish logic across the extractor to ensure stable integration.  
 - Support teammates during final integration to ensure all components work smoothly together.
+
+
+
+## Week 14 – November 24 to November 30
+
+### 1. Type of Tasks Worked On  
+![Week 14 Task Screenshot](images/week14-abhinav.png)
+
+---
+
+### 3. Recap of Weekly Goals  
+This week focused on final review, troubleshooting, and confirming full requirement coverage across the system.  
+My contributions included:  
+- troubleshooting edge-case behaviors across multiple modules and reporting bugs to teammates for fixes  
+- validating pipeline output for correctness and stability in both local and Docker environments  
+- reviewing all milestone requirements (R1–R12) to ensure each was implemented and documented  
+- coordinating with teammates to close remaining gaps before integration and demo preparation  
+
+---
+
+### 4. Features Owned in Project Plan  
+- System Review and Requirement Verification  
+- Troubleshooting and Stability Analysis  
+
+---
+
+### 5. Tasks from Project Board Associated with These Features  
+- Final Requirement Review  
+- Edge-Case Troubleshooting and Reporting  
+
+---
+
+### 6. Additional Context  
+- Performed multiple full pipeline runs to verify stability and output structure.  
+- Helped ensure the system meets all milestone deliverables before final submission.  
