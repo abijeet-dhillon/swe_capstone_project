@@ -124,9 +124,7 @@ Additionally, I **worked on video demo recordings**, capturing walkthroughs of t
 - **Task:** Generate Chronological Project List – Issue #35
 
 #### Status
-Done. Core functionality is working, most of the chronological list fixes are done, and I am testing outputs while refining the presentation and demo recordings.
+Done. Core functionality is working
 
 #### Impact / Next
-- Finish testing and validating the chronological project list (Issue #35)  
-- Finalize and rehearse the project presentation  
-- Edit and finalize the video demo recordings and attach them to the project documentation
+Work on the milestone #2.
