@@ -9,6 +9,7 @@ Run from root directory with:
 """
 
 from pathlib import Path
+from typing import Optional
 import os
 import json
 
@@ -35,7 +36,7 @@ special_code_filenames = {
     "makefile": "make","cmakelists.txt": "cmake","dockerfile": "dockerfile","justfile": "just",
 }
 
-def _get_language(filename: str) -> str | None:
+def _get_language(filename: str) -> Optional[str]:
     """
     Return a language label for recognized code files; None if not recognized as code.
     Handles special filenames and a basic disambiguation for '.m' files.

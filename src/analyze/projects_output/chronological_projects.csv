@@ -1,0 +1,3 @@
+start_date,end_date,duration_days,name,is_collaborative,languages,frameworks,skills,commits,files,lines_of_code,score
+2025-11-30T19:41:26.082896,2025-12-07T23:26:19.165418,7,project-mobile,False,"cpp, java, kotlin, objective-c, swift",,,0,9,5,0.0
+2025-11-30T19:41:26.084063,2025-11-30T19:41:26.084880,0,project-webapp,False,"cpp, javascript, python",,,0,10,3,0.0

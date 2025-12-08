@@ -57,6 +57,14 @@ class RepositoryAnalysisService:
         git_analyzer = GitAnalyzer(str(repo_path))
         repo_data = git_analyzer.analyze_repository()
         
+        # Determine project type
+        contributor_count = repo_data.get('contributor_count', 0)
+        project_type = "Collaborative" if contributor_count > 1 else "Individual"
+        repo_data['project_type'] = project_type
+        
+        # Print project type
+        print(f"\n📋 Project Type: {project_type} ({contributor_count} contributor{'s' if contributor_count != 1 else ''})")
+        
         # Enhance with contributor skills
         print("\n🎯 Analyzing contributor skills...")
         for contributor in repo_data['contributors']:

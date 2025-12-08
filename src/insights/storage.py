@@ -358,6 +358,81 @@ class ProjectInsightsStore:
             ).fetchall()
         return [row[0] for row in rows]
 
+    def list_all_projects(self) -> List[Dict[str, Any]]:
+        """
+        List all projects with their IDs, names, and zip information.
+        
+        Returns:
+            List of dicts with keys: id, project_name, zip_hash, zip_path, created_at
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT p.id, p.project_name, z.zip_hash, z.zip_path, p.created_at
+                FROM {PROJECT_TABLE} p
+                JOIN {ZIP_TABLE} z ON p.zip_id = z.id
+                ORDER BY p.created_at DESC;
+                """
+            ).fetchall()
+        return [
+            {
+                "id": row[0],
+                "project_name": row[1],
+                "zip_hash": row[2],
+                "zip_path": row[3],
+                "created_at": row[4],
+            }
+            for row in rows
+        ]
+
+    def get_project_by_id(self, project_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a project by its database ID.
+        
+        Args:
+            project_id: The project database ID
+            
+        Returns:
+            Dictionary with project data including:
+            - id: Project database ID
+            - project_name: Name of the project
+            - zip_hash: Associated zip hash
+            - zip_path: Path to the zip file
+            - created_at: Creation timestamp
+            - insights: Decrypted project insights payload
+        """
+        with self._connect() as conn:
+            # Get project metadata
+            row = conn.execute(
+                f"""
+                SELECT p.id, p.project_name, z.zip_hash, z.zip_path, p.created_at, p.insights_encrypted
+                FROM {PROJECT_TABLE} p
+                JOIN {ZIP_TABLE} z ON p.zip_id = z.id
+                WHERE p.id = ?;
+                """,
+                (project_id,),
+            ).fetchone()
+            
+            if not row:
+                return None
+            
+            # Decrypt insights
+            insights = None
+            if row[5]:  # insights_encrypted
+                try:
+                    insights = self.serializer.decrypt(row[5])
+                except Exception as e:
+                    insights = {"error": f"Failed to decrypt: {e}"}
+            
+            return {
+                "id": row[0],
+                "project_name": row[1],
+                "zip_hash": row[2],
+                "zip_path": row[3],
+                "created_at": row[4],
+                "insights": insights,
+            }
+
    
     # Deletion API
     def _audit(self, conn: sqlite3.Connection, action: str, scope: str, details: Optional[Dict[str, Any]], deleted_projects: int, deleted_zips: int) -> None:

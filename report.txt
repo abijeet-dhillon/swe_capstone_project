@@ -1,121 +1,339 @@
 ================================================================================
 REPOSITORY ANALYSIS REPORT
 ================================================================================
-Generated: 2025-11-19 09:39:40
+Generated: 2025-12-07 23:48:31
 
-📦 ZIP FILE ANALYSIS
+📊 REPOSITORY OVERVIEW
 --------------------------------------------------------------------------------
-Zip File: capstone-project-team-14-main.zip
-Extracted To: /var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/zip_extract_er7fn6f6
+Repository Path: ..
+Remote URL: git@github.com:COSC-499-W2025/capstone-project-team-14.git
+Project Type: Collaborative (10 contributors)
+Total Commits: 254
+Branches: 60
+Contributors: 10
 
-📊 SUMMARY
+📁 FILE TYPES
 --------------------------------------------------------------------------------
-Git Repositories: 0
-Documents: 10
+  .py                     98 files
+  .md                     26 files
+  .png                    25 files
+  .txt                    12 files
+  [no extension]           7 files
+  .json                    4 files
+  .zip                     3 files
+  .pdf                     2 files
+  .java                    2 files
+  .cpp                     2 files
 
-
+👥 CONTRIBUTORS
 ================================================================================
-DOCUMENTS FOUND
+
+1. Abijeet Dhillon <abijeetdhillon@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 66 (30.6%)
+   Lines Added: +7069
+   Lines Deleted: -1870
+   Files Touched: 112
+   First Commit: 2025-12-07 15:29:25 -0800
+   Last Commit: 2025-12-07 15:29:25 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                35.7% (40 files)
+      • Markdown/Documentation  19.6% (22 files)
+      • Java                   1.8% (2 files)
+      • C++                    1.8% (2 files)
+      • Shell/Bash             1.8% (2 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (43 mentions)
+      • Docker                    (3 mentions)
+      • SQL                       (2 mentions)
+      • Django                    (1 mentions)
+      • REST API                  (1 mentions)
+      • Flask                     (1 mentions)
+
+   📋 WORK AREAS:
+      • Testing                    43 files
+      • Documentation              37 files
+      • Configuration               6 files
+      • DevOps/Infrastructure       5 files
+      • Backend                     4 files
+      • Frontend                    3 files
+      • Database                    2 files
+
+   📊 QUALITY METRICS:
+      Activity Level: High
+      Avg Lines/Commit: 135.4
+      Files/Commit: 1.7
+      Code Churn: 26.5%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+2. Tahsin Jawwad <tahsin.jawwad23@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 49 (21.5%)
+   Lines Added: +7876
+   Lines Deleted: -441
+   Files Touched: 43
+   First Commit: 2025-12-03 20:17:52 -0800
+   Last Commit: 2025-12-03 20:17:52 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                74.4% (32 files)
+      • Markdown/Documentation   9.3% (4 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (13 mentions)
+      • Django                    (1 mentions)
+
+   📋 WORK AREAS:
+      • Testing                    13 files
+      • Documentation              10 files
+      • Backend                     2 files
+      • Frontend                    1 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Medium
+      Avg Lines/Commit: 169.7
+      Files/Commit: 0.9
+      Code Churn: 5.6%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+3. kmerchant1 <kaiden.merchant@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 31 (18.1%)
+   Lines Added: +4111
+   Lines Deleted: -299
+   Files Touched: 24
+   First Commit: 2025-12-07 10:03:28 -0800
+   Last Commit: 2025-12-07 10:03:28 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                45.8% (11 files)
+      • Markdown/Documentation  20.8% (5 files)
+      • YAML                   4.2% (1 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (5 mentions)
+      • Docker                    (2 mentions)
+
+   📋 WORK AREAS:
+      • Documentation               9 files
+      • Testing                     5 files
+      • DevOps/Infrastructure       2 files
+      • Configuration               1 files
+      • Frontend                    1 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Medium
+      Avg Lines/Commit: 142.3
+      Files/Commit: 0.8
+      Code Churn: 7.3%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+4. Malik-Abhinav <abhinavmalik1573@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 21 (13.2%)
+   Lines Added: +2715
+   Lines Deleted: -337
+   Files Touched: 18
+   First Commit: 2025-11-30 19:09:42 -0800
+   Last Commit: 2025-11-30 19:09:42 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                50.0% (9 files)
+      • Markdown/Documentation  16.7% (3 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (3 mentions)
+
+   📋 WORK AREAS:
+      • Documentation               8 files
+      • Testing                     3 files
+      • Frontend                    1 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Medium
+      Avg Lines/Commit: 145.3
+      Files/Commit: 0.9
+      Code Churn: 12.4%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+5. Abdur <abdur026@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 18 (9.7%)
+   Lines Added: +5386
+   Lines Deleted: -2294
+   Files Touched: 31
+   First Commit: 2025-11-30 20:39:02 -0800
+   Last Commit: 2025-11-30 20:39:02 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                64.5% (20 files)
+      • Markdown/Documentation  22.6% (7 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (8 mentions)
+      • REST API                  (1 mentions)
+
+   📋 WORK AREAS:
+      • Documentation              10 files
+      • Testing                     8 files
+      • Frontend                    1 files
+      • Backend                     1 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Medium
+      Avg Lines/Commit: 426.7
+      Files/Commit: 1.7
+      Code Churn: 42.6%
+
+   ✨ QUALITY INDICATORS:
+      • Focused changes
+
+6. Misha Gavura <43016416+mishagavura@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (3.1%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+7. Misha Gavura <1mgavura@gmail.com>
+--------------------------------------------------------------------------------
+   Commits: 5 (2.1%)
+   Lines Added: +12945
+   Lines Deleted: -135
+   Files Touched: 52
+   First Commit: 2025-11-23 23:05:00 -0800
+   Last Commit: 2025-11-23 23:05:00 -0800
+
+   💡 PRIMARY SKILLS:
+      • Python                40.4% (21 files)
+      • Markdown/Documentation  23.1% (12 files)
+      • JSON                   7.7% (4 files)
+
+   🛠️  FRAMEWORKS & TOOLS:
+      • Testing                   (4 mentions)
+
+   📋 WORK AREAS:
+      • Documentation              13 files
+      • Testing                     5 files
+      • Frontend                    5 files
+      • Configuration               4 files
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 2616.0
+      Files/Commit: 10.4
+      Code Churn: 1.0%
+
+   ✨ QUALITY INDICATORS:
+      • Large commits (consider breaking down)
+      • Low code churn (stable code)
+      • Wide-ranging changes
+
+8. github-classroom[bot] <66690702+github-classroom[bot]@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (0.7%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+9. tahsinj <144264787+tahsinj@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (0.7%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+10. Tahsin Jawwad <144264787+tahsinj@users.noreply.github.com>
+--------------------------------------------------------------------------------
+   Commits: 0 (0.3%)
+   Lines Added: +0
+   Lines Deleted: -0
+   Files Touched: 0
+
+   💡 PRIMARY SKILLS:
+
+   📊 QUALITY METRICS:
+      Activity Level: Low
+      Avg Lines/Commit: 0.0
+      Files/Commit: 0.0
+      Code Churn: 0.0%
+
+   ✨ QUALITY INDICATORS:
+      • Small, focused commits
+      • Low code churn (stable code)
+      • Focused changes
+
+📈 CODE QUALITY ANALYSIS
 ================================================================================
+Files Analyzed: 20 of 108
+Total Code Lines: -401
+Total Comment Lines: 3,696
+Average Comment Ratio: 18.5%
 
-1. README.md
-   Type: md
-   Word Count: 129
+Quality Score: 60/100
+Quality Rating: Good
 
-   Summary:
-   The "Project-Starter" document outlines the folder structure for a project, emphasizing the organization of files and directories. Key directories include:
-
-- **docs**: Contains documentation files such as the team contract, project proposal, UI mocks, meeting minutes, and logs.
-- **src**: Houses the source files.
-- **tests**: Contains automated tests.
-- **utils**: Holds utility files.
-- **README.md**: A file for project details.
-
-It advises using a branching workflow for development, with the necessity of issuing pull requests (PRs) for review and merging into the master branch. Additionally, it highlights the importance of keeping documentation and the README up-to-date.
-
-2. placeholder.txt
-   Type: txt
-   Word Count: 0
-
-3. placeholder.txt
-   Type: txt
-   Word Count: 0
-
-4. placeholder.txt
-   Type: txt
-   Word Count: 0
-
-5. placeholder.txt
-   Type: txt
-   Word Count: 0
-
-6. README.md
-   Type: md
-   Word Count: 1559
-
-   Summary:
-   **Features Proposal Summary for Mining Digital Work Artifacts**
-
-**Team:** 14  
-**Members:** Tahsin Jawwad, Abijeet Dhillon, Abdur Rehman, Abhinav Malik, Kaiden Merchant, Misha Gavura
-
-**1. Project Scope and Usage Scenario:**  
-The project aims to provide a privacy-focused tool for creators (students or early professionals) to scan their machines for digital work artifacts (like code, documents, and media) and generate portfolio highlights. Administrators configure scanning policies, while Reviewers access only the processed summaries, not raw files. The typical workflow involves creators setting up scans, with the system processing and exporting reports.
-
-**2. Proposed Solution:**  
-The solution includes a local-first architecture with three components:  
-- **Scanner:** Identifies files in user-approved folders.  
-- **Adapters:** Process various artifact types (e.g., Git repositories, Office documents).  
-- **FastAPI Service:** Provides REST endpoints for accessing artifacts and insights
-
-7. placeholder.txt
-   Type: txt
-   Word Count: 0
-
-8. placeholder.txt
-   Type: txt
-   Word Count: 0
-
-9. personal-log-tahsin-jawwad.md
-   Type: md
-   Word Count: 221
-
-   Summary:
-   ### Summary of Personal Log
-
-**Week 3 (15th - 21st September 2025)**
-- **Goals**: Understand project theme, contribute to requirements document, refine requirements with classmates.
-- **Tasks**: Created and drafted functional requirements, completed the task "Project Requirements".
-
-**Week 4 (22nd - 28th September 2025)**
-- **Goals**: Collaborate on system architecture diagram and project proposal.
-- **Tasks**: Worked on and completed the System Architecture Diagram and Project Proposal.
-
-**Week 5 (29th September - 5th October 2025)**
-- **Goals**: Collaborate on Level 0 and Level 1 Data Flow Diagrams (DFDs), discuss DFD differences with other groups.
-- **Tasks**: Completed the Data Flow Diagram.
-
-10. personal-log-Abdur.md
-   Type: md
-   Word Count: 280
-
-   Summary:
-   ### Summary of Individual Log – Abdur Rehman
-
-**Week 3:**
-- Focused on foundational project requirements.
-- Assisted with:
-  - Outlining artifact collection features (directory scanning, file filtering, metadata).
-  - Drafting artifact analysis requirements (classification, basic statistics).
-  - Reviewing dashboard and visualization requirements for summary metrics.
-
-**Week 4:**
-- Connected project requirements to architecture layout.
-- Polished the proposal's requirements section.
-- Refined and wrote the project proposal, finalizing the requirements and write-up.
-
-**Week 5:**
-- Developed Level 0 and Level 1 Data Flow Diagrams (DFDs).
-- Completed both the Level 0 and Level 1 DFDs. 
-
-No specific features owned or tasks from the project board were mentioned in weeks 3 and 4.
+⚠️  Code Issues Found:
+   • Many magic numbers found (consider using constants) (8 occurrences)
+   • No obvious code smells detected (8 occurrences)
+   • Potential code duplication detected (5 occurrences)
+   • Functions with many parameters detected (3 occurrences)
+   • Very long functions detected (>50 lines) (2 occurrences)
+   • 4 very long lines (>150 chars) (1 occurrences)

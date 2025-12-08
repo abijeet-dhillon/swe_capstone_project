@@ -1,0 +1,23 @@
+=== Skill & Media Timeline ===
+
+[2025-11-30 19:41:26] (CODE) tests/categorize/demo_projects/project-mobile/android/Main.java
+  Skills: java
+
+[2025-11-30 19:41:26] (CODE) tests/categorize/demo_projects/project-mobile/shared/lib.h
+  Skills: c
+
+[2025-11-30 19:41:26] (CODE) tests/categorize/demo_projects/project-webapp/src/app.js
+  Skills: javascript
+
+[2025-11-30 19:41:26] (CODE) tests/categorize/demo_projects/project-webapp/src/app.py
+  Skills: python
+
+[2025-11-30 19:41:26] (CODE) tests/categorize/demo_projects/project-webapp/src/core.cpp
+  Skills: cpp
+
+[2025-12-07 23:25:10] (TEXT) tests/categorize/demo_projects/notes.txt
+  Skills: writing
+
+[2025-12-07 23:26:19] (CODE) tests/categorize/demo_projects/project-mobile/shared/lib.cpp
+  Skills: cpp
+

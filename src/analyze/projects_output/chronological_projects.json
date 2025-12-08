@@ -1,0 +1,40 @@
+[
+  {
+    "name": "project-mobile",
+    "start_date": "2025-11-30T19:41:26.082896",
+    "end_date": "2025-12-07T23:26:19.165418",
+    "duration_days": 7,
+    "is_collaborative": false,
+    "languages": [
+      "cpp",
+      "java",
+      "kotlin",
+      "objective-c",
+      "swift"
+    ],
+    "frameworks": [],
+    "skills": [],
+    "commits": 0,
+    "files": 9,
+    "lines_of_code": 5,
+    "score": 0.0
+  },
+  {
+    "name": "project-webapp",
+    "start_date": "2025-11-30T19:41:26.084063",
+    "end_date": "2025-11-30T19:41:26.084880",
+    "duration_days": 0,
+    "is_collaborative": false,
+    "languages": [
+      "cpp",
+      "javascript",
+      "python"
+    ],
+    "frameworks": [],
+    "skills": [],
+    "commits": 0,
+    "files": 10,
+    "lines_of_code": 3,
+    "score": 0.0
+  }
+]

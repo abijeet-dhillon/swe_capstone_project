@@ -1,0 +1,1847 @@
+{
+  "zip_metadata": {
+    "root_name": "demo_projects.zip",
+    "file_count": 60,
+    "total_uncompressed_bytes": 18431,
+    "total_compressed_bytes": 3897
+  },
+  "file_info": [
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/.DS_Store",
+      "rel_path": "demo_projects/.DS_Store",
+      "size": 6148,
+      "compressed_size": 231,
+      "is_compressed": true,
+      "sha256": "8a5993d60614a30e97c16c95ecf8674b307d068bd7f5eda644ad7f78346ac872",
+      "depth": 1,
+      "ext": "",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/notes.txt",
+      "rel_path": "demo_projects/notes.txt",
+      "size": 15,
+      "compressed_size": 17,
+      "is_compressed": true,
+      "sha256": "d214dc22eb639ca15e04d125ce9526b6af8476bc84a79ebd899f1306a2e59b9e",
+      "depth": 1,
+      "ext": "txt",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh",
+      "rel_path": "demo_projects/script.sh",
+      "size": 30,
+      "compressed_size": 32,
+      "is_compressed": true,
+      "sha256": "ed034e84a60a045bfe1887a22b12c165104d1955ed374de5daafbfb0b4bdffd1",
+      "depth": 1,
+      "ext": "sh",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/.DS_Store",
+      "rel_path": "demo_projects/project-mobile/.DS_Store",
+      "size": 6148,
+      "compressed_size": 239,
+      "is_compressed": true,
+      "sha256": "4fd7331e8fce0c7e0ff2162b93bea1228851dcf784f14b8140bc7adad9fbf268",
+      "depth": 2,
+      "ext": "",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile",
+      "rel_path": "demo_projects/project-webapp/Dockerfile",
+      "size": 17,
+      "compressed_size": 19,
+      "is_compressed": true,
+      "sha256": "384b9a63937c2e2c9f3627e37843bc6c8c61a48a071f22681bce772342fc2da4",
+      "depth": 2,
+      "ext": "",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile",
+      "rel_path": "demo_projects/project-webapp/Makefile",
+      "size": 18,
+      "compressed_size": 20,
+      "is_compressed": true,
+      "sha256": "da067b5f378b4c0702341a062fd759e755fcfeff5941c870347a0561e7dbc7ce",
+      "depth": 2,
+      "ext": "",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/README.md",
+      "rel_path": "demo_projects/project-webapp/README.md",
+      "size": 16,
+      "compressed_size": 18,
+      "is_compressed": true,
+      "sha256": "58858220b7682002063e6cb3397c55ed439354398bc237a7b725ef4e206437d3",
+      "depth": 2,
+      "ext": "md",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/images/ui.png",
+      "rel_path": "demo_projects/project-mobile/images/ui.png",
+      "size": 10,
+      "compressed_size": 12,
+      "is_compressed": true,
+      "sha256": "4a7c76336584ebbd29f9c5002155dbb4114ac4aebfa70adf7234adaf5872875e",
+      "depth": 3,
+      "ext": "png",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/sketches/flows.drawio",
+      "rel_path": "demo_projects/project-mobile/sketches/flows.drawio",
+      "size": 9,
+      "compressed_size": 11,
+      "is_compressed": true,
+      "sha256": "91c0f25c61ab827bced23cd5e76d6623d37a54ceb9a205dd2e414df049066279",
+      "depth": 3,
+      "ext": "drawio",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+      "rel_path": "demo_projects/project-mobile/shared/lib.cpp",
+      "size": 21,
+      "compressed_size": 23,
+      "is_compressed": true,
+      "sha256": "fdc5c45f0893b064f82c4ebff8c0bf218f9c7fcf4cb29009a5634ce9fb536366",
+      "depth": 3,
+      "ext": "cpp",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h",
+      "rel_path": "demo_projects/project-mobile/shared/lib.h",
+      "size": 11,
+      "compressed_size": 13,
+      "is_compressed": true,
+      "sha256": "476eaa17330b878665bdbd0fadc3d3da302673d58c4b9f6f2c75946e9ba71b3c",
+      "depth": 3,
+      "ext": "h",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/docs/README.md",
+      "rel_path": "demo_projects/project-mobile/docs/README.md",
+      "size": 14,
+      "compressed_size": 16,
+      "is_compressed": true,
+      "sha256": "ba6e88277538269007a646c178699fea9add6e156abc77edeb1936dd6b2d443f",
+      "depth": 3,
+      "ext": "md",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m",
+      "rel_path": "demo_projects/project-mobile/ios/Legacy.m",
+      "size": 28,
+      "compressed_size": 30,
+      "is_compressed": true,
+      "sha256": "bc860dfa8cbc8f34d06ceee00ed608ef486e7add082302dc94ee8840bb54567d",
+      "depth": 3,
+      "ext": "m",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift",
+      "rel_path": "demo_projects/project-mobile/ios/App.swift",
+      "size": 13,
+      "compressed_size": 15,
+      "is_compressed": true,
+      "sha256": "b53d3306329aa297e8360dbfe2ae6bf02a473db745100e4ff91aaf5fc3e15e51",
+      "depth": 3,
+      "ext": "swift",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt",
+      "rel_path": "demo_projects/project-mobile/android/Main.kt",
+      "size": 13,
+      "compressed_size": 15,
+      "is_compressed": true,
+      "sha256": "0aa857de8d3d2ade294bbd07de32c377fc21c581862ae475334095c9a1b905e3",
+      "depth": 3,
+      "ext": "kt",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java",
+      "rel_path": "demo_projects/project-mobile/android/Main.java",
+      "size": 14,
+      "compressed_size": 16,
+      "is_compressed": true,
+      "sha256": "120b3a6597dbb526195b51ab28ea69b6486258e8317fe2695fc8263b1d1b932f",
+      "depth": 3,
+      "ext": "java",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/images/architecture.png",
+      "rel_path": "demo_projects/project-webapp/images/architecture.png",
+      "size": 10,
+      "compressed_size": 12,
+      "is_compressed": true,
+      "sha256": "c502b01e16e6234110c0436fe76620d313ecbff40e0749e246e6213087103b64",
+      "depth": 3,
+      "ext": "png",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/sketches/diagram.drawio",
+      "rel_path": "demo_projects/project-webapp/sketches/diagram.drawio",
+      "size": 10,
+      "compressed_size": 12,
+      "is_compressed": true,
+      "sha256": "97cf4c87eea798fe6391e5528e013847260f8f212d5638c735e14b8788062724",
+      "depth": 3,
+      "ext": "drawio",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/__pycache__/foo.pyc",
+      "rel_path": "demo_projects/project-webapp/__pycache__/foo.pyc",
+      "size": 6,
+      "compressed_size": 8,
+      "is_compressed": true,
+      "sha256": "30ae8992e30d51db6ae07a86d91703976f6e69880457a946a3c1e63ffeaaf83e",
+      "depth": 3,
+      "ext": "pyc",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/docs/design.pdf",
+      "rel_path": "demo_projects/project-webapp/docs/design.pdf",
+      "size": 10,
+      "compressed_size": 12,
+      "is_compressed": true,
+      "sha256": "9eed1c04dab61b0dc625830ce865070cddf873f583dc600f32d9acf87d00f974",
+      "depth": 3,
+      "ext": "pdf",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh",
+      "rel_path": "demo_projects/project-webapp/scripts/deploy.sh",
+      "size": 28,
+      "compressed_size": 30,
+      "is_compressed": true,
+      "sha256": "ea3bf4b4b4b312e437b5e01a3056d9dcc8d7a4d98669f265f6e73d4548618720",
+      "depth": 3,
+      "ext": "sh",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp",
+      "rel_path": "demo_projects/project-webapp/src/core.cpp",
+      "size": 22,
+      "compressed_size": 24,
+      "is_compressed": true,
+      "sha256": "91193433e324b0a1e525cfecac51f43ca0f6bd882e1c34292510c9740115bf5c",
+      "depth": 3,
+      "ext": "cpp",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py",
+      "rel_path": "demo_projects/project-webapp/src/app.py",
+      "size": 19,
+      "compressed_size": 21,
+      "is_compressed": true,
+      "sha256": "aeeaf8d4dd08e9c937f61f4d6c1019912278219939e45ee2791a2abcefdbf90e",
+      "depth": 3,
+      "ext": "py",
+      "is_text_guess": true
+    },
+    {
+      "abs_path": "/private/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js",
+      "rel_path": "demo_projects/project-webapp/src/app.js",
+      "size": 19,
+      "compressed_size": 21,
+      "is_compressed": true,
+      "sha256": "2bf8b125d15a71b5fa79fe710cae0db911a71e65891e270bca1d4eb5dd785288",
+      "depth": 3,
+      "ext": "js",
+      "is_text_guess": true
+    }
+  ],
+  "categorized_contents": {
+    "code": [
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js"
+    ],
+    "code_by_language": {
+      "shell": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh",
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh"
+      ],
+      "cpp": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp"
+      ],
+      "c": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h"
+      ],
+      "objective-c": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m"
+      ],
+      "swift": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift"
+      ],
+      "kotlin": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt"
+      ],
+      "java": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java"
+      ],
+      "dockerfile": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile"
+      ],
+      "make": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile"
+      ],
+      "python": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py"
+      ],
+      "javascript": [
+        "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js"
+      ]
+    },
+    "documentation": [
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/notes.txt",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/docs/README.md",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/README.md",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/docs/design.pdf"
+    ],
+    "images": [
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/images/ui.png",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/images/architecture.png"
+    ],
+    "sketches": [
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/sketches/flows.drawio",
+      "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/sketches/diagram.drawio"
+    ],
+    "other": []
+  },
+  "projects": {
+    "project-mobile": {
+      "project_name": "project-mobile",
+      "project_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile",
+      "is_git_repo": false,
+      "git_analysis": null,
+      "categorized_contents": {
+        "code": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java"
+        ],
+        "code_by_language": {
+          "cpp": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp"
+          ],
+          "c": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h"
+          ],
+          "objective-c": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m"
+          ],
+          "swift": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift"
+          ],
+          "kotlin": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt"
+          ],
+          "java": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java"
+          ]
+        },
+        "documentation": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/docs/README.md"
+        ],
+        "images": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/images/ui.png"
+        ],
+        "sketches": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/sketches/flows.drawio"
+        ],
+        "other": []
+      },
+      "analysis_results": {
+        "documentation": {
+          "files": [
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/docs/README.md",
+              "file_name": "README.md",
+              "file_type": "txt",
+              "file_size_bytes": 14,
+              "created_time": "2025-12-07T23:34:58.371302",
+              "modified_time": "2025-12-07T23:34:58.371302",
+              "page_count": null,
+              "word_count": 3,
+              "sentence_count": 1,
+              "paragraph_count": 1,
+              "character_count": 11,
+              "estimated_reading_time_minutes": 0.01,
+              "lexical_diversity": 1.0,
+              "avg_word_length": 3.67,
+              "avg_sentence_length": 3.0,
+              "top_keywords": [
+                [
+                  "mobile",
+                  1
+                ],
+                [
+                  "docs",
+                  1
+                ]
+              ],
+              "heading_count": null,
+              "heading_breakdown": null
+            }
+          ],
+          "totals": {
+            "total_files": 1,
+            "total_words": 3,
+            "total_sentences": 1,
+            "total_paragraphs": 1,
+            "total_characters": 11,
+            "total_size_bytes": 14,
+            "total_pages": null,
+            "total_reading_time_minutes": 0.01,
+            "avg_words_per_file": 3.0,
+            "avg_lexical_diversity": 1.0,
+            "file_types": {
+              "pdf": 0,
+              "docx": 0,
+              "txt": 1
+            },
+            "top_keywords_overall": [
+              [
+                "mobile",
+                1
+              ],
+              [
+                "docs",
+                1
+              ]
+            ]
+          }
+        },
+        "images": {
+          "error": "Image processor not available - zbar library required"
+        },
+        "code": {
+          "files": [
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+              "language": "cpp",
+              "frameworks": [],
+              "skills": [
+                "cpp"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h",
+              "language": "c",
+              "frameworks": [],
+              "skills": [
+                "c"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m",
+              "language": "objective-c",
+              "frameworks": [],
+              "skills": [
+                "objective-c"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift",
+              "language": "swift",
+              "frameworks": [],
+              "skills": [
+                "swift"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt",
+              "language": "kotlin",
+              "frameworks": [],
+              "skills": [
+                "kotlin"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java",
+              "language": "java",
+              "frameworks": [],
+              "skills": [
+                "java"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            }
+          ],
+          "metrics": {
+            "total_files": 6,
+            "total_lines": 6,
+            "languages": [
+              "c",
+              "cpp",
+              "java",
+              "kotlin",
+              "objective-c",
+              "swift"
+            ],
+            "frameworks": [],
+            "skills": [
+              "c",
+              "cpp",
+              "java",
+              "kotlin",
+              "objective-c",
+              "swift"
+            ],
+            "code_files": 6,
+            "test_files": 0
+          },
+          "skill_analysis": {
+            "per_file": [
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+                "language": "cpp",
+                "basic_skills": [
+                  "cpp"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "return_count": 1,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h",
+                "language": "c",
+                "basic_skills": [
+                  "c"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/Legacy.m",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [
+                  "abstraction-principle"
+                ],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ],
+                  "architecture": [
+                    "abstraction-principle"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "abstraction-principle",
+                    "type": "pattern",
+                    "reasoning": "Abstract class or interface detected",
+                    "location": "abstract/interface declaration"
+                  },
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/ios/App.swift",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.kt",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java",
+                "language": "java",
+                "basic_skills": [
+                  "java"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [
+                  "oop-structure"
+                ],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ],
+                  "architecture": [
+                    "oop-structure"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "methods_per_class_mean": 0.0,
+                  "largest_class_methods": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "oop-structure",
+                    "type": "pattern",
+                    "reasoning": "Class definitions imply OOP structure",
+                    "location": "class declaration"
+                  },
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              }
+            ],
+            "aggregate": {
+              "basic_skills": [
+                "c",
+                "cpp",
+                "java",
+                "unknown"
+              ],
+              "advanced_skills": [
+                "time-complexity-analysis"
+              ],
+              "design_patterns": [
+                "abstraction-principle",
+                "oop-structure"
+              ],
+              "evidence_count": 8,
+              "evidence_by_skill": {
+                "time-complexity-analysis": [
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ],
+                "abstraction-principle": [
+                  {
+                    "type": "pattern",
+                    "reasoning": "Abstract class or interface detected",
+                    "location": "abstract/interface declaration"
+                  }
+                ],
+                "oop-structure": [
+                  {
+                    "type": "pattern",
+                    "reasoning": "Class definitions imply OOP structure",
+                    "location": "class declaration"
+                  }
+                ]
+              },
+              "total_files_analyzed": 6
+            }
+          }
+        },
+        "videos": null
+      },
+      "project_metrics": {
+        "languages": [
+          "c",
+          "cpp",
+          "java",
+          "kotlin",
+          "objective-c",
+          "swift"
+        ],
+        "frameworks": [],
+        "skills": [
+          "c",
+          "cpp",
+          "java",
+          "kotlin",
+          "objective-c",
+          "swift"
+        ],
+        "total_files": 6,
+        "total_lines": 6,
+        "total_commits": 0,
+        "total_contributors": 0,
+        "is_collaborative": false,
+        "doc_files": 1,
+        "doc_words": 3,
+        "image_files": 1,
+        "video_files": 0,
+        "test_files": 0,
+        "has_documentation": true,
+        "has_images": true,
+        "has_videos": false,
+        "has_tests": false
+      },
+      "portfolio_item": {
+        "project_name": "project-mobile",
+        "tagline": "Individual multi-language (c, cpp) project",
+        "description": "A comprehensive project comprising 6 source files and 6 lines of code.",
+        "languages": [
+          "c",
+          "cpp",
+          "java",
+          "kotlin",
+          "objective-c",
+          "swift"
+        ],
+        "frameworks": [],
+        "skills": [
+          "c",
+          "cpp",
+          "java",
+          "kotlin",
+          "objective-c",
+          "swift"
+        ],
+        "is_collaborative": false,
+        "total_commits": 0,
+        "total_lines": 6,
+        "project_type": "Software Project",
+        "complexity": "Medium",
+        "key_features": [
+          "Multi-Language"
+        ],
+        "has_documentation": true,
+        "has_tests": false
+      },
+      "resume_item": {
+        "project_name": "project-mobile",
+        "bullets": [
+          "Engineered a multi-language application.",
+          "Demonstrated strong project ownership and systematic approach to software development, following industry best practices.",
+          "Applied expertise in c, cpp, java, and kotlin to deliver a multi-technology well-documented solution, showcasing proficiency in modern software engineering practices."
+        ]
+      }
+    },
+    "project-webapp": {
+      "project_name": "project-webapp",
+      "project_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp",
+      "is_git_repo": false,
+      "git_analysis": null,
+      "categorized_contents": {
+        "code": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js"
+        ],
+        "code_by_language": {
+          "dockerfile": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile"
+          ],
+          "make": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile"
+          ],
+          "shell": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh"
+          ],
+          "cpp": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp"
+          ],
+          "python": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py"
+          ],
+          "javascript": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js"
+          ]
+        },
+        "documentation": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/README.md",
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/docs/design.pdf"
+        ],
+        "images": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/images/architecture.png"
+        ],
+        "sketches": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/sketches/diagram.drawio"
+        ],
+        "other": []
+      },
+      "analysis_results": {
+        "documentation": {
+          "files": [
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/README.md",
+              "file_name": "README.md",
+              "file_type": "txt",
+              "file_size_bytes": 16,
+              "created_time": "2025-12-07T23:34:58.369875",
+              "modified_time": "2025-12-07T23:34:58.369875",
+              "page_count": null,
+              "word_count": 3,
+              "sentence_count": 1,
+              "paragraph_count": 1,
+              "character_count": 13,
+              "estimated_reading_time_minutes": 0.01,
+              "lexical_diversity": 1.0,
+              "avg_word_length": 4.33,
+              "avg_sentence_length": 3.0,
+              "top_keywords": [
+                [
+                  "webapp",
+                  1
+                ],
+                [
+                  "readme",
+                  1
+                ]
+              ],
+              "heading_count": null,
+              "heading_breakdown": null
+            }
+          ],
+          "totals": {
+            "total_files": 1,
+            "total_words": 3,
+            "total_sentences": 1,
+            "total_paragraphs": 1,
+            "total_characters": 13,
+            "total_size_bytes": 16,
+            "total_pages": null,
+            "total_reading_time_minutes": 0.01,
+            "avg_words_per_file": 3.0,
+            "avg_lexical_diversity": 1.0,
+            "file_types": {
+              "pdf": 0,
+              "docx": 0,
+              "txt": 1
+            },
+            "top_keywords_overall": [
+              [
+                "webapp",
+                1
+              ],
+              [
+                "readme",
+                1
+              ]
+            ]
+          }
+        },
+        "images": {
+          "error": "Image processor not available - zbar library required"
+        },
+        "code": {
+          "files": [
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile",
+              "language": "text only",
+              "frameworks": [],
+              "skills": [
+                "text only"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile",
+              "language": "transact-sql",
+              "frameworks": [],
+              "skills": [
+                "transact-sql"
+              ],
+              "lines_of_code": 2,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh",
+              "language": "shell",
+              "frameworks": [],
+              "skills": [
+                "shell"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp",
+              "language": "cpp",
+              "frameworks": [],
+              "skills": [
+                "cpp"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py",
+              "language": "python",
+              "frameworks": [],
+              "skills": [
+                "python"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            },
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js",
+              "language": "javascript",
+              "frameworks": [],
+              "skills": [
+                "javascript"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            }
+          ],
+          "metrics": {
+            "total_files": 6,
+            "total_lines": 7,
+            "languages": [
+              "cpp",
+              "javascript",
+              "python",
+              "shell",
+              "text only",
+              "transact-sql"
+            ],
+            "frameworks": [],
+            "skills": [
+              "cpp",
+              "javascript",
+              "python",
+              "shell",
+              "text only",
+              "transact-sql"
+            ],
+            "code_files": 6,
+            "test_files": 0
+          },
+          "skill_analysis": {
+            "per_file": [
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Dockerfile",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/Makefile",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/scripts/deploy.sh",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp",
+                "language": "cpp",
+                "basic_skills": [
+                  "cpp"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "return_count": 1,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py",
+                "language": "python",
+                "basic_skills": [
+                  "python"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis",
+                  "side-effects-detected"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ],
+                  "code-quality": [
+                    "side-effects-detected"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "side-effects-detected",
+                    "type": "pattern",
+                    "reasoning": "Function call indicates observable side effects",
+                    "location": "call print"
+                  },
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js",
+                "language": "javascript",
+                "basic_skills": [
+                  "javascript"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis",
+                  "side-effects-detected"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ],
+                  "code-quality": [
+                    "side-effects-detected"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "side-effects-detected",
+                    "type": "pattern",
+                    "reasoning": "Output/logging indicates side effects",
+                    "location": "logging statement"
+                  },
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              }
+            ],
+            "aggregate": {
+              "basic_skills": [
+                "cpp",
+                "javascript",
+                "python",
+                "unknown"
+              ],
+              "advanced_skills": [
+                "side-effects-detected",
+                "time-complexity-analysis"
+              ],
+              "design_patterns": [],
+              "evidence_count": 8,
+              "evidence_by_skill": {
+                "time-complexity-analysis": [
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ],
+                "side-effects-detected": [
+                  {
+                    "type": "pattern",
+                    "reasoning": "Function call indicates observable side effects",
+                    "location": "call print"
+                  },
+                  {
+                    "type": "pattern",
+                    "reasoning": "Output/logging indicates side effects",
+                    "location": "logging statement"
+                  }
+                ]
+              },
+              "total_files_analyzed": 6
+            }
+          }
+        },
+        "videos": null
+      },
+      "project_metrics": {
+        "languages": [
+          "cpp",
+          "javascript",
+          "python",
+          "shell",
+          "text only",
+          "transact-sql"
+        ],
+        "frameworks": [],
+        "skills": [
+          "cpp",
+          "javascript",
+          "python",
+          "shell",
+          "text only",
+          "transact-sql"
+        ],
+        "total_files": 6,
+        "total_lines": 7,
+        "total_commits": 0,
+        "total_contributors": 0,
+        "is_collaborative": false,
+        "doc_files": 1,
+        "doc_words": 3,
+        "image_files": 1,
+        "video_files": 0,
+        "test_files": 0,
+        "has_documentation": true,
+        "has_images": true,
+        "has_videos": false,
+        "has_tests": false
+      },
+      "portfolio_item": {
+        "project_name": "project-webapp",
+        "tagline": "Individual multi-language (cpp, javascript) project",
+        "description": "A comprehensive project comprising 6 source files and 7 lines of code.",
+        "languages": [
+          "cpp",
+          "javascript",
+          "python",
+          "shell",
+          "text only",
+          "transact-sql"
+        ],
+        "frameworks": [],
+        "skills": [
+          "cpp",
+          "javascript",
+          "python",
+          "shell",
+          "text only",
+          "transact-sql"
+        ],
+        "is_collaborative": false,
+        "total_commits": 0,
+        "total_lines": 7,
+        "project_type": "Data Science / ML Project",
+        "complexity": "Medium",
+        "key_features": [
+          "Multi-Language"
+        ],
+        "has_documentation": true,
+        "has_tests": false
+      },
+      "resume_item": {
+        "project_name": "project-webapp",
+        "bullets": [
+          "Built a multi-language application.",
+          "Demonstrated strong project ownership and systematic approach to software development, following industry best practices.",
+          "Applied expertise in cpp, javascript, python, and shell to deliver a multi-technology well-documented solution, showcasing proficiency in modern software engineering practices."
+        ]
+      }
+    },
+    "_misc_files": {
+      "project_name": "Miscellaneous Files",
+      "is_git_repo": false,
+      "git_analysis": null,
+      "categorized_contents": {
+        "code": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh"
+        ],
+        "code_by_language": {
+          "shell": [
+            "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh"
+          ]
+        },
+        "documentation": [
+          "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/notes.txt"
+        ],
+        "images": [],
+        "sketches": [],
+        "other": []
+      },
+      "analysis_results": {
+        "documentation": {
+          "files": [
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/notes.txt",
+              "file_name": "notes.txt",
+              "file_type": "txt",
+              "file_size_bytes": 15,
+              "created_time": "2025-12-07T23:34:58.366958",
+              "modified_time": "2025-12-07T23:34:58.366958",
+              "page_count": null,
+              "word_count": 2,
+              "sentence_count": 1,
+              "paragraph_count": 1,
+              "character_count": 13,
+              "estimated_reading_time_minutes": 0.01,
+              "lexical_diversity": 1.0,
+              "avg_word_length": 6.5,
+              "avg_sentence_length": 2.0,
+              "top_keywords": [
+                [
+                  "top",
+                  1
+                ],
+                [
+                  "level",
+                  1
+                ],
+                [
+                  "note",
+                  1
+                ]
+              ],
+              "heading_count": null,
+              "heading_breakdown": null
+            }
+          ],
+          "totals": {
+            "total_files": 1,
+            "total_words": 2,
+            "total_sentences": 1,
+            "total_paragraphs": 1,
+            "total_characters": 13,
+            "total_size_bytes": 15,
+            "total_pages": null,
+            "total_reading_time_minutes": 0.01,
+            "avg_words_per_file": 2.0,
+            "avg_lexical_diversity": 1.0,
+            "file_types": {
+              "pdf": 0,
+              "docx": 0,
+              "txt": 1
+            },
+            "top_keywords_overall": [
+              [
+                "top",
+                1
+              ],
+              [
+                "level",
+                1
+              ],
+              [
+                "note",
+                1
+              ]
+            ]
+          }
+        },
+        "images": null,
+        "code": {
+          "files": [
+            {
+              "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh",
+              "language": "shell",
+              "frameworks": [],
+              "skills": [
+                "shell"
+              ],
+              "lines_of_code": 1,
+              "file_type": "code"
+            }
+          ],
+          "metrics": {
+            "total_files": 1,
+            "total_lines": 1,
+            "languages": [
+              "shell"
+            ],
+            "frameworks": [],
+            "skills": [
+              "shell"
+            ],
+            "code_files": 1,
+            "test_files": 0
+          },
+          "skill_analysis": {
+            "per_file": [
+              {
+                "file_path": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/script.sh",
+                "language": "unknown",
+                "basic_skills": [
+                  "unknown"
+                ],
+                "advanced_skills": [
+                  "time-complexity-analysis"
+                ],
+                "design_patterns": [],
+                "skill_categories": {
+                  "performance": [
+                    "time-complexity-analysis"
+                  ]
+                },
+                "complexity_insights": {
+                  "max_loop_nesting": 0,
+                  "overall_complexity": "low"
+                },
+                "evidence": [
+                  {
+                    "skill": "time-complexity-analysis",
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              }
+            ],
+            "aggregate": {
+              "basic_skills": [
+                "unknown"
+              ],
+              "advanced_skills": [
+                "time-complexity-analysis"
+              ],
+              "design_patterns": [],
+              "evidence_count": 1,
+              "evidence_by_skill": {
+                "time-complexity-analysis": [
+                  {
+                    "type": "pattern",
+                    "reasoning": "Detected nested loops up to depth 0; recursion=False; algorithms=False",
+                    "location": "complexity scan"
+                  }
+                ]
+              },
+              "total_files_analyzed": 1
+            }
+          }
+        },
+        "videos": null
+      }
+    }
+  },
+  "llm_summaries": {
+    "error": "LLM summarization unavailable: OpenAI API key not provided. Either pass it to the constructor or set the OPENAI_API_KEY environment variable."
+  },
+  "project_ranking": {
+    "ranked_projects": [
+      {
+        "rank": 1,
+        "name": "project-webapp",
+        "score": 1.2278,
+        "is_collaborative": false,
+        "languages": [
+          "cpp",
+          "javascript",
+          "python",
+          "shell",
+          "text only",
+          "transact-sql"
+        ],
+        "frameworks": [],
+        "commits": 0,
+        "lines_of_code": 7,
+        "duration_days": 0
+      },
+      {
+        "rank": 2,
+        "name": "project-mobile",
+        "score": 0.9811,
+        "is_collaborative": false,
+        "languages": [
+          "c",
+          "cpp",
+          "java",
+          "kotlin",
+          "objective-c",
+          "swift"
+        ],
+        "frameworks": [],
+        "commits": 0,
+        "lines_of_code": 6,
+        "duration_days": 0
+      }
+    ],
+    "top_summaries": [
+      {
+        "rank": 1,
+        "id": "project-webapp",
+        "name": "project-webapp",
+        "score": 1.2278,
+        "criteria": "score",
+        "summary": "project-webapp | Solo | score 1.2278. Top contributor: Individual contributor (100%). Impact: 7 LOC. Langs: cpp, javascript, python. Recency: 0 days.",
+        "metrics": {
+          "commits": 0,
+          "loc": 7,
+          "recency_days": 0,
+          "languages": [
+            "cpp",
+            "javascript",
+            "python",
+            "shell",
+            "text only",
+            "transact-sql"
+          ],
+          "duration_days": 0
+        }
+      },
+      {
+        "rank": 2,
+        "id": "project-mobile",
+        "name": "project-mobile",
+        "score": 0.9811,
+        "criteria": "score",
+        "summary": "project-mobile | Solo | score 0.9811. Top contributor: Individual contributor (100%). Impact: 6 LOC. Langs: c, cpp, java. Recency: 0 days.",
+        "metrics": {
+          "commits": 0,
+          "loc": 6,
+          "recency_days": 0,
+          "languages": [
+            "c",
+            "cpp",
+            "java",
+            "kotlin",
+            "objective-c",
+            "swift"
+          ],
+          "duration_days": 0
+        }
+      }
+    ],
+    "total_projects_ranked": 2
+  },
+  "chronological_skills": {
+    "timeline": [
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/notes.txt",
+        "timestamp": "2025-12-07T23:34:58.366958",
+        "category": "text",
+        "skills": [
+          "writing"
+        ],
+        "metadata": {
+          "word_count": 2,
+          "lexical_diversity": 1.0,
+          "avg_word_length": 6.5
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/._notes.txt",
+        "timestamp": "2025-12-07T23:34:58.367052",
+        "category": "text",
+        "skills": [
+          "writing"
+        ],
+        "metadata": {
+          "word_count": 7,
+          "lexical_diversity": 1.0,
+          "avg_word_length": 21.43
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.cpp",
+        "timestamp": "2025-12-07T23:34:58.370876",
+        "category": "code",
+        "skills": [
+          "cpp"
+        ],
+        "metadata": {
+          "language": "cpp",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/project-mobile/shared/._lib.cpp",
+        "timestamp": "2025-12-07T23:34:58.371018",
+        "category": "code",
+        "skills": [
+          "cpp"
+        ],
+        "metadata": {
+          "language": "cpp",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/shared/lib.h",
+        "timestamp": "2025-12-07T23:34:58.371112",
+        "category": "code",
+        "skills": [
+          "c"
+        ],
+        "metadata": {
+          "language": "c",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/project-mobile/shared/._lib.h",
+        "timestamp": "2025-12-07T23:34:58.371202",
+        "category": "code",
+        "skills": [
+          "c"
+        ],
+        "metadata": {
+          "language": "c",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-mobile/android/Main.java",
+        "timestamp": "2025-12-07T23:34:58.372233",
+        "category": "code",
+        "skills": [
+          "java"
+        ],
+        "metadata": {
+          "language": "java",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/project-mobile/android/._Main.java",
+        "timestamp": "2025-12-07T23:34:58.372337",
+        "category": "code",
+        "skills": [
+          "java"
+        ],
+        "metadata": {
+          "language": "java",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/core.cpp",
+        "timestamp": "2025-12-07T23:34:58.373564",
+        "category": "code",
+        "skills": [
+          "cpp"
+        ],
+        "metadata": {
+          "language": "cpp",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/project-webapp/src/._core.cpp",
+        "timestamp": "2025-12-07T23:34:58.373706",
+        "category": "code",
+        "skills": [
+          "cpp"
+        ],
+        "metadata": {
+          "language": "cpp",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.py",
+        "timestamp": "2025-12-07T23:34:58.373795",
+        "category": "code",
+        "skills": [
+          "python"
+        ],
+        "metadata": {
+          "language": "python",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/project-webapp/src/._app.py",
+        "timestamp": "2025-12-07T23:34:58.373888",
+        "category": "code",
+        "skills": [
+          "python"
+        ],
+        "metadata": {
+          "language": "python",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/demo_projects/project-webapp/src/app.js",
+        "timestamp": "2025-12-07T23:34:58.373983",
+        "category": "code",
+        "skills": [
+          "javascript"
+        ],
+        "metadata": {
+          "language": "javascript",
+          "frameworks": []
+        }
+      },
+      {
+        "file": "/var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/unzipped_spmam0nr/__MACOSX/demo_projects/project-webapp/src/._app.js",
+        "timestamp": "2025-12-07T23:34:58.374079",
+        "category": "code",
+        "skills": [
+          "javascript"
+        ],
+        "metadata": {
+          "language": "javascript",
+          "frameworks": []
+        }
+      }
+    ],
+    "total_events": 14,
+    "categories": [
+      "code",
+      "text"
+    ]
+  }
+}

@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from services.repository_analysis_service import RepositoryAnalysisService
 from services.report_generator import ReportGenerator
+from save_repository_to_db import convert_repo_analysis_to_pipeline_format
+from insights.storage import ProjectInsightsStore
 
 
 def analyze_repository(repo_path: str, with_ai: bool = False, output_file: str = None):
@@ -82,6 +84,21 @@ def analyze_repository(repo_path: str, with_ai: bool = False, output_file: str =
             ReportGenerator.save_report(json_report, json_path, format='json')
             print(f"💾 JSON report saved to: {json_path}")
         
+        # Automatically save to database
+        print("\n💾 Saving to database...")
+        try:
+            pipeline_result = convert_repo_analysis_to_pipeline_format(repo_path, results)
+            store = ProjectInsightsStore()
+            stats = store.record_pipeline_run(
+                zip_path=repo_path,
+                pipeline_result=pipeline_result,
+                pipeline_version="repository-analysis/v1"
+            )
+            print(f"   ✓ Saved to database ({stats.project_count} project(s), "
+                  f"{stats.inserted} inserted, {stats.updated} updated)")
+        except Exception as db_error:
+            print(f"   ⚠️  Warning: Could not save to database: {db_error}")
+        
         print("\n✅ Analysis complete!")
         
     except Exception as e:
@@ -148,6 +165,24 @@ def analyze_zip(zip_path: str, with_ai: bool = False, output_file: str = None):
             json_path = str(Path(output_file).with_suffix('.json'))
             ReportGenerator.save_report(json_report, json_path, format='json')
             print(f"💾 JSON report saved to: {json_path}")
+        
+        # Automatically save to database (if repository analysis exists)
+        if 'repository_analysis' in results:
+            print("\n💾 Saving to database...")
+            try:
+                # Try to find extracted repo path
+                extracted_path = results.get('extracted_path', zip_path)
+                pipeline_result = convert_repo_analysis_to_pipeline_format(extracted_path, results)
+                store = ProjectInsightsStore()
+                stats = store.record_pipeline_run(
+                    zip_path=zip_path,
+                    pipeline_result=pipeline_result,
+                    pipeline_version="repository-analysis/v1"
+                )
+                print(f"   ✓ Saved to database ({stats.project_count} project(s), "
+                      f"{stats.inserted} inserted, {stats.updated} updated)")
+            except Exception as db_error:
+                print(f"   ⚠️  Warning: Could not save to database: {db_error}")
         
         print("\n✅ Analysis complete!")
         

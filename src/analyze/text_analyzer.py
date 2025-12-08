@@ -12,9 +12,15 @@ from typing import List, Dict, Tuple, Optional, Any
 from collections import Counter
 from dataclasses import dataclass, asdict
 
-# PDF parsing
-from pdfminer.high_level import extract_text as pdf_extract_text
-from pdfminer.pdfpage import PDFPage
+# PDF parsing (optional)
+try:
+    from pdfminer.high_level import extract_text as pdf_extract_text
+    from pdfminer.pdfpage import PDFPage
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+    pdf_extract_text = None
+    PDFPage = None
 
 # DOCX parsing
 from docx import Document
@@ -184,6 +190,8 @@ class TextAnalyzer:
     def _extract_from_pdf(self, file_path: Path) -> Tuple[str, int]:
         """Extract text and page count from PDF"""
         try:
+            if not PDF_AVAILABLE:
+                raise ValueError("PDF parsing not available (pdfminer not installed)")
             text = pdf_extract_text(str(file_path))
             
             # Count pages

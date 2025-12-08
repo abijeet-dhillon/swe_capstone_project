@@ -48,6 +48,14 @@ class ReportGenerator:
         report.append("-" * 80)
         report.append(f"Repository Path: {repo_data.get('repository_path', 'N/A')}")
         report.append(f"Remote URL: {repo_data.get('remote_url', 'N/A')}")
+        
+        # Project Type
+        contributor_count = repo_data.get('contributor_count', 0)
+        project_type = repo_data.get('project_type')
+        if not project_type:
+            project_type = "Collaborative" if contributor_count > 1 else "Individual"
+        report.append(f"Project Type: {project_type} ({contributor_count} contributor{'s' if contributor_count != 1 else ''})")
+        
         report.append(f"Total Commits: {repo_data.get('total_commits', 0)}")
         report.append(f"Branches: {repo_data.get('branch_count', 0)}")
         report.append(f"Contributors: {repo_data.get('contributor_count', 0)}")

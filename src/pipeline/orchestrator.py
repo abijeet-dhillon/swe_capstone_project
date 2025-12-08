@@ -19,8 +19,16 @@ from src.analyze.text_analyzer import TextAnalyzer
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
-from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
+
+# Optional image processor (requires zbar system library)
+try:
+    from src.image_processor import ImageProcessor
+    IMAGE_PROCESSOR_AVAILABLE = True
+except ImportError as e:
+    ImageProcessor = None
+    IMAGE_PROCESSOR_AVAILABLE = False
+    print(f"⚠️  Image processing disabled: {e}")
 from src.insights import ProjectInsightsStore
 from src.project.presentation import (
     extract_project_metrics,
@@ -59,7 +67,7 @@ class ArtifactPipeline:
         self.text_analyzer = TextAnalyzer()
         self.code_analyzer = CodeAnalyzer()
         self.video_analyzer = VideoAnalyzer()
-        self.image_processor = ImageProcessor()
+        self.image_processor = ImageProcessor() if IMAGE_PROCESSOR_AVAILABLE else None
         self.skill_extractor = AdvancedSkillExtractor()
         self.temp_dir = None
         self.insights_store = insights_store
@@ -568,13 +576,17 @@ class ArtifactPipeline:
         # Analyze image files (PNG, JPG, JPEG, etc.)
         image_files = categorized_contents.get('images', [])
         if image_files:
-            print(f"  🖼️  Analyzing {len(image_files)} image file(s)...")
-            try:
-                results['images'] = self.image_processor.batch_analyze(image_files)
-                print(f"     ✓ Image analysis complete")
-            except Exception as e:
-                print(f"     ✗ Error analyzing images: {e}")
-                results['images'] = {"error": str(e)}
+            if self.image_processor:
+                print(f"  🖼️  Analyzing {len(image_files)} image file(s)...")
+                try:
+                    results['images'] = self.image_processor.batch_analyze(image_files)
+                    print(f"     ✓ Image analysis complete")
+                except Exception as e:
+                    print(f"     ✗ Error analyzing images: {e}")
+                    results['images'] = {"error": str(e)}
+            else:
+                print(f"  🖼️  Image processing unavailable (zbar library not installed)")
+                results['images'] = {"error": "Image processor not available - zbar library required"}
         else:
             print(f"  🖼️  No image files to analyze")
             results['images'] = None

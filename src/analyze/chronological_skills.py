@@ -23,7 +23,14 @@ from typing import List, Dict, Optional, Any
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.text_analyzer import TextAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
-from src.image_processor import ImageProcessor
+
+# Optional image processor (requires zbar system library)
+try:
+    from src.image_processor import ImageProcessor
+    IMAGE_PROCESSOR_AVAILABLE = True
+except ImportError:
+    ImageProcessor = None
+    IMAGE_PROCESSOR_AVAILABLE = False
 
 # Core Class
 class ChronologicalSkillList:
@@ -33,7 +40,7 @@ class ChronologicalSkillList:
         self.code_analyzer = CodeAnalyzer()
         self.text_analyzer = TextAnalyzer()
         self.video_analyzer = VideoAnalyzer()
-        self.image_analyzer = ImageProcessor()
+        self.image_analyzer = ImageProcessor() if IMAGE_PROCESSOR_AVAILABLE else None
 
     def build_skill_timeline(
         self, directory_path: str, after_date: Optional[datetime] = None
@@ -130,29 +137,32 @@ class ChronologicalSkillList:
             print(f"[warn] Video analysis failed: {e}")
 
         # --- IMAGE ANALYSIS ---
-        print("[+] Running Image Analyzer...")
-        try:
-            image_files = [
-                f for f in Path(directory_path).rglob("*")
-                if f.suffix.lower() in {".png", ".jpg", ".jpeg"}
-            ]
-            for f in image_files:
-                ts = datetime.fromtimestamp(f.stat().st_mtime)
-                if after_date and ts < after_date:
-                    continue
-                try:
-                    result = self.image_analyzer.analyze_image(str(f))
-                    timeline.append({
-                        "file": str(f),
-                        "timestamp": ts,
-                        "category": "image",
-                        "skills": ["artistry"], 
-                        "metadata": result,
-                    })
-                except Exception as inner_e:
-                    print(f"[warn] Skipping image {f}: {inner_e}")
-        except Exception as e:
-            print(f"[warn] Image analysis failed: {e}")
+        if self.image_analyzer:
+            print("[+] Running Image Analyzer...")
+            try:
+                image_files = [
+                    f for f in Path(directory_path).rglob("*")
+                    if f.suffix.lower() in {".png", ".jpg", ".jpeg"}
+                ]
+                for f in image_files:
+                    ts = datetime.fromtimestamp(f.stat().st_mtime)
+                    if after_date and ts < after_date:
+                        continue
+                    try:
+                        result = self.image_analyzer.analyze_image(str(f))
+                        timeline.append({
+                            "file": str(f),
+                            "timestamp": ts,
+                            "category": "image",
+                            "skills": ["artistry"], 
+                            "metadata": result,
+                        })
+                    except Exception as inner_e:
+                        print(f"[warn] Skipping image {f}: {inner_e}")
+            except Exception as e:
+                print(f"[warn] Image analysis failed: {e}")
+        else:
+            print("[+] Image Analyzer skipped (zbar library not available)")
 
         timeline.sort(key=lambda e: e["timestamp"])
         return timeline
@@ -220,8 +230,108 @@ def make_json_serializable(obj):
     else:
         return obj
     
-# # Command-Line Entrypoint (Demo/Debugging, un-comment to run demo)
-# if __name__ == "__main__":
-#     analyzer = ChronologicalSkillList()
-#     events = analyzer.build_skill_timeline("tests/categorize/demo_projects2", None)
-#     analyzer.export_results(events)
+# Command-Line Entrypoint
+if __name__ == "__main__":
+    import argparse
+    import sys
+    
+    parser = argparse.ArgumentParser(
+        description="Generate chronological timeline of skills from directory analysis"
+    )
+    parser.add_argument(
+        "directory",
+        help="Directory path to analyze"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="src/analyze/skills_output",
+        help="Output directory for results (default: src/analyze/skills_output)"
+    )
+    parser.add_argument(
+        "--after-date",
+        help="Only include files modified after this date (YYYY-MM-DD format)"
+    )
+    parser.add_argument(
+        "--format",
+        choices=["json", "csv", "txt", "all"],
+        default="all",
+        help="Output format (default: all)"
+    )
+    parser.add_argument(
+        "--no-print",
+        action="store_true",
+        help="Don't print results to stdout (only export to files)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Parse after_date if provided
+    after_date = None
+    if args.after_date:
+        try:
+            after_date = datetime.strptime(args.after_date, "%Y-%m-%d")
+        except ValueError:
+            print(f"Error: Invalid date format '{args.after_date}'. Use YYYY-MM-DD format.")
+            sys.exit(1)
+    
+    # Check if directory exists
+    directory_path = Path(args.directory)
+    if not directory_path.exists():
+        print(f"Error: Directory not found: {args.directory}")
+        sys.exit(1)
+    
+    # Build timeline
+    analyzer = ChronologicalSkillList()
+    events = analyzer.build_skill_timeline(str(directory_path), after_date=after_date)
+    
+    if not events:
+        print(f"\n⚠️  No events found in directory: {args.directory}")
+        print("   Make sure the directory contains code, text, video, or image files.")
+        sys.exit(0)
+    
+    print(f"\n[✓] Found {len(events)} event(s) in timeline")
+    
+    # Print to stdout by default (unless --no-print is used)
+    if not args.no_print:
+        print("\n" + "=" * 70)
+        print("CHRONOLOGICAL SKILLS TIMELINE")
+        print("=" * 70)
+        for e in events:
+            print(f"\n[{e['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}] ({e['category'].upper()})")
+            print(f"  File: {e['file']}")
+            print(f"  Skills: {', '.join(e['skills'])}")
+            if e.get('metadata'):
+                metadata = make_json_serializable(e['metadata'])
+                # Format metadata nicely based on category
+                if e['category'] == 'code':
+                    print(f"  Language: {metadata.get('language', 'N/A')}")
+                    if metadata.get('frameworks'):
+                        print(f"  Frameworks: {', '.join(metadata['frameworks'])}")
+                elif e['category'] == 'text':
+                    print(f"  Word Count: {metadata.get('word_count', 'N/A')}")
+                    print(f"  Lexical Diversity: {metadata.get('lexical_diversity', 'N/A'):.2f}")
+                elif e['category'] == 'video':
+                    print(f"  Duration: {metadata.get('duration_seconds', 'N/A')}s")
+                    print(f"  Resolution: {metadata.get('resolution', 'N/A')}")
+                    print(f"  Frame Rate: {metadata.get('frame_rate', 'N/A')} fps")
+                    if metadata.get('has_audio'):
+                        print(f"  Audio: Yes")
+                elif e['category'] == 'image':
+                    # Image metadata can vary, show key fields
+                    for key, value in list(metadata.items())[:5]:
+                        print(f"  {key.replace('_', ' ').title()}: {value}")
+                else:
+                    # Fallback: show all metadata
+                    for key, value in list(metadata.items())[:5]:
+                        print(f"  {key.replace('_', ' ').title()}: {value}")
+    
+    # Export results
+    if args.format in ["all", "json", "csv", "txt"]:
+        export_paths = analyzer.export_results(events, output_dir=args.output_dir)
+        
+        if args.format != "all":
+            # Only show the requested format
+            format_map = {"json": "json", "csv": "csv", "txt": "txt"}
+            print(f"\n[✓] Exported {args.format.upper()}: {export_paths[format_map[args.format]]}")
+        else:
+            print(f"\n[✓] Exported all formats to: {args.output_dir}")

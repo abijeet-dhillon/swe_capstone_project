@@ -202,6 +202,22 @@ class UserConfigManager:
             updated_at=row[6],
         )
 
+    def delete_config(self, user_id: str) -> bool:
+        """Delete a configuration for the given user."""
+        try:
+            self.init_db()
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    f"DELETE FROM {TABLE_NAME} WHERE user_id = ?",
+                    (user_id,),
+                )
+                conn.commit()
+                deleted = cursor.rowcount > 0
+            return deleted
+        except Exception as exc:
+            print(f"Error deleting config from DB: {exc}")
+            return False
+
 
 def init_db() -> None:
     UserConfigManager().init_db()
@@ -356,13 +372,14 @@ def run_cli() -> None:  # pragma: no cover - CLI utility wiring
     parser.add_argument("--save", action="store_true", help="Create a new configuration.")
     parser.add_argument("--load", action="store_true", help="Load and print an existing configuration.")
     parser.add_argument("--update", action="store_true", help="Update an existing configuration.")
+    parser.add_argument("--delete", action="store_true", help="Delete an existing configuration.")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output when loading.")
     args = parser.parse_args()
 
     llm_arg = _parse_bool_arg(args.llm_consent, parser)
-    operations = [args.save, args.load, args.update]
+    operations = [args.save, args.load, args.update, args.delete]
     if sum(1 for op in operations if op) != 1:
-        parser.error("Select exactly one action: --save, --load, or --update.")
+        parser.error("Select exactly one action: --save, --load, --update, or --delete.")
 
     manager = UserConfigManager()
 
@@ -395,6 +412,13 @@ def run_cli() -> None:  # pragma: no cover - CLI utility wiring
         llm_consent=llm_consent,
     ):
         print(f"Config updated for user_id={args.user_id}")
+        return
+
+    if args.delete:
+        if manager.delete_config(args.user_id):
+            print(f"Config deleted for user_id={args.user_id}")
+        else:
+            print(f"No configuration found to delete for user_id={args.user_id}")
         return
 
 
