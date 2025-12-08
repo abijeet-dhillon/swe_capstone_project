@@ -54,12 +54,13 @@ docker compose run --rm backend python -m src.pipeline.orchestrator --user-id ro
 
 ```bash
 docker compose run --rm -T backend python - <<'PY'
+from pathlib import Path
 from src.insights.storage import ProjectInsightsStore
+
 store = ProjectInsightsStore(db_path="data/app.db")
-runs = store.list_recent_zipfiles(limit=5)
-for r in runs:
-    print("zip_hash:", r["zip_hash"], "projects:", r["total_projects"])
-    print("  names:", store.list_projects_for_zip(r["zip_hash"]))
+for row in store.list_recent_zipfiles(limit=20):
+    name = Path(row["zip_path"]).name
+    print(f"{row['zip_hash']}  {name}  projects={row['total_projects']}")
 PY
 ```
 
@@ -225,17 +226,17 @@ docker compose run --rm backend python -m src.insights.example_retrieval --db-pa
 
 Choose either per-zip or all. Deleting a zip only removes that run; other runs remain (requirement #18 about not affecting shared files across reports).
 
-- **Delete one run by zip_hash** (replace `<hash>`):
+- **Delete one run by zip_hash** (replace `<PUT_HASH_HERE>` with a hash from section 3's command used to list stored runs):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
   store = ProjectInsightsStore(db_path="data/app.db")
-  target = store.list_recent_zipfiles(limit=1)[0]["zip_hash"]
-  print("Deleting zip_hash:", target)
+  target = "<PUT_HASH_HERE>"
   print(store.delete_zip(target))
   PY
   ```
-- **Delete everything**:
+- **Delete all insights**:
+
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
@@ -244,7 +245,20 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
   PY
   ```
 
-## 8) Quick notes for the recording
+- **Delete all user configs**:
+  ```bash
+  docker compose run --rm -T backend python -c "import sqlite3,sys; db='data/app.db';
+  conn=sqlite3.connect(db); conn.execute(\"DELETE FROM user_configurations\"); conn.commit();
+  print('Deleted rows:', conn.execute('select changes()').fetchone()[0])"
+  ```
+
+## 8) Run all tests
+
+```
+docker compose run --rm backend pytest -q
+```
+
+## 9) Quick notes for the recording
 
 - Total time should stay under 10 minutes if you follow the order above.
 - Call out that data access consent is prompted every run and is not persisted; saying **n** stops the pipeline immediately.
@@ -252,7 +266,3 @@ Choose either per-zip or all. Deleting a zip only removes that run; other runs r
 - Show the wrong-format error step to prove validation.
 - Point out collaborative vs individual (git contributor counts) and language/framework detection in pipeline output.
 - Mention that portfolio and resume items, metrics, rankings, timelines, and skills are persisted and can be retrieved later.
-
-```
-
-```

@@ -3,8 +3,23 @@ import tempfile
 import json
 import sqlite3
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import httpx
+import inspect
 
 from src.insights.storage import ProjectInsightsStore
+from src.insights.api import router
+
+# Compatibility shim: older httpx versions don't accept the 'app' kwarg used by Starlette's TestClient
+if "app" not in inspect.signature(httpx.Client.__init__).parameters:
+    _orig_httpx_init = httpx.Client.__init__
+
+    def _patched_httpx_init(self, *args, **kwargs):
+        kwargs.pop("app", None)
+        return _orig_httpx_init(self, *args, **kwargs)
+
+    httpx.Client.__init__ = _patched_httpx_init
 
 
 def _mk_store(tmpdir):

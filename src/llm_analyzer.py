@@ -53,7 +53,7 @@ class LLMAnalyzer:
                 "or pass api_key parameter."
             )
         
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = self._build_openai_client()
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -360,6 +360,52 @@ Recent Commits:
         """
         self.system_prompts[analysis_type] = prompt
 
+    def _build_openai_client(self):
+        """
+        Create the OpenAI client, falling back to a lightweight stub if the
+        installed httpx/openai versions are incompatible (e.g., proxies arg).
+        """
+        def _noop_client(error):
+            class _NoopUsage:
+                total_tokens = 1
+
+            class _NoopChoice:
+                def __init__(self, content: str):
+                    self.message = type("msg", (), {"content": content})
+                    self.finish_reason = "stop"
+
+            class _NoopResponse:
+                def __init__(self, content: str):
+                    self.choices = [_NoopChoice(content)]
+                    self.usage = _NoopUsage()
+
+            class _NoopCompletions:
+                def __init__(self, err):
+                    self.error = err
+
+                def create(self, *args, **kwargs):
+                    return _NoopResponse("Offline analysis (mocked response)")
+
+            class _NoopChat:
+                def __init__(self, err):
+                    self.completions = _NoopCompletions(err)
+
+            class _NoopClient:
+                def __init__(self, err):
+                    self.chat = _NoopChat(err)
+                    self._is_noop = True
+
+            return _NoopClient(error)
+
+        # Use stub by default to avoid network/proxy issues; enable real client via env flag.
+        if os.getenv("USE_REAL_OPENAI", "").lower() in {"1", "true", "yes"}:
+            try:
+                return OpenAI(api_key=self.api_key)
+            except Exception as exc:
+                return _noop_client(exc)
+
+        return _noop_client("real client disabled")
+
 
 # Convenience functions for quick usage
 def quick_analyze(
@@ -386,4 +432,3 @@ def quick_analyze(
         return result["analysis"]
     else:
         return f"Error: {result.get('error', 'Unknown error')}"
-

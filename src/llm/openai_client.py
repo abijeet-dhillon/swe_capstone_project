@@ -5,6 +5,8 @@ Provides a clean interface for interacting with OpenAI's API for summarization t
 import os
 from typing import Optional
 from openai import OpenAI
+from dotenv import load_dotenv
+import httpx
 
 
 class OpenAIClient:
@@ -17,14 +19,33 @@ class OpenAIClient:
         Args:
             api_key: OpenAI API key. If None, will read from OPENAI_API_KEY environment variable.
         """
+        load_dotenv()
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "OpenAI API key not provided. Either pass it to the constructor "
                 "or set the OPENAI_API_KEY environment variable."
             )
-        
-        self.client = OpenAI(api_key=self.api_key)
+
+        self.client = self._build_client()
+
+    def _build_client(self):
+        """
+        Build the OpenAI client, handling environments where httpx proxies arg
+        isn't supported by falling back to a custom http_client.
+        """
+        try:
+            return OpenAI(api_key=self.api_key)
+        except TypeError as exc:
+            # Handle httpx versions that don't accept the proxies kwarg
+            try:
+                custom_http = httpx.Client()
+                return OpenAI(api_key=self.api_key, http_client=custom_http)
+            except Exception:
+                raise exc
+        except Exception as exc:
+            # Bubble other errors so callers can see the cause
+            raise exc
     
     def summarize_text(
         self, 
@@ -69,4 +90,3 @@ class OpenAIClient:
             
         except Exception as e:
             raise RuntimeError(f"Failed to generate summary: {str(e)}")
-
