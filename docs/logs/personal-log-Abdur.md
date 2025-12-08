@@ -7,8 +7,9 @@
 1. [Week 8](#week-8)
 1. [Week 9](#week-9)
 1. [Week 10](#week-10)
-1. [Week 10](#week-12)
-1. [Week 10](#week-13)
+1. [Week 12](#week-12)
+1. [Week 13](#week-13)
+1. [Week 14](#week-14)
 
 ## Week 3 
 
@@ -409,3 +410,40 @@ This section outlines the individual log for week 13
 - Improve documentation for the insights lifecycle (generation → storage → retrieval → deletion).  
 - Identify any remaining gaps in test coverage and address them before merging.  
 - Prepare a clean branch for review and inclusion in the main pipeline.
+
+### December 1 – December 7
+
+### Tasks
+![](images/abdur-week14.png)
+
+- Worked on **team contract**, defining rules, responsibilities, and workflow agreements to ensure smooth collaboration.  
+- Verified that all features for **Milestone 1** were working correctly across the storage and API layers.  
+- Created a **Pull Request** from `develop` to `main` for the Milestone 1 deliverable, preparing it for review and integration.
+
+### Weekly Goals
+
+1. **Team Collaboration:**  
+   - Establish a clear **team contract** outlining responsibilities, communication norms, and workflow practices.  
+   - Ensure all team members are aligned on coding standards, task assignments, and review processes.
+
+2. **Milestone 1 Deliverable:**  
+   - Confirm full **integration and functionality** of implemented features.  
+   - Submit a **Pull Request** for review and merge into the `main` branch.  
+   - Conduct final checks to ensure no breaking changes or regressions exist.
+
+### Reflection Points
+
+**What went well:**  
+- Team contract was successfully drafted and agreed upon, providing a clear framework for collaboration.  
+- Verified all features worked as expected, and the Pull Request is ready for merge, marking a key milestone achievement.  
+- The workflow from `develop` to `main` is clean and organized, reducing the chance of integration issues.
+
+**What didn’t go well:**  
+- No major issues this week; minor delays in scheduling team discussions were handled efficiently.  
+
+### Planning Activities for Next Cycle
+
+**Week 15 Goals:**  
+- Address any feedback from the Milestone 1 Pull Request review and make necessary updates.  
+- Begin planning and scoping tasks for the next milestone or sprint.  
+- Continue fostering team collaboration, ensuring adherence to the team contract in ongoing work.
