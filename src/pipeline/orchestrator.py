@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import getpass
+from datetime import datetime
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
@@ -194,6 +195,11 @@ class ArtifactPipeline:
                 print(f"     ✓ All results including ranking and skills saved to database")
             else:
                 print(f"\n[9/9] Compilation complete (database persistence disabled)")
+            
+            # Save JSON report to reports/ directory
+            print(f"\n📄 Saving JSON report...")
+            report_path = self._save_json_report(zip_path, result)
+            print(f"     ✓ Report saved to: {report_path}")
             
             return result
             
@@ -691,6 +697,34 @@ class ArtifactPipeline:
             )
         except Exception as exc:
             print(f"     ⚠️  Warning: Unable to persist insights: {exc}")
+    
+    def _save_json_report(self, zip_path: Path, result: Dict[str, Any]) -> Path:
+        """Save analysis results to a JSON file in the reports/ directory.
+        
+        Args:
+            zip_path: Path to the original ZIP file being analyzed
+            result: The complete analysis result dictionary
+            
+        Returns:
+            Path to the saved JSON report file
+        """
+        # Create reports directory if it doesn't exist
+        reports_dir = Path("reports")
+        reports_dir.mkdir(exist_ok=True)
+        
+        # Generate report filename with timestamp only
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_filename = f"report_{timestamp}.json"
+        report_path = reports_dir / report_filename
+        
+        # Ensure result is JSON serializable
+        serializable_result = self._make_json_serializable(result)
+        
+        # Write JSON report with nice formatting
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(serializable_result, f, indent=2, ensure_ascii=False)
+        
+        return report_path
     
     def _print_summary(self, result: Dict[str, Any]) -> None:
         """Print a summary of the analysis results"""
