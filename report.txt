@@ -1,0 +1,121 @@
+================================================================================
+REPOSITORY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-19 09:39:40
+
+📦 ZIP FILE ANALYSIS
+--------------------------------------------------------------------------------
+Zip File: capstone-project-team-14-main.zip
+Extracted To: /var/folders/2z/fztjyp815hg43g_tqnct1_hw0000gn/T/zip_extract_er7fn6f6
+
+📊 SUMMARY
+--------------------------------------------------------------------------------
+Git Repositories: 0
+Documents: 10
+
+
+================================================================================
+DOCUMENTS FOUND
+================================================================================
+
+1. README.md
+   Type: md
+   Word Count: 129
+
+   Summary:
+   The "Project-Starter" document outlines the folder structure for a project, emphasizing the organization of files and directories. Key directories include:
+
+- **docs**: Contains documentation files such as the team contract, project proposal, UI mocks, meeting minutes, and logs.
+- **src**: Houses the source files.
+- **tests**: Contains automated tests.
+- **utils**: Holds utility files.
+- **README.md**: A file for project details.
+
+It advises using a branching workflow for development, with the necessity of issuing pull requests (PRs) for review and merging into the master branch. Additionally, it highlights the importance of keeping documentation and the README up-to-date.
+
+2. placeholder.txt
+   Type: txt
+   Word Count: 0
+
+3. placeholder.txt
+   Type: txt
+   Word Count: 0
+
+4. placeholder.txt
+   Type: txt
+   Word Count: 0
+
+5. placeholder.txt
+   Type: txt
+   Word Count: 0
+
+6. README.md
+   Type: md
+   Word Count: 1559
+
+   Summary:
+   **Features Proposal Summary for Mining Digital Work Artifacts**
+
+**Team:** 14  
+**Members:** Tahsin Jawwad, Abijeet Dhillon, Abdur Rehman, Abhinav Malik, Kaiden Merchant, Misha Gavura
+
+**1. Project Scope and Usage Scenario:**  
+The project aims to provide a privacy-focused tool for creators (students or early professionals) to scan their machines for digital work artifacts (like code, documents, and media) and generate portfolio highlights. Administrators configure scanning policies, while Reviewers access only the processed summaries, not raw files. The typical workflow involves creators setting up scans, with the system processing and exporting reports.
+
+**2. Proposed Solution:**  
+The solution includes a local-first architecture with three components:  
+- **Scanner:** Identifies files in user-approved folders.  
+- **Adapters:** Process various artifact types (e.g., Git repositories, Office documents).  
+- **FastAPI Service:** Provides REST endpoints for accessing artifacts and insights
+
+7. placeholder.txt
+   Type: txt
+   Word Count: 0
+
+8. placeholder.txt
+   Type: txt
+   Word Count: 0
+
+9. personal-log-tahsin-jawwad.md
+   Type: md
+   Word Count: 221
+
+   Summary:
+   ### Summary of Personal Log
+
+**Week 3 (15th - 21st September 2025)**
+- **Goals**: Understand project theme, contribute to requirements document, refine requirements with classmates.
+- **Tasks**: Created and drafted functional requirements, completed the task "Project Requirements".
+
+**Week 4 (22nd - 28th September 2025)**
+- **Goals**: Collaborate on system architecture diagram and project proposal.
+- **Tasks**: Worked on and completed the System Architecture Diagram and Project Proposal.
+
+**Week 5 (29th September - 5th October 2025)**
+- **Goals**: Collaborate on Level 0 and Level 1 Data Flow Diagrams (DFDs), discuss DFD differences with other groups.
+- **Tasks**: Completed the Data Flow Diagram.
+
+10. personal-log-Abdur.md
+   Type: md
+   Word Count: 280
+
+   Summary:
+   ### Summary of Individual Log – Abdur Rehman
+
+**Week 3:**
+- Focused on foundational project requirements.
+- Assisted with:
+  - Outlining artifact collection features (directory scanning, file filtering, metadata).
+  - Drafting artifact analysis requirements (classification, basic statistics).
+  - Reviewing dashboard and visualization requirements for summary metrics.
+
+**Week 4:**
+- Connected project requirements to architecture layout.
+- Polished the proposal's requirements section.
+- Refined and wrote the project proposal, finalizing the requirements and write-up.
+
+**Week 5:**
+- Developed Level 0 and Level 1 Data Flow Diagrams (DFDs).
+- Completed both the Level 0 and Level 1 DFDs. 
+
+No specific features owned or tasks from the project board were mentioned in weeks 3 and 4.
