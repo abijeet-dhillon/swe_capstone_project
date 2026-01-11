@@ -289,9 +289,6 @@ class ProjectInsightsStore:
         """Ensure normalized tables exist for report-ready storage."""
         self._apply_normalized_schema(conn)
         conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{FILE_CONTENTS_TABLE}_hash ON {FILE_CONTENTS_TABLE}(content_hash);"
-        )
-        conn.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {RUN_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,6 +353,9 @@ class ProjectInsightsStore:
                 UNIQUE(content_hash)
             );
             """
+        )
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{FILE_CONTENTS_TABLE}_hash ON {FILE_CONTENTS_TABLE}(content_hash);"
         )
         conn.execute(
             f"""

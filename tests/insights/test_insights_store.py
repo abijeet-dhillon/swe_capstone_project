@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.insights.storage import (
+    FILE_CONTENTS_TABLE,
     PROJECT_RUNS_TABLE,
     SOURCE_TABLE,
     PayloadValidationError,
@@ -43,7 +44,26 @@ def test_record_pipeline_run_persists_rows(temp_store):
         cursor = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_RUNS_TABLE};")
         assert cursor.fetchone()[0] == 2
         root_name = conn.execute(f"SELECT source_name FROM {SOURCE_TABLE};").fetchone()[0]
-        assert root_name == "demo-root"
+    assert root_name == "demo-root"
+
+
+def test_schema_migrations_create_file_contents_index(tmp_path, encryption_key):
+    db_path = tmp_path / "fresh.db"
+    store = ProjectInsightsStore(db_path=str(db_path), encryption_key=encryption_key)
+
+    with sqlite3.connect(store.db_path) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?;",
+            (FILE_CONTENTS_TABLE,),
+        ).fetchone()
+        assert table is not None
+
+        index_name = f"idx_{FILE_CONTENTS_TABLE}_hash"
+        index = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name = ?;",
+            (index_name,),
+        ).fetchone()
+        assert index is not None
 
 
 def test_incremental_updates_detect_changes(temp_store):
