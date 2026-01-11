@@ -943,10 +943,10 @@ class ProjectInsightsStore:
                 WHERE r.id = (
                     SELECT id FROM {RUN_TABLE} r2
                     WHERE r2.source_id = s.id
-                    ORDER BY datetime(r2.started_at) DESC
+                    ORDER BY r2.id DESC
                     LIMIT 1
                 )
-                ORDER BY datetime(r.started_at) DESC
+                ORDER BY r.id DESC
                 LIMIT ?;
                 """,
                 (limit,),
@@ -1274,7 +1274,7 @@ class ProjectInsightsStore:
             f"""
             SELECT id FROM {RUN_TABLE}
             WHERE source_id = ?
-            ORDER BY datetime(started_at) DESC
+            ORDER BY id DESC
             LIMIT 1;
             """,
             (source_id,),

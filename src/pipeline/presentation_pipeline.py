@@ -190,7 +190,7 @@ class PresentationPipeline:
                 WHERE r.id = (
                     SELECT id FROM ingest_runs r2
                     WHERE r2.source_id = s.id
-                    ORDER BY datetime(r2.started_at) DESC
+                    ORDER BY r2.id DESC
                     LIMIT 1
                 )
                 ORDER BY pr.updated_at DESC;
@@ -223,7 +223,7 @@ class PresentationPipeline:
                   AND r.id = (
                     SELECT id FROM ingest_runs r2
                     WHERE r2.source_id = s.id
-                    ORDER BY datetime(r2.started_at) DESC
+                    ORDER BY r2.id DESC
                     LIMIT 1
                 );
                 """,
@@ -260,7 +260,7 @@ class PresentationPipeline:
                   AND r.id = (
                     SELECT id FROM ingest_runs r2
                     WHERE r2.source_id = s.id
-                    ORDER BY datetime(r2.started_at) DESC
+                    ORDER BY r2.id DESC
                     LIMIT 1
                 )
                 ORDER BY p.project_name ASC;
@@ -279,7 +279,7 @@ class PresentationPipeline:
             WHERE r.id = (
                 SELECT id FROM ingest_runs r2
                 WHERE r2.source_id = s.id
-                ORDER BY datetime(r2.started_at) DESC
+                ORDER BY r2.id DESC
                 LIMIT 1
             )
             ORDER BY pr.updated_at DESC
