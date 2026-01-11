@@ -55,81 +55,148 @@ This document should be kept up to date whenever the `user_configurations` table
 
 ---
 
-# Insights Storage Schema
+# Insights Storage Schema (Normalized)
 
 ## Overview
-The `ProjectInsightsStore` in `src/insights/storage.py` persists encrypted pipeline output so previously analyzed ZIP files can be revisited without rerunning the entire pipeline. It uses the fixed SQLite path `sqlite:///data/app.db` (resolved to `data/app.db`) and maintains two primary tables: `zipfile` (one row per analyzed archive) and `project` (one row per project or `_misc_files`). Serialized payloads are compressed and encrypted before writing to disk, so only derived metadata (counts, hashes, timestamps) is readable directly from SQLite. Tests and tooling can override the path by passing `db_path` to the store constructor.
+The insights store is moving from encrypted blob payloads to normalized tables so projects, files, and presentation customizations can be edited independently. The database path remains `sqlite:///data/app.db` (resolved to `data/app.db`). The normalized schema focuses on:
 
-**Encryption note:** For local convenience a fixed key (`local-insights-key`) is used when `INSIGHTS_ENCRYPTION_KEY` is not provided; set the env var to override with a stronger secret in production.
+- Incremental ingest: re-adding a ZIP for the same portfolio/resume updates existing projects instead of duplicating them.
+- File dedupe: identical files (by content hash) are stored once and reused.
+- Presentation controls: per-project selection, ordering, and wording overrides for portfolio and resume items.
 
 ## Schema Migrations
-`ProjectInsightsStore` bootstraps a `schema_migrations` table and records version `1` the first time it applies the insights schema. Future migrations should append new rows here so the store can upgrade in place.
+`ProjectInsightsStore` should continue to use the `schema_migrations` table and apply the normalized schema as the next migration version.
 
-## `zipfile` Table
-
-```sql
-CREATE TABLE IF NOT EXISTS zipfile (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    zip_hash TEXT UNIQUE NOT NULL,
-    zip_path TEXT NOT NULL,
-    metadata_hash TEXT NOT NULL,
-    metadata_encrypted BLOB NOT NULL,
-    total_projects INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    last_pipeline_version TEXT,
-    backup_marker TEXT
-);
-```
-
-**Column Highlights**
-- `zip_hash`: deterministic SHA-256 derived from the filename and ZIP metadata; used as the external identifier.
-- `metadata_encrypted`: compressed+encrypted JSON containing `zip_metadata` (file counts, byte totals, etc.).
-- `metadata_hash`: SHA-256 of the plaintext metadata, allows for fast change detection without decrypting.
-- `total_projects`: denormalized count of associated projects, updated after each pipeline run.
-- `backup_marker`: optional timestamp set when `backup()` runs so operators can confirm the DB was copied.
-
-An index isn’t required beyond the implicit uniqueness on `zip_hash` because lookups always filter by that column.
-
-## `project` Table
+## `projects` Table
 
 ```sql
-CREATE TABLE IF NOT EXISTS project (
+CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    zip_id INTEGER NOT NULL,
-    project_name TEXT NOT NULL,
+    collection_id TEXT NOT NULL,
+    project_key TEXT NOT NULL,
+    name TEXT NOT NULL,
     slug TEXT NOT NULL,
     project_path TEXT,
-    is_git_repo INTEGER NOT NULL DEFAULT 0,
-    insight_hash TEXT NOT NULL,
-    insights_encrypted BLOB NOT NULL,
-    code_files INTEGER NOT NULL DEFAULT 0,
-    doc_files INTEGER NOT NULL DEFAULT 0,
-    image_files INTEGER NOT NULL DEFAULT 0,
-    video_files INTEGER NOT NULL DEFAULT 0,
+    role_title TEXT,
+    role_summary TEXT,
+    start_date_raw TEXT,
+    end_date_raw TEXT,
+    start_date_override TEXT,
+    end_date_override TEXT,
+    chronology_note TEXT,
+    skills_detected_json TEXT,
+    success_metrics_json TEXT,
+    success_feedback TEXT,
+    success_evidence TEXT,
+    last_source_archive_hash TEXT,
+    last_source_archive_path TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY(zip_id) REFERENCES zipfile(id) ON DELETE CASCADE,
-    UNIQUE(zip_id, project_name)
+    UNIQUE(collection_id, project_key)
 );
-CREATE INDEX IF NOT EXISTS idx_project_zip ON project(zip_id);
+CREATE INDEX IF NOT EXISTS idx_projects_collection ON projects(collection_id);
 ```
 
 **Column Highlights**
-- `zip_id`: foreign key linking back to the parent `zipfile` row.
-- `project_name`: top-level directory (or `_misc_files` for loose files) as reported by the pipeline.
-- `slug`: sanitized version of the name for potential UI routing.
-- `insight_hash`: SHA-256 of the plaintext payload (including `zip_id`/`project_name`) used to detect incremental changes.
-- `insights_encrypted`: compressed+encrypted JSON containing the full project analysis, categorized file lists, generated presentation artifacts (`project_metrics`, `portfolio_item`, `resume_item` including resume bullets), and any additional insights produced by the pipeline.
-- `code_files`, `doc_files`, `image_files`, `video_files`: cached counts to support quick dashboards without decrypting payloads.
+- `collection_id`: stable identifier for a portfolio/resume dataset (typically the user ID). Incremental ZIPs for the same user reuse this value.
+- `project_key`: deterministic identifier (slug/path) used to merge the same project across incremental ingests.
+- `start_date_override` / `end_date_override`: user-edited chronology corrections; falls back to raw dates when unset.
+- `skills_detected_json`: baseline skills extracted from the project (JSON-encoded list).
+- `success_metrics_json`, `success_feedback`, `success_evidence`: evidence of success and validation signals.
+- `last_source_archive_hash` / `last_source_archive_path`: last ZIP seen for this project to support incremental history.
 
-The `(zip_id, project_name)` unique constraint ensures incremental runs update the existing rows instead of duplicating them.
+The `UNIQUE(collection_id, project_key)` constraint ensures incremental uploads update the existing project row.
 
-## Access Patterns
-1. **record_pipeline_run** – Upserts `zipfile` metadata, then inserts/updates/deletes `project` rows to reflect the latest pipeline output.
-2. **load_project_insight** – Decrypts the stored blob when a consumer needs the full JSON payload for a given `zip_hash` + `project_name`.
-3. **list_recent_zipfiles** – Returns lightweight metadata for dashboards or selection prompts without decrypting anything.
-4. **get_zip_metadata / list_projects_for_zip** – Helper queries introduced for the retrieval CLI to enumerate available data.
-5. **backup / restore / purge_expired_records** – Operational utilities to copy the DB, reload from a backup, or enforce retention policies.
+## `files` Table
+
+```sql
+CREATE TABLE IF NOT EXISTS files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    content_hash TEXT UNIQUE NOT NULL,
+    file_name TEXT NOT NULL,
+    relative_path TEXT,
+    extension TEXT,
+    mime_type TEXT,
+    size_bytes INTEGER,
+    source_archive_hash TEXT,
+    source_archive_path TEXT,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
+```
+
+**Column Highlights**
+- `content_hash`: SHA-256 of file contents; `UNIQUE(content_hash)` provides global de-dupe.
+- `first_seen_at` / `last_seen_at`: track incremental ingestion without duplicating rows.
+- `source_archive_hash` / `source_archive_path`: help trace which ZIP last introduced or updated the file.
+
+## `portfolio_insights` Table
+
+```sql
+CREATE TABLE IF NOT EXISTS portfolio_insights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    presentation_type TEXT NOT NULL,
+    is_selected INTEGER NOT NULL DEFAULT 1,
+    display_order INTEGER,
+    title_override TEXT,
+    summary_override TEXT,
+    role_override TEXT,
+    date_range_override TEXT,
+    skills_highlighted_json TEXT,
+    comparison_attributes_json TEXT,
+    evidence_override TEXT,
+    resume_bullets_json TEXT,
+    display_text TEXT,
+    thumbnail_file_id INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(project_id, presentation_type),
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY(thumbnail_file_id) REFERENCES files(id) ON DELETE SET NULL,
+    CHECK (presentation_type IN ('portfolio', 'resume'))
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_insights_project ON portfolio_insights(project_id);
+```
+
+**Column Highlights**
+- `presentation_type`: `portfolio` or `resume` (enforced via CHECK).
+- `is_selected` / `display_order`: presentation controls for selection and ordering (ranking).
+- `title_override`, `summary_override`, `role_override`, `date_range_override`: user-defined wording for the presentation.
+- `skills_highlighted_json`: curated skills to emphasize (JSON-encoded list).
+- `comparison_attributes_json`: per-project comparison attributes (JSON-encoded object).
+- `resume_bullets_json`: JSON array of resume bullets.
+- `display_text`: final rendered text for the chosen presentation.
+- `thumbnail_file_id`: project thumbnail; references a row in `files`.
+
+## Foreign Keys and Constraints
+- `files.project_id` -> `projects.id` (ON DELETE CASCADE)
+- `portfolio_insights.project_id` -> `projects.id` (ON DELETE CASCADE)
+- `portfolio_insights.thumbnail_file_id` -> `files.id` (ON DELETE SET NULL)
+- `UNIQUE(collection_id, project_key)` in `projects`
+- `UNIQUE(content_hash)` in `files`
+- `UNIQUE(project_id, presentation_type)` in `portfolio_insights`
+
+## Field Mapping for Presentation Requirements
+
+| Requirement | Fields | Notes |
+| --- | --- | --- |
+| Incremental ingest for same portfolio/resume | `projects.collection_id`, `projects.project_key`, `files.first_seen_at`, `files.last_seen_at` | Reuse `collection_id` for the same user; `project_key` merges updates. |
+| File de-dupe | `files.content_hash` | Ingestion updates `last_seen_at` when a duplicate hash appears. |
+| Project re-ranking / ordering | `portfolio_insights.display_order` | Lower numbers appear earlier; can be per presentation type. |
+| Project selection for showcase | `portfolio_insights.is_selected` | Toggle inclusion per presentation. |
+| Chronology corrections | `projects.start_date_override`, `projects.end_date_override`, `portfolio_insights.date_range_override` | Project-level corrections with optional per-presentation overrides. |
+| Skills to highlight | `portfolio_insights.skills_highlighted_json` | JSON list of skills to emphasize. |
+| Project comparison attributes | `portfolio_insights.comparison_attributes_json` | JSON object with attributes used in comparisons. |
+| User role in project | `projects.role_title`, `projects.role_summary`, `portfolio_insights.role_override` | Base role + per-presentation override. |
+| Evidence of success | `projects.success_metrics_json`, `projects.success_feedback`, `projects.success_evidence`, `portfolio_insights.evidence_override` | Supports metrics, feedback, and custom evidence text. |
+| Thumbnail association | `portfolio_insights.thumbnail_file_id` | References `files.id`; stable across portfolio/resume with per-presentation flexibility. |
+| Portfolio text | `portfolio_insights.display_text`, `title_override`, `summary_override` | Stored under `presentation_type = 'portfolio'`. |
+| Resume text + bullets | `portfolio_insights.display_text`, `resume_bullets_json` | Stored under `presentation_type = 'resume'`. |
 
 Whenever the table structure changes, update this section alongside any migration code so the design docs remain authoritative.
