@@ -10,7 +10,7 @@ End-to-end checklist to demo the pipeline: install, run without LLM, run with LL
   docker compose build backend
   docker compose up -d backend
   ```
-- Default DB path is `data/app.db`; schema migrations create the normalized `projects`, `files`, and `portfolio_insights` tables.
+- Default DB path is `data/app.db`; encryption uses the fixed local key unless you override `INSIGHTS_ENCRYPTION_KEY`.
 - Data access consent is prompted once per user/ZIP and stored (like LLM consent). If the user declines, the pipeline exits immediately with no output on subsequent runs too.
 
 ## 1) Consent + baseline run (no LLM)
@@ -48,23 +48,19 @@ docker compose run --rm backend python -m src.config.config_manager --user-id ro
 docker compose run --rm backend python -m src.pipeline.orchestrator --user-id root tests/categorize/demo_projects_2.zip
 ```
 
-- This uses stored consent (requirements #1, #4, #5) and updates the `root` collection with refreshed portfolio/resume items.
+- This uses stored consent (requirements #1, #4, #5) and persists a second set of insights (different `zip_hash` unless contents unchanged) including portfolio/resume items.
 
-## 3) List stored collections and projects
+## 3) List stored runs (zip hashes and project names)
 
 ```bash
 docker compose run --rm -T backend python - <<'PY'
-import sqlite3
+from pathlib import Path
+from src.insights.storage import ProjectInsightsStore
 
-db = "data/app.db"
-with sqlite3.connect(db) as conn:
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT collection_id, COUNT(*) AS project_count, MAX(updated_at) AS updated_at "
-        "FROM projects GROUP BY collection_id ORDER BY updated_at DESC LIMIT 20;"
-    ).fetchall()
-    for row in rows:
-        print(f"{row['collection_id']}  projects={row['project_count']}  updated={row['updated_at']}")
+store = ProjectInsightsStore(db_path="data/app.db")
+for row in store.list_recent_zipfiles(limit=20):
+    name = Path(row["zip_path"]).name
+    print(f"{row['zip_hash']}  {name}  projects={row['total_projects']}")
 PY
 ```
 
@@ -76,31 +72,13 @@ PY
 
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[-1]["collection_id"]
-      project = conn.execute(
-          "SELECT id, name FROM projects "
-          "WHERE collection_id = ? AND name != '_misc_files' "
-          "ORDER BY name LIMIT 1;",
-          (collection_id,),
-      ).fetchone()
-      insights = conn.execute(
-          "SELECT * FROM portfolio_insights "
-          "WHERE project_id = ? AND presentation_type = 'portfolio';",
-          (project["id"],),
-      ).fetchone()
-      print(json.dumps(dict(insights) if insights else {}, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload.get("portfolio_item"), indent=2, sort_keys=True))
   PY
   ```
 
@@ -110,32 +88,13 @@ PY
 
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[-1]["collection_id"]
-      project = conn.execute(
-          "SELECT id FROM projects "
-          "WHERE collection_id = ? AND name != '_misc_files' "
-          "ORDER BY name LIMIT 1;",
-          (collection_id,),
-      ).fetchone()
-      row = conn.execute(
-          "SELECT resume_bullets_json FROM portfolio_insights "
-          "WHERE project_id = ? AND presentation_type = 'resume';",
-          (project["id"],),
-      ).fetchone()
-      bullets = json.loads(row["resume_bullets_json"]) if row and row["resume_bullets_json"] else []
-      print(json.dumps(bullets, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload.get("resume_item", {}).get("bullets", []), indent=2, sort_keys=True))
   PY
   ```
 
@@ -144,102 +103,40 @@ PY
 - Advanced skills extraction + chronological timeline (global insights):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[-1]["collection_id"]
-      rows = conn.execute(
-          "SELECT name, start_date_raw, end_date_raw, start_date_override, "
-          "end_date_override, skills_detected_json "
-          "FROM projects WHERE collection_id = ? "
-          "ORDER BY COALESCE(start_date_override, start_date_raw) ASC;",
-          (collection_id,),
-      ).fetchall()
-      timeline = []
-      for row in rows:
-          skills = json.loads(row["skills_detected_json"]) if row["skills_detected_json"] else []
-          timeline.append(
-              {
-                  "project": row["name"],
-                  "skills": skills,
-                  "start": row["start_date_override"] or row["start_date_raw"],
-                  "end": row["end_date_override"] or row["end_date_raw"],
-              }
-          )
-      print(json.dumps(timeline, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  extras = payload.get("global_insights", {})
+  skill_analysis = payload.get("analysis_results", {}).get("code", {}).get("skill_analysis", {})
+  print(json.dumps({"advanced_skill_analysis": skill_analysis, "chronological_skills": extras.get("chronological_skills")}, indent=2, sort_keys=True))
   PY
   ```
 - Project ranking & summaries (global insights):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[-1]["collection_id"]
-      rows = conn.execute(
-          "SELECT p.name, pi.display_order, pi.title_override, pi.summary_override, pi.display_text "
-          "FROM projects p JOIN portfolio_insights pi ON pi.project_id = p.id "
-          "WHERE p.collection_id = ? AND pi.presentation_type = 'portfolio' "
-          "ORDER BY pi.display_order ASC, p.name ASC;",
-          (collection_id,),
-      ).fetchall()
-      print(json.dumps([dict(row) for row in rows], indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  ranking = payload.get("global_insights", {}).get("project_ranking")
+  print(json.dumps(ranking, indent=2, sort_keys=True))
   PY
   ```
 - Whole analysis payload (everything stored for that project):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[-1]["collection_id"]
-      project = conn.execute(
-          "SELECT id, name FROM projects "
-          "WHERE collection_id = ? AND name != '_misc_files' "
-          "ORDER BY name LIMIT 1;",
-          (collection_id,),
-      ).fetchone()
-      files = conn.execute(
-          "SELECT * FROM files WHERE project_id = ? ORDER BY file_name;",
-          (project["id"],),
-      ).fetchall()
-      insights = conn.execute(
-          "SELECT * FROM portfolio_insights WHERE project_id = ? ORDER BY presentation_type;",
-          (project["id"],),
-      ).fetchall()
-      payload = {
-          "project": dict(project),
-          "files": [dict(row) for row in files],
-          "portfolio_insights": [dict(row) for row in insights],
-      }
-      print(json.dumps(payload, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=2)[-1]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload, indent=2, sort_keys=True))
   PY
   ```
 
@@ -250,174 +147,75 @@ PY
 - Portfolio only:
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[0]["collection_id"]
-      project = conn.execute(
-          "SELECT id, name FROM projects "
-          "WHERE collection_id = ? AND name != '_misc_files' "
-          "ORDER BY name LIMIT 1;",
-          (collection_id,),
-      ).fetchone()
-      insights = conn.execute(
-          "SELECT * FROM portfolio_insights "
-          "WHERE project_id = ? AND presentation_type = 'portfolio';",
-          (project["id"],),
-      ).fetchone()
-      print(json.dumps(dict(insights) if insights else {}, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload.get("portfolio_item"), indent=2, sort_keys=True))
   PY
   ```
 - Resume bullets only:
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[0]["collection_id"]
-      project = conn.execute(
-          "SELECT id FROM projects "
-          "WHERE collection_id = ? AND name != '_misc_files' "
-          "ORDER BY name LIMIT 1;",
-          (collection_id,),
-      ).fetchone()
-      row = conn.execute(
-          "SELECT resume_bullets_json FROM portfolio_insights "
-          "WHERE project_id = ? AND presentation_type = 'resume';",
-          (project["id"],),
-      ).fetchone()
-      bullets = json.loads(row["resume_bullets_json"]) if row and row["resume_bullets_json"] else []
-      print(json.dumps(bullets, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload.get("resume_item", {}).get("bullets", []), indent=2, sort_keys=True))
   PY
   ```
 - Advanced skills extraction + chronological timeline (global insights):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[0]["collection_id"]
-      rows = conn.execute(
-          "SELECT name, start_date_raw, end_date_raw, start_date_override, "
-          "end_date_override, skills_detected_json "
-          "FROM projects WHERE collection_id = ? "
-          "ORDER BY COALESCE(start_date_override, start_date_raw) ASC;",
-          (collection_id,),
-      ).fetchall()
-      timeline = []
-      for row in rows:
-          skills = json.loads(row["skills_detected_json"]) if row["skills_detected_json"] else []
-          timeline.append(
-              {
-                  "project": row["name"],
-                  "skills": skills,
-                  "start": row["start_date_override"] or row["start_date_raw"],
-                  "end": row["end_date_override"] or row["end_date_raw"],
-              }
-          )
-      print(json.dumps(timeline, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  extras = payload.get("global_insights", {})
+  skill_analysis = payload.get("analysis_results", {}).get("code", {}).get("skill_analysis", {})
+  print(json.dumps({"advanced_skill_analysis": skill_analysis, "chronological_skills": extras.get("chronological_skills")}, indent=2, sort_keys=True))
   PY
   ```
 - Project ranking & summaries (global insights):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[0]["collection_id"]
-      rows = conn.execute(
-          "SELECT p.name, pi.display_order, pi.title_override, pi.summary_override, pi.display_text "
-          "FROM projects p JOIN portfolio_insights pi ON pi.project_id = p.id "
-          "WHERE p.collection_id = ? AND pi.presentation_type = 'portfolio' "
-          "ORDER BY pi.display_order ASC, p.name ASC;",
-          (collection_id,),
-      ).fetchall()
-      print(json.dumps([dict(row) for row in rows], indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  ranking = payload.get("global_insights", {}).get("project_ranking")
+  print(json.dumps(ranking, indent=2, sort_keys=True))
   PY
   ```
 - Whole analysis payload (everything stored for that project):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
+  from src.insights.storage import ProjectInsightsStore
   import json
-  import sqlite3
-
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.row_factory = sqlite3.Row
-      collections = conn.execute(
-          "SELECT collection_id, MAX(updated_at) AS updated_at "
-          "FROM projects GROUP BY collection_id ORDER BY updated_at DESC;"
-      ).fetchall()
-      if not collections:
-          raise SystemExit("No projects found.")
-      collection_id = collections[0]["collection_id"]
-      project = conn.execute(
-          "SELECT id, name FROM projects "
-          "WHERE collection_id = ? AND name != '_misc_files' "
-          "ORDER BY name LIMIT 1;",
-          (collection_id,),
-      ).fetchone()
-      files = conn.execute(
-          "SELECT * FROM files WHERE project_id = ? ORDER BY file_name;",
-          (project["id"],),
-      ).fetchall()
-      insights = conn.execute(
-          "SELECT * FROM portfolio_insights WHERE project_id = ? ORDER BY presentation_type;",
-          (project["id"],),
-      ).fetchall()
-      payload = {
-          "project": dict(project),
-          "files": [dict(row) for row in files],
-          "portfolio_insights": [dict(row) for row in insights],
-      }
-      print(json.dumps(payload, indent=2, sort_keys=True))
+  s = ProjectInsightsStore(db_path="data/app.db")
+  zh = s.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+  proj = [p for p in s.list_projects_for_zip(zh) if p != "_misc_files"][0]
+  payload = s.load_project_insight(zh, proj)
+  print(json.dumps(payload, indent=2, sort_keys=True))
   PY
   ```
 
-## 6) Retrieve via example CLI (full report, normalized read)
+## 6) Retrieve via example CLI (full report, encrypted read)
 
 ```bash
 docker compose run --rm backend python -m src.insights.example_retrieval --db-path data/app.db
 ```
 
 - Shows per-project outputs (#12), ranking (#16), top summaries (#17), timelines (#19, #20).
-- Portfolio/resume items are read from `portfolio_insights` rows in the normalized schema.
+- Portfolio/resume items are embedded in the decrypted payload.
 - For a more readable, report-like view in the terminal, pipe through `less`:
   ```bash
   docker compose run --rm backend python -m src.insights.example_retrieval --db-path data/app.db | less -R
@@ -426,32 +224,24 @@ docker compose run --rm backend python -m src.insights.example_retrieval --db-pa
 
 ## 7) Delete insights safely
 
-Choose either per-collection or all. Deleting a collection removes its projects, files, and portfolio insights; other collections remain.
+Choose either per-zip or all. Deleting a zip only removes that run; other runs remain (requirement #18 about not affecting shared files across reports).
 
-- **Delete one collection by collection_id** (replace `<PUT_COLLECTION_ID_HERE>` with a value from section 3's command):
+- **Delete one run by zip_hash** (replace `<PUT_HASH_HERE>` with a hash from section 3's command used to list stored runs):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
-  import sqlite3
-  db = "data/app.db"
-  target = "<PUT_COLLECTION_ID_HERE>"
-  with sqlite3.connect(db) as conn:
-      conn.execute("PRAGMA foreign_keys=ON;")
-      result = conn.execute("DELETE FROM projects WHERE collection_id = ?;", (target,))
-      conn.commit()
-      print("Deleted projects:", result.rowcount)
+  from src.insights.storage import ProjectInsightsStore
+  store = ProjectInsightsStore(db_path="data/app.db")
+  target = "<PUT_HASH_HERE>"
+  print(store.delete_zip(target))
   PY
   ```
 - **Delete all insights**:
 
   ```bash
   docker compose run --rm -T backend python - <<'PY'
-  import sqlite3
-  db = "data/app.db"
-  with sqlite3.connect(db) as conn:
-      conn.execute("PRAGMA foreign_keys=ON;")
-      result = conn.execute("DELETE FROM projects;")
-      conn.commit()
-      print("Deleted projects:", result.rowcount)
+  from src.insights.storage import ProjectInsightsStore
+  store = ProjectInsightsStore(db_path="data/app.db")
+  print(store.delete_all())
   PY
   ```
 
