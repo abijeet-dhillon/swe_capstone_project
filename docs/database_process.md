@@ -19,29 +19,49 @@ Yes, the data should persist because:
 
 You would only lose persisted data if you delete the `sqlite_data` volume or remove `data/app.db` on the host.
 
+## Viewing tables after a run
+
+Docker (same database file mounted into the container):
+
+```
+docker compose run --rm backend sqlite3 data/app.db
+```
+
+Inside the SQLite shell:
+
+```
+.tables
+.schema
+```
+
 ## Step-by-step: what gets saved and where
 
-1) **Consent is resolved (user configuration)**
+1. **Consent is resolved (user configuration)**
+
    - `resolve_data_access_consent()` and `resolve_llm_consent()` use `UserConfigManager`.
    - A row is created or updated in `user_configurations` (SQLite table in the same `data/app.db`).
 
-2) **ZIP metadata is parsed**
+2. **ZIP metadata is parsed**
+
    - `parse_zip()` calculates file counts and sizes.
    - The metadata becomes `zip_metadata` in the pipeline payload.
 
-3) **Projects are identified and analyzed**
+3. **Projects are identified and analyzed**
+
    - Top-level directories under `demo_projects/` become individual projects.
    - Files are categorized (code/docs/images/etc.) and analyzed.
 
-4) **Insights DB is initialized**
+4. **Insights DB is initialized**
+
    - `ProjectInsightsStore()` creates the schema if missing (migrations v1-v4).
    - This creates all normalized tables, plus legacy tables for compatibility.
 
-5) **Normalized insight rows are written**
+5. **Normalized insight rows are written**
+
    - `record_pipeline_run()` writes to the normalized tables.
    - This includes ingest sources/runs, projects, project runs, files, file revisions, metrics, tags, portfolio/resume data, ranking, and chronology.
 
-6) **Report JSON is written**
+6. **Report JSON is written**
    - A report file is saved to `reports/report_YYYYMMDD_HHMMSS.json`.
 
 ## Tables created and populated on this run (dummy examples)
@@ -49,6 +69,7 @@ You would only lose persisted data if you delete the `sqlite_data` volume or rem
 Below are representative rows showing how values map into each table. Field names match the schema; values are illustrative.
 
 ### user_configurations
+
 Used for consent tracking and last zip path.
 
 ```
@@ -62,6 +83,7 @@ updated_at: "2026-01-07T17:46:12+00:00"
 ```
 
 ### schema_migrations
+
 Applied on first run to build the schema.
 
 ```
@@ -70,6 +92,7 @@ applied_at: "2026-01-07T17:46:10+00:00"
 ```
 
 ### ingest_sources
+
 One row per unique ZIP (hash = filename + zip metadata).
 
 ```
@@ -86,6 +109,7 @@ updated_at: "2026-01-07T17:46:12+00:00"
 ```
 
 ### ingest_runs
+
 One row per pipeline execution.
 
 ```
@@ -100,6 +124,7 @@ finished_at: "2026-01-07T17:46:20+00:00"
 ```
 
 ### projects
+
 One row per project folder found under the ZIP root.
 
 ```
@@ -125,6 +150,7 @@ updated_at: "2026-01-07T17:46:13+00:00"
 ```
 
 ### project_runs
+
 One row per project per pipeline run.
 
 ```
@@ -138,6 +164,7 @@ updated_at: "2026-01-07T17:46:14+00:00"
 ```
 
 ### files
+
 Unique files per project (path is relative to project root).
 
 ```
@@ -150,6 +177,7 @@ created_at: "2026-01-07T17:46:14+00:00"
 ```
 
 ### file_contents
+
 De-duplicated by file content hash (if file_info includes sha256).
 
 ```
@@ -161,6 +189,7 @@ created_at: "2026-01-07T17:46:14+00:00"
 ```
 
 ### file_revisions
+
 Per run record of file metadata and categorization.
 
 ```
@@ -177,6 +206,7 @@ category: "code"
 ```
 
 ### file_metric_values
+
 Analyzer outputs stored as key/value metrics (JSON or numeric).
 
 ```
@@ -200,6 +230,7 @@ metric_unit: null
 ```
 
 ### tags
+
 Shared tag catalog across projects/files.
 
 ```
@@ -217,6 +248,7 @@ category: null
 ```
 
 ### project_tags
+
 Project-level tags (languages/frameworks/skills/keywords).
 
 ```
@@ -229,6 +261,7 @@ is_highlighted: 0
 ```
 
 ### file_tags
+
 File-level tags derived from per-file analysis.
 
 ```
@@ -238,6 +271,7 @@ score: null
 ```
 
 ### skill_evidence
+
 Evidence for skills extracted from code analysis.
 
 ```
@@ -252,6 +286,7 @@ confidence: null
 ```
 
 ### project_metrics
+
 Aggregate metrics per project run.
 
 ```
@@ -278,6 +313,7 @@ has_videos: 0
 ```
 
 ### project_contributors
+
 Only populated when git analysis finds contributors.
 
 ```
@@ -289,6 +325,7 @@ commits: 12
 ```
 
 ### portfolio_insights / portfolio_key_features / resume_bullets
+
 Generated portfolio/resume outputs (from `generate_portfolio_item()` and `generate_resume_item()`).
 
 ```
@@ -322,6 +359,7 @@ resume_bullets:
 ```
 
 ### ranking_runs / ranking_results / ranking_summaries
+
 Project ranking is stored if `project_ranking` is present in the payload.
 
 ```
@@ -352,6 +390,7 @@ ranking_summaries:
 ```
 
 ### chronology_events / chronology_event_skills / chronology_event_metadata
+
 Chronological skill timeline (if generated) is stored here.
 
 ```
