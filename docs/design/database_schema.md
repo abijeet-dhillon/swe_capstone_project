@@ -55,10 +55,10 @@ This document should be kept up to date whenever the `user_configurations` table
 
 ---
 
-# Normalized Insights Storage Schema (Proposed)
+# Normalized Insights Storage Schema (Implemented)
 
 ## Overview
-This replaces the encrypted `zipfile` + `project` blob storage with normalized tables for ingest sources/runs, projects, files, and portfolio insights. The goal is to make all analysis output queryable and to support future upgrades (incremental ingest, file dedupe, portfolio/resume customization, presentation controls) without reworking storage again. This is a design-only schema; implementation should follow later migration work.
+This replaces the encrypted `zipfile` + `project` blob storage with normalized tables for ingest sources/runs, projects, files, and portfolio insights. The goal is to make all analysis output queryable and to support future upgrades (incremental ingest, file dedupe, portfolio/resume customization, presentation controls) without reworking storage again. This schema is implemented in `src/insights/storage.py` migrations (schema version 4) and used by pipeline persistence + retrieval.
 
 ## Schema Migrations
 ```sql
@@ -453,6 +453,7 @@ CREATE TABLE IF NOT EXISTS presentation_controls (
 | ZIP metadata | `zip_metadata.*` | `ingest_sources.file_count`, `ingest_sources.total_uncompressed_bytes`, `ingest_sources.total_compressed_bytes` | `ingest_runs.source_id -> ingest_sources.id` |
 | Project identity | `project_name`, `project_path`, `is_git_repo` | `projects.project_name`, `projects.project_key`, `project_runs.project_path`, `project_runs.is_git_repo` | `project_runs.project_id -> projects.id` |
 | File inventory | `categorized_contents.*` | `files.relative_path`, `file_revisions.category`, `file_revisions.language` | `file_revisions.project_run_id -> project_runs.id` |
+| File content hashes | `file_info[].sha256`, `file_info[].size` | `file_contents.content_hash`, `file_contents.size_bytes`, `file_revisions.content_id` | `file_revisions.content_id -> file_contents.id` |
 | Code metrics | `analysis_results.code.metrics.*` | `project_metrics.total_files`, `project_metrics.total_lines`, `project_metrics.test_files` | `project_metrics.project_run_id -> project_runs.id` |
 | Git metrics & duration | `git_analysis.*` | `project_metrics.total_commits`, `project_metrics.total_contributors`, `project_metrics.duration_*`, `project_metrics.activity_*` | `project_contributors.project_run_id -> project_runs.id` |
 | Contributors | `git_analysis.contributors[]` | `project_contributors.name`, `project_contributors.email`, `project_contributors.commits` | FK to `project_runs` |

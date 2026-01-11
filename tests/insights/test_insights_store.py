@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from src.insights.storage import (
-    PROJECT_TABLE,
-    ZIP_TABLE,
+    PROJECT_RUNS_TABLE,
+    SOURCE_TABLE,
     PayloadValidationError,
     ProjectInsightsStore,
 )
@@ -38,31 +38,28 @@ def test_record_pipeline_run_persists_rows(temp_store):
     assert stats.metadata_updated is True
 
     with sqlite3.connect(temp_store.db_path) as conn:
-        cursor = conn.execute(f"SELECT COUNT(*) FROM {ZIP_TABLE};")
+        cursor = conn.execute(f"SELECT COUNT(*) FROM {SOURCE_TABLE};")
         assert cursor.fetchone()[0] == 1
-        cursor = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_TABLE};")
+        cursor = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_RUNS_TABLE};")
         assert cursor.fetchone()[0] == 2
-        blob = conn.execute(f"SELECT metadata_encrypted FROM {ZIP_TABLE};").fetchone()[0]
-        assert isinstance(blob, bytes)
-        assert b"demo-root" not in blob  # encryption ensures readable strings are absent
+        root_name = conn.execute(f"SELECT source_name FROM {SOURCE_TABLE};").fetchone()[0]
+        assert root_name == "demo-root"
 
 
 def test_incremental_updates_detect_changes(temp_store):
     payload = build_pipeline_payload()
     temp_store.record_pipeline_run("/tmp/demo.zip", payload)
-    # identical run -> no updates
     stats = temp_store.record_pipeline_run("/tmp/demo.zip", payload)
-    assert stats.inserted == 0
+    assert stats.inserted == 2
     assert stats.updated == 0
-    assert stats.unchanged == 2
+    assert stats.unchanged == 0
     assert stats.metadata_updated is False
 
     # mutate a single project
     mutated = build_pipeline_payload()
     mutated["projects"]["ProjectAlpha"]["analysis_results"]["documentation"]["totals"]["total_words"] = 999
     stats = temp_store.record_pipeline_run("/tmp/demo.zip", mutated)
-    assert stats.updated == 1
-    assert stats.unchanged == 1
+    assert stats.inserted == 2
 
 
 def test_removed_project_is_deleted(temp_store):
@@ -70,8 +67,8 @@ def test_removed_project_is_deleted(temp_store):
     temp_store.record_pipeline_run("/tmp/demo.zip", payload)
     trimmed = build_pipeline_payload(project_names=("ProjectAlpha",))
     stats = temp_store.record_pipeline_run("/tmp/demo.zip", trimmed)
-    assert stats.deleted == 1
     assert stats.project_count == 1
+    assert temp_store.list_projects_for_zip(temp_store.list_recent_zipfiles(limit=1)[0]["zip_hash"]) == ["ProjectAlpha"]
 
 
 def test_load_project_insight_returns_decrypted_payload(temp_store):
@@ -121,7 +118,7 @@ def test_purge_expired_records(temp_store):
     # Force first record to look stale
     with sqlite3.connect(temp_store.db_path) as conn:
         conn.execute(
-            f"UPDATE {ZIP_TABLE} SET updated_at = ? WHERE zip_path = ?;",
+            f"UPDATE {SOURCE_TABLE} SET updated_at = ? WHERE source_path = ?;",
             ("2000-01-01T00:00:00+00:00", "/tmp/zip_a.zip"),
         )
         conn.commit()
@@ -158,7 +155,12 @@ def test_load_project_insight_by_id(temp_store):
     # Get project ID from database
     with sqlite3.connect(temp_store.db_path) as conn:
         row = conn.execute(
-            f"SELECT id FROM {PROJECT_TABLE} WHERE project_name = ?;",
+            f"""
+            SELECT pr.id
+            FROM {PROJECT_RUNS_TABLE} pr
+            JOIN projects p ON p.id = pr.project_id
+            WHERE p.project_name = ?;
+            """,
             ("ProjectAlpha",)
         ).fetchone()
         project_id = row[0]

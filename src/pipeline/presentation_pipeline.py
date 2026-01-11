@@ -179,11 +179,21 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT p.id, p.project_name, p.slug, z.zip_hash, z.zip_path,
-                       p.code_files, p.doc_files, p.is_git_repo, p.created_at, p.updated_at
-                FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                ORDER BY p.updated_at DESC;
+                SELECT pr.id, p.project_name, p.slug, s.source_hash, s.source_path,
+                       (SELECT COUNT(*) FROM file_revisions fr WHERE fr.project_run_id = pr.id AND fr.category = 'code') AS code_files,
+                       (SELECT COUNT(*) FROM file_revisions fr WHERE fr.project_run_id = pr.id AND fr.category = 'documentation') AS doc_files,
+                       pr.is_git_repo, pr.created_at, pr.updated_at
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                JOIN ingest_runs r ON r.id = pr.run_id
+                JOIN ingest_sources s ON s.id = r.source_id
+                WHERE r.id = (
+                    SELECT id FROM ingest_runs r2
+                    WHERE r2.source_id = s.id
+                    ORDER BY datetime(r2.started_at) DESC
+                    LIMIT 1
+                )
+                ORDER BY pr.updated_at DESC;
                 """
             ).fetchall()
         
@@ -205,9 +215,17 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             row = conn.execute(
                 """
-                SELECT p.id FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                WHERE z.zip_hash = ? AND p.project_name = ?;
+                SELECT pr.id FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                JOIN ingest_runs r ON r.id = pr.run_id
+                JOIN ingest_sources s ON s.id = r.source_id
+                WHERE s.source_hash = ? AND p.project_name = ?
+                  AND r.id = (
+                    SELECT id FROM ingest_runs r2
+                    WHERE r2.source_id = s.id
+                    ORDER BY datetime(r2.started_at) DESC
+                    LIMIT 1
+                );
                 """,
                 (zip_hash, project_name)
             ).fetchone()
@@ -218,9 +236,12 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             row = conn.execute(
                 """
-                SELECT p.project_name, z.zip_hash FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                WHERE p.id = ?;
+                SELECT p.project_name, s.source_hash
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                JOIN ingest_runs r ON r.id = pr.run_id
+                JOIN ingest_sources s ON s.id = r.source_id
+                WHERE pr.id = ?;
                 """,
                 (project_id,)
             ).fetchone()
@@ -231,9 +252,17 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT p.id FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                WHERE z.zip_hash = ?
+                SELECT pr.id FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                JOIN ingest_runs r ON r.id = pr.run_id
+                JOIN ingest_sources s ON s.id = r.source_id
+                WHERE s.source_hash = ?
+                  AND r.id = (
+                    SELECT id FROM ingest_runs r2
+                    WHERE r2.source_id = s.id
+                    ORDER BY datetime(r2.started_at) DESC
+                    LIMIT 1
+                )
                 ORDER BY p.project_name ASC;
                 """,
                 (zip_hash,)
@@ -242,7 +271,19 @@ class PresentationPipeline:
     
     def _get_all_project_ids(self, limit: Optional[int] = None) -> List[int]:
         import sqlite3
-        query = "SELECT id FROM project ORDER BY updated_at DESC"
+        query = """
+            SELECT pr.id
+            FROM project_runs pr
+            JOIN ingest_runs r ON r.id = pr.run_id
+            JOIN ingest_sources s ON s.id = r.source_id
+            WHERE r.id = (
+                SELECT id FROM ingest_runs r2
+                WHERE r2.source_id = s.id
+                ORDER BY datetime(r2.started_at) DESC
+                LIMIT 1
+            )
+            ORDER BY pr.updated_at DESC
+        """
         if limit:
             query += f" LIMIT {limit}"
         query += ";"

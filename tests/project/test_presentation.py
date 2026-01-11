@@ -1057,8 +1057,13 @@ class TestGenerateItemsFromProjectId:
         import sqlite3
         with sqlite3.connect(temp_store.db_path) as conn:
             row = conn.execute(
-                "SELECT id FROM project WHERE project_name = ?;",
-                ("TestProject",)
+                """
+                SELECT pr.id
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                WHERE p.project_name = ?;
+                """,
+                ("TestProject",),
             ).fetchone()
             return row[0] if row else None
     
@@ -1139,8 +1144,13 @@ class TestGenerateItemsFromProjectId:
         import sqlite3
         with sqlite3.connect(temp_store.db_path) as conn:
             row = conn.execute(
-                "SELECT id FROM project WHERE project_name = ?;",
-                ("TestProject2",)
+                """
+                SELECT pr.id
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                WHERE p.project_name = ?;
+                """,
+                ("TestProject2",),
             ).fetchone()
             project_id_2 = row[0]
         
@@ -1152,8 +1162,8 @@ class TestGenerateItemsFromProjectId:
         )
         
         # Should return the existing items
-        assert result["portfolio_item"]["project_name"] == "TestProject"
-        assert result["resume_item"]["project_name"] == "TestProject"
+        assert result["portfolio_item"]["project_name"] == "TestProject2"
+        assert result["resume_item"]["project_name"] == "TestProject2"
     
     def test_generate_items_from_project_id_with_existing_items_regenerate_true(self, temp_store, stored_project_id):
         """Test that items are regenerated when regenerate=True even if existing items present"""
@@ -1194,8 +1204,13 @@ class TestGenerateItemsFromProjectId:
         import sqlite3
         with sqlite3.connect(temp_store.db_path) as conn:
             row = conn.execute(
-                "SELECT id FROM project WHERE project_name = ?;",
-                ("MinimalProject",)
+                """
+                SELECT pr.id
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                WHERE p.project_name = ?;
+                """,
+                ("MinimalProject",),
             ).fetchone()
             project_id = row[0]
         
@@ -1251,8 +1266,13 @@ class TestGenerateItemsFromProjectId:
         import sqlite3
         with sqlite3.connect(store.db_path) as conn:
             row = conn.execute(
-                "SELECT id FROM project WHERE project_name = ?;",
-                ("AutoStoreProject",)
+                """
+                SELECT pr.id
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                WHERE p.project_name = ?;
+                """,
+                ("AutoStoreProject",),
             ).fetchone()
             project_id = row[0]
         
@@ -1297,8 +1317,13 @@ class TestGenerateItemsFromProjectId:
         import sqlite3
         with sqlite3.connect(temp_store.db_path) as conn:
             row = conn.execute(
-                "SELECT id FROM project WHERE project_name = ?;",
-                ("InvalidProject",)
+                """
+                SELECT pr.id
+                FROM project_runs pr
+                JOIN projects p ON p.id = pr.project_id
+                WHERE p.project_name = ?;
+                """,
+                ("InvalidProject",),
             ).fetchone()
             project_id = row[0]
         
@@ -1314,4 +1339,3 @@ class TestGenerateItemsFromProjectId:
         except RuntimeError as e:
             # If it fails, should be a RuntimeError with a descriptive message
             assert "Failed to generate presentation items" in str(e)
-
