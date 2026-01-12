@@ -1059,7 +1059,7 @@ class TestGenerateItemsFromProjectId:
             row = conn.execute(
                 """
                 SELECT pr.id
-                FROM project_runs pr
+                FROM project_info pr
                 JOIN projects p ON p.id = pr.project_id
                 WHERE p.project_name = ?;
                 """,
@@ -1146,7 +1146,7 @@ class TestGenerateItemsFromProjectId:
             row = conn.execute(
                 """
                 SELECT pr.id
-                FROM project_runs pr
+                FROM project_info pr
                 JOIN projects p ON p.id = pr.project_id
                 WHERE p.project_name = ?;
                 """,
@@ -1206,7 +1206,7 @@ class TestGenerateItemsFromProjectId:
             row = conn.execute(
                 """
                 SELECT pr.id
-                FROM project_runs pr
+                FROM project_info pr
                 JOIN projects p ON p.id = pr.project_id
                 WHERE p.project_name = ?;
                 """,
@@ -1268,7 +1268,7 @@ class TestGenerateItemsFromProjectId:
             row = conn.execute(
                 """
                 SELECT pr.id
-                FROM project_runs pr
+                FROM project_info pr
                 JOIN projects p ON p.id = pr.project_id
                 WHERE p.project_name = ?;
                 """,
@@ -1319,7 +1319,7 @@ class TestGenerateItemsFromProjectId:
             row = conn.execute(
                 """
                 SELECT pr.id
-                FROM project_runs pr
+                FROM project_info pr
                 JOIN projects p ON p.id = pr.project_id
                 WHERE p.project_name = ?;
                 """,

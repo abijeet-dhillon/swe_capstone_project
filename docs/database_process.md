@@ -53,13 +53,13 @@ Inside the SQLite shell:
 
 4. **Insights DB is initialized**
 
-   - `ProjectInsightsStore()` creates the schema if missing (migrations v1-v4).
-   - This creates all normalized tables, plus legacy tables for compatibility.
+   - `ProjectInsightsStore()` creates the schema if missing (migrations v1-v5).
+   - This creates all grouped tables, plus legacy tables for compatibility.
 
 5. **Normalized insight rows are written**
 
-   - `record_pipeline_run()` writes to the normalized tables.
-   - This includes ingest sources/runs, projects, project runs, files, file revisions, metrics, tags, portfolio/resume data, ranking, and chronology.
+   - `record_pipeline_run()` writes to the grouped tables.
+   - This includes ingest runs, projects, project info, files, file info (analysis/metrics/tags), portfolio/resume data, ranking, and chronology.
 
 6. **Report JSON is written**
    - A report file is saved to `reports/report_YYYYMMDD_HHMMSS.json`.
@@ -87,13 +87,13 @@ updated_at: "2026-01-07T17:46:12+00:00"
 Applied on first run to build the schema.
 
 ```
-version: 4
+version: 5
 applied_at: "2026-01-07T17:46:10+00:00"
 ```
 
-### ingest_sources
+### ingest
 
-One row per unique ZIP (hash = filename + zip metadata).
+One row per pipeline execution, including the ZIP metadata (grouped by `source_hash`).
 
 ```
 id: 1
@@ -104,32 +104,23 @@ source_hash: "b3a0b6c3...a1f9"  # 64 hex chars
 file_count: 120
 total_uncompressed_bytes: 201234
 total_compressed_bytes: 45321
-created_at: "2026-01-07T17:46:12+00:00"
-updated_at: "2026-01-07T17:46:12+00:00"
-```
-
-### ingest_runs
-
-One row per pipeline execution.
-
-```
-id: 1
-source_id: 1
 run_type: "full"
 parent_run_id: null
 pipeline_version: "artifact-pipeline/v1"
 status: "completed"
 started_at: "2026-01-07T17:46:12+00:00"
 finished_at: "2026-01-07T17:46:20+00:00"
+created_at: "2026-01-07T17:46:12+00:00"
+updated_at: "2026-01-07T17:46:12+00:00"
 ```
 
 ### projects
 
-One row per project folder found under the ZIP root.
+One row per project folder found under the ZIP root (stable identity per `source_hash`).
 
 ```
 id: 1
-source_id: 1
+source_hash: "b3a0b6c3...a1f9"
 project_key: "project-mobile"
 project_name: "project-mobile"
 slug: "project-mobile"
@@ -138,159 +129,16 @@ created_at: "2026-01-07T17:46:13+00:00"
 updated_at: "2026-01-07T17:46:13+00:00"
 ```
 
-```
-id: 2
-source_id: 1
-project_key: "project-webapp"
-project_name: "project-webapp"
-slug: "project-webapp"
-root_path: "demo_projects/project-webapp"
-created_at: "2026-01-07T17:46:13+00:00"
-updated_at: "2026-01-07T17:46:13+00:00"
-```
+### project_info
 
-### project_runs
-
-One row per project per pipeline run.
+One row per project per pipeline run (metrics + contributors + tags JSON).
 
 ```
 id: 1
 project_id: 1
-run_id: 1
+ingest_id: 1
 project_path: "/tmp/unzipped_xxx/demo_projects/project-mobile"
 is_git_repo: 0
-created_at: "2026-01-07T17:46:14+00:00"
-updated_at: "2026-01-07T17:46:14+00:00"
-```
-
-### files
-
-Unique files per project (path is relative to project root).
-
-```
-id: 10
-project_id: 1
-relative_path: "ios/AppDelegate.swift"
-file_name: "AppDelegate.swift"
-extension: ".swift"
-created_at: "2026-01-07T17:46:14+00:00"
-```
-
-### file_contents
-
-De-duplicated by file content hash (if file_info includes sha256).
-
-```
-id: 33
-content_hash: "c58d3f...f2b0"
-size_bytes: 624
-mime_type: null
-created_at: "2026-01-07T17:46:14+00:00"
-```
-
-### file_revisions
-
-Per run record of file metadata and categorization.
-
-```
-id: 120
-file_id: 10
-project_run_id: 1
-content_id: 33
-size_bytes: 624
-modified_at: "2025-11-02T21:49:00+00:00"
-is_binary: 0
-is_deleted: 0
-language: "Swift"
-category: "code"
-```
-
-### file_metric_values
-
-Analyzer outputs stored as key/value metrics (JSON or numeric).
-
-```
-id: 501
-file_revision_id: 120
-metric_namespace: "code"
-metric_key: "analysis_json"
-metric_value_text: "{\"file_path\":\".../AppDelegate.swift\",\"lines_of_code\":42,...}"
-metric_value_num: null
-metric_unit: null
-```
-
-```
-id: 502
-file_revision_id: 120
-metric_namespace: "code"
-metric_key: "lines_of_code"
-metric_value_text: null
-metric_value_num: 42
-metric_unit: null
-```
-
-### tags
-
-Shared tag catalog across projects/files.
-
-```
-id: 1
-tag_type: "language"
-name: "Swift"
-category: null
-```
-
-```
-id: 2
-tag_type: "framework"
-name: "React"
-category: null
-```
-
-### project_tags
-
-Project-level tags (languages/frameworks/skills/keywords).
-
-```
-project_run_id: 1
-tag_id: 1
-source: "local"
-score: null
-display_order: 0
-is_highlighted: 0
-```
-
-### file_tags
-
-File-level tags derived from per-file analysis.
-
-```
-file_revision_id: 120
-tag_id: 1
-score: null
-```
-
-### skill_evidence
-
-Evidence for skills extracted from code analysis.
-
-```
-id: 77
-project_run_id: 1
-file_revision_id: 120
-tag_id: 3
-evidence_type: "import"
-location: "AppDelegate.swift:1"
-reasoning: "Imports UIKit"
-confidence: null
-```
-
-### project_metrics
-
-Aggregate metrics per project run.
-
-```
-project_run_id: 1
 total_files: 18
 total_lines: 840
 total_commits: 0
@@ -310,28 +158,84 @@ has_documentation: 1
 has_tests: 0
 has_images: 1
 has_videos: 0
+languages_json: "[\"Swift\"]"
+frameworks_json: "[\"UIKit\"]"
+skills_json: "[\"iOS\"]"
+contributors_json: "[]"
+tags_json: "[{\"tag_type\":\"language\",\"name\":\"Swift\",...}]"
+created_at: "2026-01-07T17:46:14+00:00"
+updated_at: "2026-01-07T17:46:14+00:00"
 ```
 
-### project_contributors
+### files
 
-Only populated when git analysis finds contributors.
+Unique files per project (path is relative to project root).
+
+```
+id: 10
+project_id: 1
+relative_path: "ios/AppDelegate.swift"
+file_name: "AppDelegate.swift"
+extension: ".swift"
+created_at: "2026-01-07T17:46:14+00:00"
+```
+
+### file_info
+
+Per-run record of file metadata, analysis, and tags (metrics stored as JSON list).
+
+```
+id: 120
+file_id: 10
+project_info_id: 1
+content_hash: "c58d3f...f2b0"
+content_size_bytes: 624
+size_bytes: 624
+modified_at: "2025-11-02T21:49:00+00:00"
+is_binary: 0
+is_deleted: 0
+language: "Swift"
+category: "code"
+metrics_json: "[{\"namespace\":\"code\",\"key\":\"analysis_json\",...}]"
+tags_json: "[{\"tag_type\":\"framework\",\"name\":\"UIKit\",...}]"
+created_at: "2026-01-07T17:46:14+00:00"
+```
+
+### tags
+
+Shared tag catalog across projects/files.
 
 ```
 id: 1
-project_run_id: 2
-name: "Jane Doe"
-email: "jane@example.com"
-commits: 12
+tag_type: "language"
+name: "Swift"
+category: null
+created_at: "2026-01-07T17:46:14+00:00"
 ```
 
-### portfolio_insights / portfolio_key_features / resume_bullets
+### skill_evidence
+
+Evidence for skills extracted from code analysis.
+
+```
+id: 77
+project_info_id: 1
+file_info_id: 120
+tag_id: 3
+evidence_type: "import"
+location: "AppDelegate.swift:1"
+reasoning: "Imports UIKit"
+confidence: null
+```
+
+### portfolio_insights / resume_bullets
 
 Generated portfolio/resume outputs (from `generate_portfolio_item()` and `generate_resume_item()`).
 
 ```
 portfolio_insights:
   id: 1
-  project_run_id: 2
+  project_info_id: 1
   generated_at: "2026-01-07T17:46:18+00:00"
   pipeline_version: "artifact-pipeline/v1"
   tagline: "Mobile tracker app"
@@ -340,13 +244,7 @@ portfolio_insights:
   complexity: "medium"
   is_collaborative: 0
   summary: "Built a Swift-based mobile app with shared UI components."
-```
-
-```
-portfolio_key_features:
-  portfolio_insight_id: 1
-  feature_text: "Syncs local data with background jobs"
-  display_order: 0
+  key_features_json: "[\"Syncs local data with background jobs\"]"
 ```
 
 ```
@@ -358,74 +256,39 @@ resume_bullets:
   source: "generated"
 ```
 
-### ranking_runs / ranking_results / ranking_summaries
+### ranking
 
-Project ranking is stored if `project_ranking` is present in the payload.
+Project ranking is stored as JSON if `project_ranking` is present in the payload.
 
 ```
-ranking_runs:
+ranking:
   id: 1
-  run_id: 1
+  ingest_id: 1
   criteria: "score"
   created_at: "2026-01-07T17:46:19+00:00"
+  ranking_json: "{\"ranked_projects\":[...],\"top_summaries\":[...]}"
 ```
 
-```
-ranking_results:
-  ranking_run_id: 1
-  project_run_id: 2
-  rank: 1
-  score: 0.92
-  recency_days: 14
-  commits: 12
-  loc: 1400
-  duration_days: 30
-```
+### chronology
+
+Chronological skill timeline stored as JSON (if generated).
 
 ```
-ranking_summaries:
-  ranking_run_id: 1
-  project_run_id: 2
-  summary: "Highest activity and strongest documentation coverage."
-```
-
-### chronology_events / chronology_event_skills / chronology_event_metadata
-
-Chronological skill timeline (if generated) is stored here.
-
-```
-chronology_events:
+chronology:
   id: 1
-  run_id: 1
-  file_revision_id: 120
-  event_timestamp: "2025-10-20T12:00:00+00:00"
-  category: "frontend"
-```
-
-```
-chronology_event_skills:
-  event_id: 1
-  tag_id: 1  # Swift
-```
-
-```
-chronology_event_metadata:
-  id: 1
-  event_id: 1
-  metric_key: "lines_of_code"
-  metric_value_text: null
-  metric_value_num: 42
+  ingest_id: 1
+  chronology_json: "{\"timeline\":[...],\"total_events\":12,...}"
+  created_at: "2026-01-07T17:46:19+00:00"
 ```
 
 ## Tables created but not written by this command
 
 These are created by migrations but are not populated by the pipeline run above:
 
-- `zipfile`, `project` (legacy encrypted tables)
+- `zipfile` (legacy encrypted table)
 - `deletion_audit` (only used by delete APIs)
-- `chronology_corrections` (manual timeline edits)
 - `thumbnails` (presentation assets)
-- `presentation_profiles`, `profile_projects`, `profile_resume_bullets`, `profile_project_tags`, `presentation_controls`
+- `presentation` and `profile` (presentation selections/overrides)
 
 ## Where to look after a real run
 

@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from src.insights.storage import (
-    FILE_CONTENTS_TABLE,
-    PROJECT_RUNS_TABLE,
-    SOURCE_TABLE,
+    FILE_INFO_TABLE,
+    PROJECT_INFO_TABLE,
+    INGEST_TABLE,
     PayloadValidationError,
     ProjectInsightsStore,
 )
@@ -39,26 +39,26 @@ def test_record_pipeline_run_persists_rows(temp_store):
     assert stats.metadata_updated is True
 
     with sqlite3.connect(temp_store.db_path) as conn:
-        cursor = conn.execute(f"SELECT COUNT(*) FROM {SOURCE_TABLE};")
+        cursor = conn.execute(f"SELECT COUNT(*) FROM {INGEST_TABLE};")
         assert cursor.fetchone()[0] == 1
-        cursor = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_RUNS_TABLE};")
+        cursor = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE};")
         assert cursor.fetchone()[0] == 2
-        root_name = conn.execute(f"SELECT source_name FROM {SOURCE_TABLE};").fetchone()[0]
+        root_name = conn.execute(f"SELECT source_name FROM {INGEST_TABLE};").fetchone()[0]
     assert root_name == "demo-root"
 
 
-def test_schema_migrations_create_file_contents_index(tmp_path, encryption_key):
+def test_schema_migrations_create_file_info_index(tmp_path, encryption_key):
     db_path = tmp_path / "fresh.db"
     store = ProjectInsightsStore(db_path=str(db_path), encryption_key=encryption_key)
 
     with sqlite3.connect(store.db_path) as conn:
         table = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name = ?;",
-            (FILE_CONTENTS_TABLE,),
+            (FILE_INFO_TABLE,),
         ).fetchone()
         assert table is not None
 
-        index_name = f"idx_{FILE_CONTENTS_TABLE}_hash"
+        index_name = f"idx_{FILE_INFO_TABLE}_content"
         index = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='index' AND name = ?;",
             (index_name,),
@@ -138,7 +138,7 @@ def test_purge_expired_records(temp_store):
     # Force first record to look stale
     with sqlite3.connect(temp_store.db_path) as conn:
         conn.execute(
-            f"UPDATE {SOURCE_TABLE} SET updated_at = ? WHERE source_path = ?;",
+            f"UPDATE {INGEST_TABLE} SET updated_at = ? WHERE source_path = ?;",
             ("2000-01-01T00:00:00+00:00", "/tmp/zip_a.zip"),
         )
         conn.commit()
@@ -176,9 +176,9 @@ def test_load_project_insight_by_id(temp_store):
     with sqlite3.connect(temp_store.db_path) as conn:
         row = conn.execute(
             f"""
-            SELECT pr.id
-            FROM {PROJECT_RUNS_TABLE} pr
-            JOIN projects p ON p.id = pr.project_id
+            SELECT pi.id
+            FROM {PROJECT_INFO_TABLE} pi
+            JOIN projects p ON p.id = pi.project_id
             WHERE p.project_name = ?;
             """,
             ("ProjectAlpha",)

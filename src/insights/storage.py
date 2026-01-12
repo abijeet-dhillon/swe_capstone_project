@@ -1,9 +1,9 @@
 """
 storage.py
 ----------
-SQLite-backed persistence layer for storing normalized pipeline insights.
+SQLite-backed persistence layer for storing grouped pipeline insights.
 The legacy encrypted blob tables remain for backward compatibility, but the
-active codepaths read/write normalized rows.
+active codepaths read/write grouped rows.
 """
 
 from __future__ import annotations
@@ -26,43 +26,27 @@ DEFAULT_DB_URL = "sqlite:///data/app.db"
 DEFAULT_DB_PATH = DEFAULT_DB_URL.replace("sqlite:///", "")
 # Fixed local encryption key (overridable via INSIGHTS_ENCRYPTION_KEY env var)
 DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "local-insights-key")
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # Legacy tables (no longer written)
 LEGACY_ZIP_TABLE = "zipfile"
-LEGACY_PROJECT_TABLE = "project"
 
-# Normalized tables
-SOURCE_TABLE = "ingest_sources"
-RUN_TABLE = "ingest_runs"
+# Grouped tables
+DELETION_AUDIT_TABLE = "deletion_audit"
+INGEST_TABLE = "ingest"
 PROJECTS_TABLE = "projects"
-PROJECT_RUNS_TABLE = "project_runs"
+PROJECT_INFO_TABLE = "project_info"
 FILES_TABLE = "files"
-FILE_REVISIONS_TABLE = "file_revisions"
-FILE_CONTENTS_TABLE = "file_contents"
-PROJECT_METRICS_TABLE = "project_metrics"
-PROJECT_CONTRIBUTORS_TABLE = "project_contributors"
+FILE_INFO_TABLE = "file_info"
 PORTFOLIO_INSIGHTS_TABLE = "portfolio_insights"
-PORTFOLIO_KEY_FEATURES_TABLE = "portfolio_key_features"
 RESUME_BULLETS_TABLE = "resume_bullets"
 TAGS_TABLE = "tags"
-PROJECT_TAGS_TABLE = "project_tags"
-FILE_TAGS_TABLE = "file_tags"
 SKILL_EVIDENCE_TABLE = "skill_evidence"
-FILE_METRIC_VALUES_TABLE = "file_metric_values"
-RANKING_RUNS_TABLE = "ranking_runs"
-RANKING_RESULTS_TABLE = "ranking_results"
-RANKING_SUMMARIES_TABLE = "ranking_summaries"
-CHRONOLOGY_EVENTS_TABLE = "chronology_events"
-CHRONOLOGY_EVENT_SKILLS_TABLE = "chronology_event_skills"
-CHRONOLOGY_EVENT_METADATA_TABLE = "chronology_event_metadata"
-CHRONOLOGY_CORRECTIONS_TABLE = "chronology_corrections"
+RANKING_TABLE = "ranking"
+CHRONOLOGY_TABLE = "chronology"
 THUMBNAILS_TABLE = "thumbnails"
-PRESENTATION_PROFILES_TABLE = "presentation_profiles"
-PROFILE_PROJECTS_TABLE = "profile_projects"
-PROFILE_RESUME_BULLETS_TABLE = "profile_resume_bullets"
-PROFILE_PROJECT_TAGS_TABLE = "profile_project_tags"
-PRESENTATION_CONTROLS_TABLE = "presentation_controls"
+PRESENTATION_TABLE = "presentation"
+PROFILE_TABLE = "profile"
 
 
 def _utcnow() -> str:
@@ -193,18 +177,11 @@ class ProjectInsightsStore:
                         (2, _utcnow()),
                     )
                     current_version = 2
-                if current_version < 3:
-                    self._apply_normalized_schema(conn)
+                if current_version < 5:
+                    self._apply_grouped_schema(conn)
                     conn.execute(
                         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
-                        (3, _utcnow()),
-                    )
-                    current_version = 3
-                if current_version < 4:
-                    self._apply_normalized_schema_v4(conn)
-                    conn.execute(
-                        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
-                        (4, _utcnow()),
+                        (5, _utcnow()),
                     )
                 conn.commit()
 
@@ -225,36 +202,11 @@ class ProjectInsightsStore:
             );
             """
         )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {LEGACY_PROJECT_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                zip_id INTEGER NOT NULL,
-                project_name TEXT NOT NULL,
-                slug TEXT NOT NULL,
-                project_path TEXT,
-                is_git_repo INTEGER NOT NULL DEFAULT 0,
-                insight_hash TEXT NOT NULL,
-                insights_encrypted BLOB NOT NULL,
-                code_files INTEGER NOT NULL DEFAULT 0,
-                doc_files INTEGER NOT NULL DEFAULT 0,
-                image_files INTEGER NOT NULL DEFAULT 0,
-                video_files INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY(zip_id) REFERENCES {LEGACY_ZIP_TABLE}(id) ON DELETE CASCADE,
-                UNIQUE(zip_id, project_name)
-            );
-            """
-        )
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{LEGACY_PROJECT_TABLE}_zip ON {LEGACY_PROJECT_TABLE}(zip_id);"
-        )
 
     def _apply_audit_schema(self, conn: sqlite3.Connection) -> None:
         conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS deletion_audit (
+            f"""
+            CREATE TABLE IF NOT EXISTS {DELETION_AUDIT_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 action TEXT NOT NULL,
                 scope TEXT NOT NULL,
@@ -266,10 +218,11 @@ class ProjectInsightsStore:
             """
         )
 
-    def _apply_normalized_schema(self, conn: sqlite3.Connection) -> None:
+    def _apply_grouped_schema(self, conn: sqlite3.Connection) -> None:
+        """Ensure grouped tables exist for report-ready storage."""
         conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {SOURCE_TABLE} (
+            CREATE TABLE IF NOT EXISTS {INGEST_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source_type TEXT NOT NULL CHECK (source_type IN ('zip', 'dir')),
                 source_path TEXT NOT NULL,
@@ -278,127 +231,50 @@ class ProjectInsightsStore:
                 file_count INTEGER NOT NULL DEFAULT 0,
                 total_uncompressed_bytes INTEGER NOT NULL DEFAULT 0,
                 total_compressed_bytes INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                UNIQUE(source_hash)
-            );
-            """
-        )
-
-    def _apply_normalized_schema_v4(self, conn: sqlite3.Connection) -> None:
-        """Ensure normalized tables exist for report-ready storage."""
-        self._apply_normalized_schema(conn)
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {RUN_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_id INTEGER NOT NULL,
                 run_type TEXT NOT NULL CHECK (run_type IN ('full', 'incremental')),
                 parent_run_id INTEGER,
                 pipeline_version TEXT,
                 status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('running', 'completed', 'failed')),
                 started_at TEXT NOT NULL,
                 finished_at TEXT,
-                FOREIGN KEY(source_id) REFERENCES {SOURCE_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(parent_run_id) REFERENCES {RUN_TABLE}(id) ON DELETE SET NULL
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(parent_run_id) REFERENCES {INGEST_TABLE}(id) ON DELETE SET NULL
             );
             """
         )
         conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{RUN_TABLE}_source ON {RUN_TABLE}(source_id);"
+            f"CREATE INDEX IF NOT EXISTS idx_{INGEST_TABLE}_source_hash ON {INGEST_TABLE}(source_hash);"
+        )
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{INGEST_TABLE}_source_run ON {INGEST_TABLE}(source_hash, id);"
         )
         conn.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {PROJECTS_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_id INTEGER NOT NULL,
+                source_hash TEXT NOT NULL,
                 project_key TEXT NOT NULL,
                 project_name TEXT NOT NULL,
                 slug TEXT NOT NULL,
                 root_path TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                UNIQUE(source_id, project_key),
-                FOREIGN KEY(source_id) REFERENCES {SOURCE_TABLE}(id) ON DELETE CASCADE
+                UNIQUE(source_hash, project_key)
             );
             """
         )
         conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{PROJECTS_TABLE}_source ON {PROJECTS_TABLE}(source_hash);"
+        )
+        conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {PROJECT_RUNS_TABLE} (
+            CREATE TABLE IF NOT EXISTS {PROJECT_INFO_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_id INTEGER NOT NULL,
-                run_id INTEGER NOT NULL,
+                ingest_id INTEGER NOT NULL,
                 project_path TEXT,
                 is_git_repo INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                UNIQUE(project_id, run_id),
-                FOREIGN KEY(project_id) REFERENCES {PROJECTS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(run_id) REFERENCES {RUN_TABLE}(id) ON DELETE CASCADE
-            );
-            """
-        )
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{PROJECT_RUNS_TABLE}_run ON {PROJECT_RUNS_TABLE}(run_id);"
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {FILE_CONTENTS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content_hash TEXT NOT NULL,
-                size_bytes INTEGER NOT NULL DEFAULT 0,
-                mime_type TEXT,
-                created_at TEXT NOT NULL,
-                UNIQUE(content_hash)
-            );
-            """
-        )
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{FILE_CONTENTS_TABLE}_hash ON {FILE_CONTENTS_TABLE}(content_hash);"
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {FILES_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                relative_path TEXT NOT NULL,
-                file_name TEXT NOT NULL,
-                extension TEXT,
-                created_at TEXT NOT NULL,
-                UNIQUE(project_id, relative_path),
-                FOREIGN KEY(project_id) REFERENCES {PROJECTS_TABLE}(id) ON DELETE CASCADE
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {FILE_REVISIONS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_id INTEGER NOT NULL,
-                project_run_id INTEGER NOT NULL,
-                content_id INTEGER,
-                size_bytes INTEGER NOT NULL DEFAULT 0,
-                modified_at TEXT,
-                is_binary INTEGER NOT NULL DEFAULT 0 CHECK (is_binary IN (0, 1)),
-                is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
-                language TEXT,
-                category TEXT CHECK (category IN ('code', 'documentation', 'images', 'video', 'other')),
-                FOREIGN KEY(file_id) REFERENCES {FILES_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(content_id) REFERENCES {FILE_CONTENTS_TABLE}(id) ON DELETE SET NULL,
-                UNIQUE(file_id, project_run_id)
-            );
-            """
-        )
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{FILE_REVISIONS_TABLE}_project_run ON {FILE_REVISIONS_TABLE}(project_run_id);"
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {PROJECT_METRICS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_run_id INTEGER NOT NULL,
                 total_files INTEGER NOT NULL DEFAULT 0,
                 total_lines INTEGER NOT NULL DEFAULT 0,
                 total_commits INTEGER NOT NULL DEFAULT 0,
@@ -418,31 +294,72 @@ class ProjectInsightsStore:
                 has_tests INTEGER NOT NULL DEFAULT 0 CHECK (has_tests IN (0, 1)),
                 has_images INTEGER NOT NULL DEFAULT 0 CHECK (has_images IN (0, 1)),
                 has_videos INTEGER NOT NULL DEFAULT 0 CHECK (has_videos IN (0, 1)),
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE,
-                UNIQUE(project_run_id)
+                languages_json TEXT,
+                frameworks_json TEXT,
+                skills_json TEXT,
+                keyword_tags_json TEXT,
+                contributors_json TEXT,
+                tags_json TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES {PROJECTS_TABLE}(id) ON DELETE CASCADE,
+                FOREIGN KEY(ingest_id) REFERENCES {INGEST_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(project_id, ingest_id)
+            );
+            """
+        )
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{PROJECT_INFO_TABLE}_ingest ON {PROJECT_INFO_TABLE}(ingest_id);"
+        )
+        conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {FILES_TABLE} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                relative_path TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                extension TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(project_id, relative_path),
+                FOREIGN KEY(project_id) REFERENCES {PROJECTS_TABLE}(id) ON DELETE CASCADE
             );
             """
         )
         conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {PROJECT_CONTRIBUTORS_TABLE} (
+            CREATE TABLE IF NOT EXISTS {FILE_INFO_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_run_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                email TEXT,
-                commits INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE
+                file_id INTEGER NOT NULL,
+                project_info_id INTEGER NOT NULL,
+                content_hash TEXT,
+                content_size_bytes INTEGER NOT NULL DEFAULT 0,
+                content_mime_type TEXT,
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                modified_at TEXT,
+                is_binary INTEGER NOT NULL DEFAULT 0 CHECK (is_binary IN (0, 1)),
+                is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
+                language TEXT,
+                category TEXT CHECK (category IN ('code', 'documentation', 'images', 'video', 'other')),
+                metrics_json TEXT,
+                tags_json TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(file_id) REFERENCES {FILES_TABLE}(id) ON DELETE CASCADE,
+                FOREIGN KEY(project_info_id) REFERENCES {PROJECT_INFO_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(file_id, project_info_id)
             );
             """
         )
         conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{PROJECT_CONTRIBUTORS_TABLE}_run ON {PROJECT_CONTRIBUTORS_TABLE}(project_run_id);"
+            f"CREATE INDEX IF NOT EXISTS idx_{FILE_INFO_TABLE}_project ON {FILE_INFO_TABLE}(project_info_id);"
+        )
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{FILE_INFO_TABLE}_content ON {FILE_INFO_TABLE}(content_hash);"
         )
         conn.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {PORTFOLIO_INSIGHTS_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_run_id INTEGER NOT NULL,
+                project_info_id INTEGER NOT NULL,
                 generated_at TEXT NOT NULL,
                 pipeline_version TEXT,
                 tagline TEXT,
@@ -451,20 +368,9 @@ class ProjectInsightsStore:
                 complexity TEXT,
                 is_collaborative INTEGER NOT NULL DEFAULT 0 CHECK (is_collaborative IN (0, 1)),
                 summary TEXT,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE,
-                UNIQUE(project_run_id)
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {PORTFOLIO_KEY_FEATURES_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                portfolio_insight_id INTEGER NOT NULL,
-                feature_text TEXT NOT NULL,
-                display_order INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY(portfolio_insight_id) REFERENCES {PORTFOLIO_INSIGHTS_TABLE}(id) ON DELETE CASCADE,
-                UNIQUE(portfolio_insight_id, display_order)
+                key_features_json TEXT,
+                FOREIGN KEY(project_info_id) REFERENCES {PROJECT_INFO_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(project_info_id)
             );
             """
         )
@@ -489,34 +395,8 @@ class ProjectInsightsStore:
                 tag_type TEXT NOT NULL CHECK (tag_type IN ('language', 'framework', 'skill', 'design_pattern', 'keyword', 'tool')),
                 name TEXT NOT NULL,
                 category TEXT,
+                created_at TEXT NOT NULL,
                 UNIQUE(tag_type, name)
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {PROJECT_TAGS_TABLE} (
-                project_run_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                source TEXT NOT NULL DEFAULT 'local' CHECK (source IN ('local', 'llm', 'manual')),
-                score REAL,
-                display_order INTEGER NOT NULL DEFAULT 0,
-                is_highlighted INTEGER NOT NULL DEFAULT 0 CHECK (is_highlighted IN (0, 1)),
-                PRIMARY KEY (project_run_id, tag_id),
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(tag_id) REFERENCES {TAGS_TABLE}(id) ON DELETE RESTRICT
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {FILE_TAGS_TABLE} (
-                file_revision_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                score REAL,
-                PRIMARY KEY (file_revision_id, tag_id),
-                FOREIGN KEY(file_revision_id) REFERENCES {FILE_REVISIONS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(tag_id) REFERENCES {TAGS_TABLE}(id) ON DELETE RESTRICT
             );
             """
         )
@@ -524,120 +404,41 @@ class ProjectInsightsStore:
             f"""
             CREATE TABLE IF NOT EXISTS {SKILL_EVIDENCE_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_run_id INTEGER NOT NULL,
-                file_revision_id INTEGER,
+                project_info_id INTEGER NOT NULL,
+                file_info_id INTEGER,
                 tag_id INTEGER NOT NULL,
                 evidence_type TEXT NOT NULL,
                 location TEXT,
                 reasoning TEXT,
                 confidence REAL,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(file_revision_id) REFERENCES {FILE_REVISIONS_TABLE}(id) ON DELETE SET NULL,
+                FOREIGN KEY(project_info_id) REFERENCES {PROJECT_INFO_TABLE}(id) ON DELETE CASCADE,
+                FOREIGN KEY(file_info_id) REFERENCES {FILE_INFO_TABLE}(id) ON DELETE SET NULL,
                 FOREIGN KEY(tag_id) REFERENCES {TAGS_TABLE}(id) ON DELETE RESTRICT
             );
             """
         )
         conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {FILE_METRIC_VALUES_TABLE} (
+            CREATE TABLE IF NOT EXISTS {RANKING_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_revision_id INTEGER NOT NULL,
-                metric_namespace TEXT NOT NULL,
-                metric_key TEXT NOT NULL,
-                metric_value_text TEXT,
-                metric_value_num REAL,
-                metric_unit TEXT,
-                FOREIGN KEY(file_revision_id) REFERENCES {FILE_REVISIONS_TABLE}(id) ON DELETE CASCADE,
-                UNIQUE(file_revision_id, metric_namespace, metric_key)
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {RANKING_RUNS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id INTEGER NOT NULL,
+                ingest_id INTEGER NOT NULL,
                 criteria TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                FOREIGN KEY(run_id) REFERENCES {RUN_TABLE}(id) ON DELETE CASCADE
+                ranking_json TEXT NOT NULL,
+                FOREIGN KEY(ingest_id) REFERENCES {INGEST_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(ingest_id)
             );
             """
         )
         conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {RANKING_RESULTS_TABLE} (
-                ranking_run_id INTEGER NOT NULL,
-                project_run_id INTEGER NOT NULL,
-                rank INTEGER NOT NULL,
-                score REAL,
-                recency_days INTEGER,
-                commits INTEGER,
-                loc INTEGER,
-                duration_days INTEGER,
-                PRIMARY KEY (ranking_run_id, project_run_id),
-                FOREIGN KEY(ranking_run_id) REFERENCES {RANKING_RUNS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {RANKING_SUMMARIES_TABLE} (
-                ranking_run_id INTEGER NOT NULL,
-                project_run_id INTEGER NOT NULL,
-                summary TEXT NOT NULL,
-                PRIMARY KEY (ranking_run_id, project_run_id),
-                FOREIGN KEY(ranking_run_id) REFERENCES {RANKING_RUNS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {CHRONOLOGY_EVENTS_TABLE} (
+            CREATE TABLE IF NOT EXISTS {CHRONOLOGY_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id INTEGER NOT NULL,
-                file_revision_id INTEGER,
-                event_timestamp TEXT NOT NULL,
-                category TEXT NOT NULL,
-                FOREIGN KEY(run_id) REFERENCES {RUN_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(file_revision_id) REFERENCES {FILE_REVISIONS_TABLE}(id) ON DELETE SET NULL
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {CHRONOLOGY_EVENT_SKILLS_TABLE} (
-                event_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                PRIMARY KEY (event_id, tag_id),
-                FOREIGN KEY(event_id) REFERENCES {CHRONOLOGY_EVENTS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(tag_id) REFERENCES {TAGS_TABLE}(id) ON DELETE RESTRICT
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {CHRONOLOGY_EVENT_METADATA_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_id INTEGER NOT NULL,
-                metric_key TEXT NOT NULL,
-                metric_value_text TEXT,
-                metric_value_num REAL,
-                FOREIGN KEY(event_id) REFERENCES {CHRONOLOGY_EVENTS_TABLE}(id) ON DELETE CASCADE
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {CHRONOLOGY_CORRECTIONS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_id INTEGER NOT NULL,
-                corrected_timestamp TEXT,
-                corrected_category TEXT,
-                corrected_notes TEXT,
+                ingest_id INTEGER NOT NULL,
+                chronology_json TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                FOREIGN KEY(event_id) REFERENCES {CHRONOLOGY_EVENTS_TABLE}(id) ON DELETE CASCADE
+                FOREIGN KEY(ingest_id) REFERENCES {INGEST_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(ingest_id)
             );
             """
         )
@@ -645,26 +446,27 @@ class ProjectInsightsStore:
             f"""
             CREATE TABLE IF NOT EXISTS {THUMBNAILS_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_run_id INTEGER,
-                file_revision_id INTEGER,
+                project_info_id INTEGER,
+                file_info_id INTEGER,
                 role TEXT NOT NULL CHECK (role IN ('project', 'portfolio', 'resume', 'file')),
                 image_path TEXT NOT NULL,
                 width INTEGER,
                 height INTEGER,
                 mime_type TEXT,
                 created_at TEXT NOT NULL,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(file_revision_id) REFERENCES {FILE_REVISIONS_TABLE}(id) ON DELETE SET NULL
+                FOREIGN KEY(project_info_id) REFERENCES {PROJECT_INFO_TABLE}(id) ON DELETE CASCADE,
+                FOREIGN KEY(file_info_id) REFERENCES {FILE_INFO_TABLE}(id) ON DELETE SET NULL
             );
             """
         )
         conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {PRESENTATION_PROFILES_TABLE} (
+            CREATE TABLE IF NOT EXISTS {PRESENTATION_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT,
                 profile_type TEXT NOT NULL CHECK (profile_type IN ('portfolio', 'resume')),
                 profile_name TEXT NOT NULL,
+                controls_json TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES user_configurations(user_id) ON DELETE SET NULL
@@ -673,60 +475,13 @@ class ProjectInsightsStore:
         )
         conn.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {PROFILE_PROJECTS_TABLE} (
+            CREATE TABLE IF NOT EXISTS {PROFILE_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_id INTEGER NOT NULL,
-                project_id INTEGER NOT NULL,
-                project_run_id INTEGER,
-                display_order INTEGER NOT NULL DEFAULT 0,
-                is_selected INTEGER NOT NULL DEFAULT 1 CHECK (is_selected IN (0, 1)),
-                override_title TEXT,
-                override_tagline TEXT,
-                override_description TEXT,
-                FOREIGN KEY(profile_id) REFERENCES {PRESENTATION_PROFILES_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(project_id) REFERENCES {PROJECTS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(project_run_id) REFERENCES {PROJECT_RUNS_TABLE}(id) ON DELETE SET NULL,
-                UNIQUE(profile_id, project_id)
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {PROFILE_RESUME_BULLETS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_project_id INTEGER NOT NULL,
-                resume_bullet_id INTEGER,
-                custom_text TEXT,
-                display_order INTEGER NOT NULL DEFAULT 0,
-                is_selected INTEGER NOT NULL DEFAULT 1 CHECK (is_selected IN (0, 1)),
-                FOREIGN KEY(profile_project_id) REFERENCES {PROFILE_PROJECTS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(resume_bullet_id) REFERENCES {RESUME_BULLETS_TABLE}(id) ON DELETE SET NULL
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {PROFILE_PROJECT_TAGS_TABLE} (
-                profile_project_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                display_order INTEGER NOT NULL DEFAULT 0,
-                is_selected INTEGER NOT NULL DEFAULT 1 CHECK (is_selected IN (0, 1)),
-                override_label TEXT,
-                PRIMARY KEY (profile_project_id, tag_id),
-                FOREIGN KEY(profile_project_id) REFERENCES {PROFILE_PROJECTS_TABLE}(id) ON DELETE CASCADE,
-                FOREIGN KEY(tag_id) REFERENCES {TAGS_TABLE}(id) ON DELETE RESTRICT
-            );
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {PRESENTATION_CONTROLS_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_id INTEGER NOT NULL,
-                control_key TEXT NOT NULL,
-                control_value TEXT,
-                FOREIGN KEY(profile_id) REFERENCES {PRESENTATION_PROFILES_TABLE}(id) ON DELETE CASCADE,
-                UNIQUE(profile_id, control_key)
+                presentation_id INTEGER NOT NULL,
+                selections_json TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(presentation_id) REFERENCES {PRESENTATION_TABLE}(id) ON DELETE CASCADE
             );
             """
         )
@@ -753,62 +508,50 @@ class ProjectInsightsStore:
                 conn.isolation_level = None  # manual transaction
                 try:
                     conn.execute("BEGIN IMMEDIATE;")
-                    source_id, metadata_updated = self._upsert_source(
+                    ingest_id, metadata_updated = self._insert_ingest_run(
                         conn,
                         source_hash,
                         zip_path,
                         metadata,
+                        pipeline_version,
                         now,
                     )
-                    run_id = self._insert_run(conn, source_id, pipeline_version, now)
-                    project_run_map: Dict[str, int] = {}
-                    file_revision_lookup: Dict[str, int] = {}
                     for project_name, project_payload in projects.items():
                         project_id = self._upsert_project(
                             conn,
-                            source_id,
+                            source_hash,
                             project_name,
                             project_payload,
                             now,
                         )
-                        project_run_id = self._insert_project_run(
+                        project_info_id = self._insert_project_info(
                             conn,
                             project_id,
-                            run_id,
+                            ingest_id,
                             project_payload,
                             now,
                         )
-                        project_run_map[project_name] = project_run_id
-                        file_revision_lookup.update(
-                            self._store_project_files_and_analysis(
-                                conn,
-                                project_run_id,
-                                project_id,
-                                project_payload,
-                                now,
-                                file_info_lookup=file_info_lookup,
-                            )
+                        self._store_project_files_and_analysis(
+                            conn,
+                            project_info_id,
+                            project_id,
+                            project_payload,
+                            now,
+                            file_info_lookup=file_info_lookup,
                         )
-                        self._store_project_metrics(conn, project_run_id, project_payload, now)
-                        self._store_project_contributors(conn, project_run_id, project_payload)
-                        self._store_project_tags(conn, project_run_id, project_payload)
+                        self._store_project_metrics(conn, project_info_id, project_payload, now)
+                        self._store_project_contributors(conn, project_info_id, project_payload, now)
+                        self._store_project_tags(conn, project_info_id, project_payload, now)
                         self._store_portfolio_insights(
                             conn,
-                            project_run_id,
+                            project_info_id,
                             project_payload,
                             pipeline_version,
                             now,
                         )
                         stats["inserted"] += 1
                     if extras:
-                        self._store_global_insights(
-                            conn,
-                            run_id,
-                            extras,
-                            project_run_map,
-                            file_revision_lookup,
-                            now,
-                        )
+                        self._store_global_insights(conn, ingest_id, extras, now)
                     conn.execute("COMMIT;")
                 except Exception:
                     conn.execute("ROLLBACK;")
@@ -825,56 +568,49 @@ class ProjectInsightsStore:
 
     def load_project_insight(self, zip_hash: str, project_name: str) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
-            source_row = conn.execute(
-                f"SELECT id FROM {SOURCE_TABLE} WHERE source_hash = ?;",
-                (zip_hash,),
-            ).fetchone()
-            if not source_row:
-                return None
-            source_id = source_row[0]
-            run_id = self._latest_run_id(conn, source_id)
-            if not run_id:
+            ingest_id = self._latest_ingest_id(conn, zip_hash)
+            if not ingest_id:
                 return None
             project_row = conn.execute(
-                f"SELECT id FROM {PROJECTS_TABLE} WHERE source_id = ? AND project_name = ?;",
-                (source_id, project_name),
+                f"SELECT id FROM {PROJECTS_TABLE} WHERE source_hash = ? AND project_name = ?;",
+                (zip_hash, project_name),
             ).fetchone()
             if not project_row:
                 return None
             project_id = project_row[0]
-            project_run_id = conn.execute(
+            project_info_id = conn.execute(
                 f"""
-                SELECT id FROM {PROJECT_RUNS_TABLE}
-                WHERE project_id = ? AND run_id = ?;
+                SELECT id FROM {PROJECT_INFO_TABLE}
+                WHERE project_id = ? AND ingest_id = ?;
                 """,
-                (project_id, run_id),
+                (project_id, ingest_id),
             ).fetchone()
-            if not project_run_id:
-                project_run_id = conn.execute(
+            if not project_info_id:
+                project_info_id = conn.execute(
                     f"""
-                    SELECT id FROM {PROJECT_RUNS_TABLE}
+                    SELECT id FROM {PROJECT_INFO_TABLE}
                     WHERE project_id = ?
                     ORDER BY id DESC LIMIT 1;
                     """,
                     (project_id,),
                 ).fetchone()
-            if not project_run_id:
+            if not project_info_id:
                 return None
-            return self._build_project_payload(conn, project_run_id[0])
+            return self._build_project_payload(conn, project_info_id[0])
 
     def load_project_insight_by_id(self, project_id: int) -> Optional[Dict[str, Any]]:
         """
-        Load project insight payload by project run ID (primary key).
+        Load project insight payload by project info ID (primary key).
 
         Args:
-            project_id: The project_runs.id primary key from the database.
+            project_id: The project_info.id primary key from the database.
 
         Returns:
             Normalized project payload dict, or None if project_id not found.
         """
         with self._connect() as conn:
             row = conn.execute(
-                f"SELECT id FROM {PROJECT_RUNS_TABLE} WHERE id = ?;",
+                f"SELECT id FROM {PROJECT_INFO_TABLE} WHERE id = ?;",
                 (project_id,),
             ).fetchone()
             if not row:
@@ -882,38 +618,37 @@ class ProjectInsightsStore:
             return self._build_project_payload(conn, project_id)
 
     def load_zip_report(self, zip_hash: str) -> Optional[Dict[str, Any]]:
-        """Reconstruct a full zip-level report payload from normalized tables."""
+        """Reconstruct a full zip-level report payload from grouped tables."""
         with self._connect() as conn:
             source_row = conn.execute(
                 f"""
                 SELECT id, source_name, file_count, total_uncompressed_bytes, total_compressed_bytes
-                FROM {SOURCE_TABLE}
-                WHERE source_hash = ?;
+                FROM {INGEST_TABLE}
+                WHERE source_hash = ?
+                ORDER BY id DESC
+                LIMIT 1;
                 """,
                 (zip_hash,),
             ).fetchone()
             if not source_row:
                 return None
-            source_id, source_name, file_count, total_uncompressed, total_compressed = source_row
-            run_id = self._latest_run_id(conn, source_id)
-            if not run_id:
-                return None
+            ingest_id, source_name, file_count, total_uncompressed, total_compressed = source_row
 
             project_rows = conn.execute(
                 f"""
-                SELECT p.project_name, pr.id
+                SELECT p.project_name, pi.id
                 FROM {PROJECTS_TABLE} p
-                JOIN {PROJECT_RUNS_TABLE} pr ON pr.project_id = p.id
-                WHERE p.source_id = ? AND pr.run_id = ?
+                JOIN {PROJECT_INFO_TABLE} pi ON pi.project_id = p.id
+                WHERE p.source_hash = ? AND pi.ingest_id = ?
                 ORDER BY p.project_name ASC;
                 """,
-                (source_id, run_id),
+                (zip_hash, ingest_id),
             ).fetchall()
             projects: Dict[str, Any] = {}
-            for project_name, project_run_id in project_rows:
+            for project_name, project_info_id in project_rows:
                 projects[project_name] = self._build_project_payload(
                     conn,
-                    project_run_id,
+                    project_info_id,
                     include_global_insights=False,
                 )
 
@@ -927,7 +662,7 @@ class ProjectInsightsStore:
                 },
                 "projects": projects,
             }
-            global_insights = self._load_global_insights(conn, run_id)
+            global_insights = self._load_global_insights(conn, ingest_id)
             if global_insights:
                 report["global_insights"] = global_insights
             return report
@@ -937,25 +672,24 @@ class ProjectInsightsStore:
         with self._connect() as conn:
             rows = conn.execute(
                 f"""
-                SELECT s.id, s.source_hash, s.source_path, s.created_at, s.updated_at, r.pipeline_version, r.id, r.started_at
-                FROM {SOURCE_TABLE} s
-                JOIN {RUN_TABLE} r ON r.source_id = s.id
-                WHERE r.id = (
-                    SELECT id FROM {RUN_TABLE} r2
-                    WHERE r2.source_id = s.id
-                    ORDER BY r2.id DESC
+                SELECT i.id, i.source_hash, i.source_path, i.created_at, i.updated_at, i.pipeline_version, i.started_at
+                FROM {INGEST_TABLE} i
+                WHERE i.id = (
+                    SELECT id FROM {INGEST_TABLE} i2
+                    WHERE i2.source_hash = i.source_hash
+                    ORDER BY i2.id DESC
                     LIMIT 1
                 )
-                ORDER BY r.id DESC
+                ORDER BY i.id DESC
                 LIMIT ?;
                 """,
                 (limit,),
             ).fetchall()
             for row in rows:
-                source_id, source_hash, source_path, created_at, updated_at, pipeline_version, run_id, _started_at = row
+                ingest_id, source_hash, source_path, created_at, updated_at, pipeline_version, _started_at = row
                 project_count = conn.execute(
-                    f"SELECT COUNT(*) FROM {PROJECT_RUNS_TABLE} WHERE run_id = ?;",
-                    (run_id,),
+                    f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE} WHERE ingest_id = ?;",
+                    (ingest_id,),
                 ).fetchone()[0]
                 results.append(
                     {
@@ -975,8 +709,10 @@ class ProjectInsightsStore:
             row = conn.execute(
                 f"""
                 SELECT source_name, file_count, total_uncompressed_bytes, total_compressed_bytes
-                FROM {SOURCE_TABLE}
-                WHERE source_hash = ?;
+                FROM {INGEST_TABLE}
+                WHERE source_hash = ?
+                ORDER BY id DESC
+                LIMIT 1;
                 """,
                 (zip_hash,),
             ).fetchone()
@@ -992,25 +728,18 @@ class ProjectInsightsStore:
     def list_projects_for_zip(self, zip_hash: str) -> List[str]:
         """Return sorted project names associated with the provided zip hash (latest run)."""
         with self._connect() as conn:
-            source_row = conn.execute(
-                f"SELECT id FROM {SOURCE_TABLE} WHERE source_hash = ?;",
-                (zip_hash,),
-            ).fetchone()
-            if not source_row:
-                return []
-            source_id = source_row[0]
-            run_id = self._latest_run_id(conn, source_id)
-            if not run_id:
+            ingest_id = self._latest_ingest_id(conn, zip_hash)
+            if not ingest_id:
                 return []
             rows = conn.execute(
                 f"""
                 SELECT p.project_name
                 FROM {PROJECTS_TABLE} p
-                JOIN {PROJECT_RUNS_TABLE} pr ON pr.project_id = p.id
-                WHERE p.source_id = ? AND pr.run_id = ?
+                JOIN {PROJECT_INFO_TABLE} pi ON pi.project_id = p.id
+                WHERE p.source_hash = ? AND pi.ingest_id = ?
                 ORDER BY p.project_name ASC;
                 """,
-                (source_id, run_id),
+                (zip_hash, ingest_id),
             ).fetchall()
         return [row[0] for row in rows]
 
@@ -1018,8 +747,8 @@ class ProjectInsightsStore:
     # Deletion API
     def _audit(self, conn: sqlite3.Connection, action: str, scope: str, details: Optional[Dict[str, Any]], deleted_projects: int, deleted_zips: int) -> None:
         conn.execute(
-            """
-            INSERT INTO deletion_audit (action, scope, details, deleted_projects, deleted_zips, created_at)
+            f"""
+            INSERT INTO {DELETION_AUDIT_TABLE} (action, scope, details, deleted_projects, deleted_zips, created_at)
             VALUES (?, ?, ?, ?, ?, ?);
             """,
             (action, scope, json.dumps(details or {}), deleted_projects, deleted_zips, _utcnow()),
@@ -1032,9 +761,12 @@ class ProjectInsightsStore:
                 conn.isolation_level = None
                 conn.execute("BEGIN IMMEDIATE;")
                 try:
-                    zcount = conn.execute(f"SELECT COUNT(*) FROM {SOURCE_TABLE};").fetchone()[0]
-                    pcount = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_RUNS_TABLE};").fetchone()[0]
-                    conn.execute(f"DELETE FROM {SOURCE_TABLE};")  # cascades runs/projects/files
+                    zcount = conn.execute(
+                        f"SELECT COUNT(DISTINCT source_hash) FROM {INGEST_TABLE};"
+                    ).fetchone()[0]
+                    pcount = conn.execute(f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE};").fetchone()[0]
+                    conn.execute(f"DELETE FROM {INGEST_TABLE};")  # cascades project_info/file_info/etc
+                    conn.execute(f"DELETE FROM {PROJECTS_TABLE};")
                     conn.execute(f"DELETE FROM {LEGACY_ZIP_TABLE};")
                     self._audit(conn, action="delete_all", scope="all", details=None, deleted_projects=pcount, deleted_zips=zcount)
                     conn.execute("COMMIT;")
@@ -1051,24 +783,24 @@ class ProjectInsightsStore:
                 conn.execute("BEGIN IMMEDIATE;")
                 try:
                     row = conn.execute(
-                        f"SELECT id FROM {SOURCE_TABLE} WHERE source_hash = ?;",
+                        f"SELECT COUNT(*) FROM {INGEST_TABLE} WHERE source_hash = ?;",
                         (zip_hash,),
                     ).fetchone()
-                    if not row:
+                    if not row or row[0] == 0:
                         conn.execute("ROLLBACK;")
                         return {"deleted_projects": 0, "deleted_zips": 0}
-                    source_id = row[0]
                     pcount = conn.execute(
                         f"""
                         SELECT COUNT(*)
-                        FROM {PROJECT_RUNS_TABLE} pr
-                        JOIN {PROJECTS_TABLE} p ON p.id = pr.project_id
-                        WHERE p.source_id = ?;
+                        FROM {PROJECT_INFO_TABLE} pi
+                        JOIN {PROJECTS_TABLE} p ON p.id = pi.project_id
+                        WHERE p.source_hash = ?;
                         """,
-                        (source_id,),
+                        (zip_hash,),
                     ).fetchone()[0]
-                    conn.execute(f"DELETE FROM {SOURCE_TABLE} WHERE id = ?;", (source_id,))
-                    self._audit(conn, action="delete_zip", scope=zip_hash, details={"source_id": source_id}, deleted_projects=pcount, deleted_zips=1)
+                    conn.execute(f"DELETE FROM {INGEST_TABLE} WHERE source_hash = ?;", (zip_hash,))
+                    conn.execute(f"DELETE FROM {PROJECTS_TABLE} WHERE source_hash = ?;", (zip_hash,))
+                    self._audit(conn, action="delete_zip", scope=zip_hash, details={"source_hash": zip_hash}, deleted_projects=pcount, deleted_zips=1)
                     conn.execute("COMMIT;")
                     return {"deleted_projects": pcount, "deleted_zips": 1}
                 except Exception:
@@ -1083,35 +815,34 @@ class ProjectInsightsStore:
                 conn.execute("BEGIN IMMEDIATE;")
                 try:
                     row = conn.execute(
-                        f"SELECT id FROM {SOURCE_TABLE} WHERE source_hash = ?;",
+                        f"SELECT COUNT(*) FROM {INGEST_TABLE} WHERE source_hash = ?;",
                         (zip_hash,),
                     ).fetchone()
-                    if not row:
+                    if not row or row[0] == 0:
                         conn.execute("ROLLBACK;")
                         return {"deleted_projects": 0, "deleted_zips": 0}
-                    source_id = row[0]
                     prow = conn.execute(
-                        f"SELECT id FROM {PROJECTS_TABLE} WHERE source_id = ? AND project_name = ?;",
-                        (source_id, project_name),
+                        f"SELECT id FROM {PROJECTS_TABLE} WHERE source_hash = ? AND project_name = ?;",
+                        (zip_hash, project_name),
                     ).fetchone()
                     if not prow:
                         conn.execute("ROLLBACK;")
                         return {"deleted_projects": 0, "deleted_zips": 0}
                     project_id = prow[0]
                     pcount = conn.execute(
-                        f"SELECT COUNT(*) FROM {PROJECT_RUNS_TABLE} WHERE project_id = ?;",
+                        f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE} WHERE project_id = ?;",
                         (project_id,),
                     ).fetchone()[0]
                     conn.execute(f"DELETE FROM {PROJECTS_TABLE} WHERE id = ?;", (project_id,))
                     remaining = conn.execute(
-                        f"SELECT COUNT(*) FROM {PROJECTS_TABLE} WHERE source_id = ?;",
-                        (source_id,),
+                        f"SELECT COUNT(*) FROM {PROJECTS_TABLE} WHERE source_hash = ?;",
+                        (zip_hash,),
                     ).fetchone()[0]
                     zdel = 0
                     if remaining == 0:
-                        conn.execute(f"DELETE FROM {SOURCE_TABLE} WHERE id = ?;", (source_id,))
+                        conn.execute(f"DELETE FROM {INGEST_TABLE} WHERE source_hash = ?;", (zip_hash,))
                         zdel = 1
-                    self._audit(conn, action="delete_project", scope=f"{zip_hash}:{project_name}", details={"source_id": source_id}, deleted_projects=pcount, deleted_zips=zdel)
+                    self._audit(conn, action="delete_project", scope=f"{zip_hash}:{project_name}", details={"source_hash": zip_hash}, deleted_projects=pcount, deleted_zips=zdel)
                     conn.execute("COMMIT;")
                     return {"deleted_projects": pcount, "deleted_zips": zdel}
                 except Exception:
@@ -1144,28 +875,38 @@ class ProjectInsightsStore:
             with self._connect() as conn:
                 rows = conn.execute(
                     f"""
-                    SELECT id, updated_at
-                    FROM {SOURCE_TABLE}
-                    ORDER BY datetime(updated_at) DESC;
+                    SELECT i.id, i.source_hash, i.updated_at
+                    FROM {INGEST_TABLE} i
+                    WHERE i.id = (
+                        SELECT id FROM {INGEST_TABLE} i2
+                        WHERE i2.source_hash = i.source_hash
+                        ORDER BY i2.id DESC
+                        LIMIT 1
+                    )
+                    ORDER BY datetime(i.updated_at) DESC;
                     """
                 ).fetchall()
-                keep_ids = {row[0] for row in rows[:keep_recent]}
-                purge_ids: List[int] = []
-                for row in rows:
-                    if row[0] in keep_ids:
+                keep_hashes = {row[1] for row in rows[:keep_recent]}
+                purge_hashes: List[str] = []
+                for _id, source_hash, updated_at_raw in rows:
+                    if source_hash in keep_hashes:
                         continue
-                    updated_at = _iso_to_datetime(row[1])
+                    updated_at = _iso_to_datetime(updated_at_raw)
                     if updated_at < cutoff:
-                        purge_ids.append(row[0])
-                if not purge_ids:
+                        purge_hashes.append(source_hash)
+                if not purge_hashes:
                     return 0
-                placeholders = ",".join("?" for _ in purge_ids)
+                placeholders = ",".join("?" for _ in purge_hashes)
                 conn.execute(
-                    f"DELETE FROM {SOURCE_TABLE} WHERE id IN ({placeholders});",
-                    purge_ids,
+                    f"DELETE FROM {INGEST_TABLE} WHERE source_hash IN ({placeholders});",
+                    purge_hashes,
+                )
+                conn.execute(
+                    f"DELETE FROM {PROJECTS_TABLE} WHERE source_hash IN ({placeholders});",
+                    purge_hashes,
                 )
                 conn.commit()
-        return len(purge_ids)
+        return len(purge_hashes)
 
     # Internal helpers
     def _validate_pipeline_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1246,47 +987,25 @@ class ProjectInsightsStore:
             return None
         return lookup.get(resolved)
 
-    def _get_or_create_content_id(
-        self,
-        conn: sqlite3.Connection,
-        content_hash: str,
-        size_bytes: int,
-        mime_type: Optional[str],
-        timestamp: str,
-    ) -> int:
-        row = conn.execute(
-            f"SELECT id FROM {FILE_CONTENTS_TABLE} WHERE content_hash = ?;",
-            (content_hash,),
-        ).fetchone()
-        if row:
-            return row[0]
-        conn.execute(
-            f"""
-            INSERT INTO {FILE_CONTENTS_TABLE} (content_hash, size_bytes, mime_type, created_at)
-            VALUES (?, ?, ?, ?);
-            """,
-            (content_hash, size_bytes, mime_type, timestamp),
-        )
-        return conn.execute("SELECT last_insert_rowid();").fetchone()[0]
-
-    def _latest_run_id(self, conn: sqlite3.Connection, source_id: int) -> Optional[int]:
+    def _latest_ingest_id(self, conn: sqlite3.Connection, source_hash: str) -> Optional[int]:
         row = conn.execute(
             f"""
-            SELECT id FROM {RUN_TABLE}
-            WHERE source_id = ?
+            SELECT id FROM {INGEST_TABLE}
+            WHERE source_hash = ?
             ORDER BY id DESC
             LIMIT 1;
             """,
-            (source_id,),
+            (source_hash,),
         ).fetchone()
         return row[0] if row else None
 
-    def _upsert_source(
+    def _insert_ingest_run(
         self,
         conn: sqlite3.Connection,
         source_hash: str,
         source_path: str,
         metadata: Dict[str, Any],
+        pipeline_version: str,
         timestamp: str,
     ) -> Tuple[int, bool]:
         source_name = metadata.get("root_name") or Path(source_path).name
@@ -1295,45 +1014,31 @@ class ProjectInsightsStore:
         total_compressed = int(metadata.get("total_compressed_bytes", 0))
         row = conn.execute(
             f"""
-            SELECT id, source_name, file_count, total_uncompressed_bytes, total_compressed_bytes
-            FROM {SOURCE_TABLE}
-            WHERE source_hash = ?;
+            SELECT source_name, file_count, total_uncompressed_bytes, total_compressed_bytes
+            FROM {INGEST_TABLE}
+            WHERE source_hash = ?
+            ORDER BY id DESC
+            LIMIT 1;
             """,
             (source_hash,),
         ).fetchone()
+        metadata_updated = True
         if row:
-            source_id, existing_name, existing_files, existing_uncompressed, existing_compressed = row
+            existing_name, existing_files, existing_uncompressed, existing_compressed = row
             metadata_updated = (
                 existing_name != source_name
                 or existing_files != file_count
                 or existing_uncompressed != total_uncompressed
                 or existing_compressed != total_compressed
             )
-            conn.execute(
-                f"""
-                UPDATE {SOURCE_TABLE}
-                SET source_path = ?, source_name = ?, file_count = ?, total_uncompressed_bytes = ?,
-                    total_compressed_bytes = ?, updated_at = ?
-                WHERE id = ?;
-                """,
-                (
-                    source_path,
-                    source_name,
-                    file_count,
-                    total_uncompressed,
-                    total_compressed,
-                    timestamp,
-                    source_id,
-                ),
-            )
-            return source_id, metadata_updated
         conn.execute(
             f"""
-            INSERT INTO {SOURCE_TABLE} (
+            INSERT INTO {INGEST_TABLE} (
                 source_type, source_path, source_name, source_hash,
                 file_count, total_uncompressed_bytes, total_compressed_bytes,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                run_type, parent_run_id, pipeline_version, status,
+                started_at, finished_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
             (
                 "zip",
@@ -1343,34 +1048,23 @@ class ProjectInsightsStore:
                 file_count,
                 total_uncompressed,
                 total_compressed,
+                "full",
+                None,
+                pipeline_version,
+                "completed",
+                timestamp,
+                timestamp,
                 timestamp,
                 timestamp,
             ),
         )
-        source_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
-        return source_id, True
-
-    def _insert_run(
-        self,
-        conn: sqlite3.Connection,
-        source_id: int,
-        pipeline_version: str,
-        timestamp: str,
-    ) -> int:
-        conn.execute(
-            f"""
-            INSERT INTO {RUN_TABLE} (
-                source_id, run_type, parent_run_id, pipeline_version, status, started_at, finished_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?);
-            """,
-            (source_id, "full", None, pipeline_version, "completed", timestamp, timestamp),
-        )
-        return conn.execute("SELECT last_insert_rowid();").fetchone()[0]
+        ingest_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
+        return ingest_id, metadata_updated
 
     def _upsert_project(
         self,
         conn: sqlite3.Connection,
-        source_id: int,
+        source_hash: str,
         project_name: str,
         project_payload: Dict[str, Any],
         timestamp: str,
@@ -1381,9 +1075,9 @@ class ProjectInsightsStore:
         row = conn.execute(
             f"""
             SELECT id FROM {PROJECTS_TABLE}
-            WHERE source_id = ? AND project_key = ?;
+            WHERE source_hash = ? AND project_key = ?;
             """,
-            (source_id, project_key),
+            (source_hash, project_key),
         ).fetchone()
         if row:
             project_id = row[0]
@@ -1399,18 +1093,18 @@ class ProjectInsightsStore:
         conn.execute(
             f"""
             INSERT INTO {PROJECTS_TABLE} (
-                source_id, project_key, project_name, slug, root_path, created_at, updated_at
+                source_hash, project_key, project_name, slug, root_path, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?);
             """,
-            (source_id, project_key, project_name, slug, root_path, timestamp, timestamp),
+            (source_hash, project_key, project_name, slug, root_path, timestamp, timestamp),
         )
         return conn.execute("SELECT last_insert_rowid();").fetchone()[0]
 
-    def _insert_project_run(
+    def _insert_project_info(
         self,
         conn: sqlite3.Connection,
         project_id: int,
-        run_id: int,
+        ingest_id: int,
         project_payload: Dict[str, Any],
         timestamp: str,
     ) -> int:
@@ -1418,11 +1112,11 @@ class ProjectInsightsStore:
         is_git_repo = 1 if project_payload.get("is_git_repo") else 0
         conn.execute(
             f"""
-            INSERT INTO {PROJECT_RUNS_TABLE} (
-                project_id, run_id, project_path, is_git_repo, created_at, updated_at
+            INSERT INTO {PROJECT_INFO_TABLE} (
+                project_id, ingest_id, project_path, is_git_repo, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?);
             """,
-            (project_id, run_id, project_path, is_git_repo, timestamp, timestamp),
+            (project_id, ingest_id, project_path, is_git_repo, timestamp, timestamp),
         )
         return conn.execute("SELECT last_insert_rowid();").fetchone()[0]
 
@@ -1453,35 +1147,43 @@ class ProjectInsightsStore:
         )
         return conn.execute("SELECT last_insert_rowid();").fetchone()[0]
 
-    def _insert_file_metric(
+    def _append_file_metric(
         self,
-        conn: sqlite3.Connection,
-        file_revision_id: int,
+        metrics: List[Dict[str, Any]],
         namespace: str,
         key: str,
         value_text: Optional[str] = None,
         value_num: Optional[float] = None,
         unit: Optional[str] = None,
     ) -> None:
-        conn.execute(
-            f"""
-            INSERT OR REPLACE INTO {FILE_METRIC_VALUES_TABLE} (
-                file_revision_id, metric_namespace, metric_key, metric_value_text, metric_value_num, metric_unit
-            ) VALUES (?, ?, ?, ?, ?, ?);
-            """,
-            (file_revision_id, namespace, key, value_text, value_num, unit),
+        metrics.append(
+            {
+                "namespace": namespace,
+                "key": key,
+                "value_text": value_text,
+                "value_num": value_num,
+                "unit": unit,
+            }
         )
 
-    def _ensure_tag_id(self, conn: sqlite3.Connection, tag_type: str, name: str, category: Optional[str] = None) -> int:
+    def _ensure_tag_id(
+        self,
+        conn: sqlite3.Connection,
+        tag_type: str,
+        name: str,
+        category: Optional[str] = None,
+        timestamp: Optional[str] = None,
+    ) -> int:
         row = conn.execute(
             f"SELECT id FROM {TAGS_TABLE} WHERE tag_type = ? AND name = ?;",
             (tag_type, name),
         ).fetchone()
         if row:
             return row[0]
+        created_at = timestamp or _utcnow()
         conn.execute(
-            f"INSERT INTO {TAGS_TABLE} (tag_type, name, category) VALUES (?, ?, ?);",
-            (tag_type, name, category),
+            f"INSERT INTO {TAGS_TABLE} (tag_type, name, category, created_at) VALUES (?, ?, ?, ?);",
+            (tag_type, name, category, created_at),
         )
         return conn.execute("SELECT last_insert_rowid();").fetchone()[0]
 
@@ -1498,7 +1200,7 @@ class ProjectInsightsStore:
     def _store_project_files_and_analysis(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_id: int,
         project_payload: Dict[str, Any],
         timestamp: str,
@@ -1568,7 +1270,6 @@ class ProjectInsightsStore:
             size_bytes: Optional[int] = None
             modified_at = None
             is_binary = 0
-            content_id = None
             content_hash = None
             if info:
                 if info.get("is_text_guess") is False:
@@ -1586,82 +1287,40 @@ class ProjectInsightsStore:
                 modified_at = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
             except Exception:
                 size_bytes = size_bytes or 0
-            if content_hash:
-                content_id = self._get_or_create_content_id(
-                    conn,
-                    str(content_hash),
-                    int(size_bytes or 0),
-                    None,
-                    timestamp,
-                )
-
-            conn.execute(
-                f"""
-                INSERT INTO {FILE_REVISIONS_TABLE} (
-                    file_id, project_run_id, content_id, size_bytes, modified_at,
-                    is_binary, is_deleted, language, category
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (
-                    file_id,
-                    project_run_id,
-                    content_id,
-                    size_bytes,
-                    modified_at,
-                    is_binary,
-                    0,
-                    language,
-                    resolved_category,
-                ),
-            )
-            file_revision_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
-            path_lookup[file_path] = file_revision_id
-            try:
-                path_lookup[str(Path(file_path).resolve())] = file_revision_id
-            except Exception:
-                pass
-            path_lookup[rel_path] = file_revision_id
+            metrics: List[Dict[str, Any]] = []
+            tags: List[Dict[str, Any]] = []
+            evidence_rows: List[Tuple[int, Dict[str, Any]]] = []
 
             if code_item:
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "code",
                     "analysis_json",
                     value_text=json.dumps(code_item),
                 )
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "code",
                     "lines_of_code",
                     value_num=code_item.get("lines_of_code", 0),
                 )
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "code",
                     "file_type",
                     value_text=code_item.get("file_type"),
                 )
                 for fw in code_item.get("frameworks", []) or []:
-                    tag_id = self._ensure_tag_id(conn, "framework", str(fw))
-                    conn.execute(
-                        f"INSERT OR IGNORE INTO {FILE_TAGS_TABLE} (file_revision_id, tag_id, score) VALUES (?, ?, ?);",
-                        (file_revision_id, tag_id, None),
-                    )
+                    tag_id = self._ensure_tag_id(conn, "framework", str(fw), timestamp=timestamp)
+                    tags.append({"tag_id": tag_id, "tag_type": "framework", "name": str(fw), "score": None})
                 for skill in code_item.get("skills", []) or []:
-                    tag_id = self._ensure_tag_id(conn, "skill", str(skill))
-                    conn.execute(
-                        f"INSERT OR IGNORE INTO {FILE_TAGS_TABLE} (file_revision_id, tag_id, score) VALUES (?, ?, ?);",
-                        (file_revision_id, tag_id, None),
-                    )
+                    tag_id = self._ensure_tag_id(conn, "skill", str(skill), timestamp=timestamp)
+                    tags.append({"tag_id": tag_id, "tag_type": "skill", "name": str(skill), "score": None})
 
             skill_item = skill_analysis.get(rel_path)
             if skill_item:
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "code",
                     "skill_analysis_json",
                     value_text=json.dumps(skill_item),
@@ -1670,29 +1329,22 @@ class ProjectInsightsStore:
                     skill_name = ev.get("skill")
                     if not skill_name:
                         continue
-                    tag_id = self._ensure_tag_id(conn, "skill", str(skill_name))
-                    conn.execute(
-                        f"""
-                        INSERT INTO {SKILL_EVIDENCE_TABLE} (
-                            project_run_id, file_revision_id, tag_id, evidence_type, location, reasoning, confidence
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?);
-                        """,
+                    tag_id = self._ensure_tag_id(conn, "skill", str(skill_name), timestamp=timestamp)
+                    evidence_rows.append(
                         (
-                            project_run_id,
-                            file_revision_id,
                             tag_id,
-                            ev.get("type"),
-                            ev.get("location"),
-                            ev.get("reasoning"),
-                            None,
-                        ),
+                            {
+                                "type": ev.get("type"),
+                                "location": ev.get("location"),
+                                "reasoning": ev.get("reasoning"),
+                            },
+                        )
                     )
 
             doc_item = doc_analysis.get(rel_path)
             if doc_item:
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "text",
                     "analysis_json",
                     value_text=json.dumps(doc_item),
@@ -1700,9 +1352,8 @@ class ProjectInsightsStore:
 
             img_item = image_analysis.get(rel_path)
             if img_item:
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "image",
                     "analysis_json",
                     value_text=json.dumps(img_item),
@@ -1710,12 +1361,65 @@ class ProjectInsightsStore:
 
             vid_item = video_analysis.get(rel_path)
             if vid_item:
-                self._insert_file_metric(
-                    conn,
-                    file_revision_id,
+                self._append_file_metric(
+                    metrics,
                     "video",
                     "analysis_json",
                     value_text=json.dumps(vid_item),
+                )
+
+            metrics_json = json.dumps(metrics) if metrics else None
+            tags_json = json.dumps(tags) if tags else None
+
+            conn.execute(
+                f"""
+                INSERT INTO {FILE_INFO_TABLE} (
+                    file_id, project_info_id, content_hash, content_size_bytes, content_mime_type,
+                    size_bytes, modified_at, is_binary, is_deleted, language, category,
+                    metrics_json, tags_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    file_id,
+                    project_info_id,
+                    str(content_hash) if content_hash else None,
+                    int(size_bytes or 0),
+                    None,
+                    int(size_bytes or 0),
+                    modified_at,
+                    is_binary,
+                    0,
+                    language,
+                    resolved_category,
+                    metrics_json,
+                    tags_json,
+                    timestamp,
+                ),
+            )
+            file_info_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
+            path_lookup[file_path] = file_info_id
+            try:
+                path_lookup[str(Path(file_path).resolve())] = file_info_id
+            except Exception:
+                pass
+            path_lookup[rel_path] = file_info_id
+
+            for tag_id, ev in evidence_rows:
+                conn.execute(
+                    f"""
+                    INSERT INTO {SKILL_EVIDENCE_TABLE} (
+                        project_info_id, file_info_id, tag_id, evidence_type, location, reasoning, confidence
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        project_info_id,
+                        file_info_id,
+                        tag_id,
+                        ev.get("type"),
+                        ev.get("location"),
+                        ev.get("reasoning"),
+                        None,
+                    ),
                 )
 
         return path_lookup
@@ -1723,7 +1427,7 @@ class ProjectInsightsStore:
     def _store_project_metrics(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_payload: Dict[str, Any],
         timestamp: str,
     ) -> None:
@@ -1761,17 +1465,20 @@ class ProjectInsightsStore:
         duration_start = git_analysis.get("first_commit_at") or git_analysis.get("start")
         duration_end = git_analysis.get("last_commit_at") or git_analysis.get("end")
         duration_days = git_analysis.get("duration_days") or 0
+        languages_json = json.dumps(metrics.get("languages", []) or [])
+        frameworks_json = json.dumps(metrics.get("frameworks", []) or [])
+        skills_json = json.dumps(metrics.get("skills", []) or [])
         conn.execute(
             f"""
-            INSERT OR REPLACE INTO {PROJECT_METRICS_TABLE} (
-                project_run_id, total_files, total_lines, total_commits, total_contributors,
-                activity_code, activity_test, activity_doc, duration_start, duration_end, duration_days,
-                doc_files, doc_words, image_files, video_files, test_files,
-                has_documentation, has_tests, has_images, has_videos
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            UPDATE {PROJECT_INFO_TABLE}
+            SET total_files = ?, total_lines = ?, total_commits = ?, total_contributors = ?,
+                activity_code = ?, activity_test = ?, activity_doc = ?, duration_start = ?, duration_end = ?,
+                duration_days = ?, doc_files = ?, doc_words = ?, image_files = ?, video_files = ?, test_files = ?,
+                has_documentation = ?, has_tests = ?, has_images = ?, has_videos = ?,
+                languages_json = ?, frameworks_json = ?, skills_json = ?, updated_at = ?
+            WHERE id = ?;
             """,
             (
-                project_run_id,
                 int(metrics.get("total_files", 0)),
                 int(metrics.get("total_lines", 0)),
                 int(metrics.get("total_commits", git_analysis.get("total_commits", 0) or 0)),
@@ -1791,35 +1498,51 @@ class ProjectInsightsStore:
                 1 if metrics.get("has_tests") else 0,
                 1 if metrics.get("has_images") else 0,
                 1 if metrics.get("has_videos") else 0,
+                languages_json,
+                frameworks_json,
+                skills_json,
+                timestamp,
+                project_info_id,
             ),
         )
 
     def _store_project_contributors(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_payload: Dict[str, Any],
+        timestamp: str,
     ) -> None:
         git_analysis = project_payload.get("git_analysis") or {}
         contributors = git_analysis.get("contributors") or []
+        contributor_rows: List[Dict[str, Any]] = []
         for contributor in contributors:
             author = contributor.get("author") or {}
-            name = author.get("name") or contributor.get("name") or "Unknown"
-            email = author.get("email") or contributor.get("email")
-            commits = contributor.get("commits", 0)
-            conn.execute(
-                f"""
-                INSERT INTO {PROJECT_CONTRIBUTORS_TABLE} (project_run_id, name, email, commits)
-                VALUES (?, ?, ?, ?);
-                """,
-                (project_run_id, name, email, int(commits or 0)),
+            contributor_rows.append(
+                {
+                    "author": {
+                        "name": author.get("name") or contributor.get("name") or "Unknown",
+                        "email": author.get("email") or contributor.get("email"),
+                    },
+                    "commits": int(contributor.get("commits", 0) or 0),
+                }
             )
+        contributor_rows.sort(key=lambda row: row.get("commits", 0), reverse=True)
+        conn.execute(
+            f"""
+            UPDATE {PROJECT_INFO_TABLE}
+            SET contributors_json = ?, updated_at = ?
+            WHERE id = ?;
+            """,
+            (json.dumps(contributor_rows), timestamp, project_info_id),
+        )
 
     def _store_project_tags(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_payload: Dict[str, Any],
+        timestamp: str,
     ) -> None:
         metrics = project_payload.get("project_metrics") or {}
         if not metrics:
@@ -1831,22 +1554,27 @@ class ProjectInsightsStore:
                 "frameworks": code_metrics.get("frameworks", []) or [],
                 "skills": code_metrics.get("skills", []) or [],
             }
+        tags: List[Dict[str, Any]] = []
         for tag_type, values in (
             ("language", metrics.get("languages", []) or []),
             ("framework", metrics.get("frameworks", []) or []),
             ("skill", metrics.get("skills", []) or []),
         ):
             for order, value in enumerate(values):
-                tag_id = self._ensure_tag_id(conn, tag_type, str(value))
-                conn.execute(
-                    f"""
-                    INSERT OR IGNORE INTO {PROJECT_TAGS_TABLE} (
-                        project_run_id, tag_id, source, score, display_order, is_highlighted
-                    ) VALUES (?, ?, ?, ?, ?, ?);
-                    """,
-                    (project_run_id, tag_id, "local", None, order, 0),
+                tag_id = self._ensure_tag_id(conn, tag_type, str(value), timestamp=timestamp)
+                tags.append(
+                    {
+                        "tag_id": tag_id,
+                        "tag_type": tag_type,
+                        "name": str(value),
+                        "source": "local",
+                        "score": None,
+                        "display_order": order,
+                        "is_highlighted": 0,
+                    }
                 )
 
+        keyword_tags: List[str] = []
         doc_block = (project_payload.get("analysis_results") or {}).get("documentation")
         if isinstance(doc_block, dict):
             totals = doc_block.get("totals") or {}
@@ -1855,20 +1583,33 @@ class ProjectInsightsStore:
                 word = item[0] if isinstance(item, (list, tuple)) else item
                 if not word:
                     continue
-                tag_id = self._ensure_tag_id(conn, "keyword", str(word))
-                conn.execute(
-                    f"""
-                    INSERT OR IGNORE INTO {PROJECT_TAGS_TABLE} (
-                        project_run_id, tag_id, source, score, display_order, is_highlighted
-                    ) VALUES (?, ?, ?, ?, ?, ?);
-                    """,
-                    (project_run_id, tag_id, "local", None, order, 0),
+                keyword_tags.append(str(word))
+                tag_id = self._ensure_tag_id(conn, "keyword", str(word), timestamp=timestamp)
+                tags.append(
+                    {
+                        "tag_id": tag_id,
+                        "tag_type": "keyword",
+                        "name": str(word),
+                        "source": "local",
+                        "score": None,
+                        "display_order": order,
+                        "is_highlighted": 0,
+                    }
                 )
+
+        conn.execute(
+            f"""
+            UPDATE {PROJECT_INFO_TABLE}
+            SET tags_json = ?, keyword_tags_json = ?, updated_at = ?
+            WHERE id = ?;
+            """,
+            (json.dumps(tags) if tags else None, json.dumps(keyword_tags), timestamp, project_info_id),
+        )
 
     def _store_portfolio_insights(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_payload: Dict[str, Any],
         pipeline_version: str,
         timestamp: str,
@@ -1885,12 +1626,12 @@ class ProjectInsightsStore:
         conn.execute(
             f"""
             INSERT INTO {PORTFOLIO_INSIGHTS_TABLE} (
-                project_run_id, generated_at, pipeline_version, tagline, description,
-                project_type, complexity, is_collaborative, summary
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                project_info_id, generated_at, pipeline_version, tagline, description,
+                project_type, complexity, is_collaborative, summary, key_features_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
             (
-                project_run_id,
+                project_info_id,
                 timestamp,
                 pipeline_version,
                 portfolio_item.get("tagline"),
@@ -1899,19 +1640,10 @@ class ProjectInsightsStore:
                 portfolio_item.get("complexity"),
                 1 if portfolio_item.get("is_collaborative") else 0,
                 portfolio_item.get("summary"),
+                json.dumps(portfolio_item.get("key_features", []) or []),
             ),
         )
         insight_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
-
-        for order, feature in enumerate(portfolio_item.get("key_features", []) or []):
-            conn.execute(
-                f"""
-                INSERT INTO {PORTFOLIO_KEY_FEATURES_TABLE} (
-                    portfolio_insight_id, feature_text, display_order
-                ) VALUES (?, ?, ?);
-                """,
-                (insight_id, str(feature), order),
-            )
 
         for order, bullet in enumerate(resume_item.get("bullets", []) or []):
             conn.execute(
@@ -1926,10 +1658,8 @@ class ProjectInsightsStore:
     def _store_global_insights(
         self,
         conn: sqlite3.Connection,
-        run_id: int,
+        ingest_id: int,
         extras: Dict[str, Any],
-        project_run_map: Dict[str, int],
-        file_revision_lookup: Dict[str, int],
         timestamp: str,
     ) -> None:
         ranking = extras.get("project_ranking") or extras.get("ranking_results")
@@ -1940,135 +1670,46 @@ class ProjectInsightsStore:
                 criteria = summaries[0].get("criteria") or criteria
             conn.execute(
                 f"""
-                INSERT INTO {RANKING_RUNS_TABLE} (run_id, criteria, created_at)
-                VALUES (?, ?, ?);
+                INSERT OR REPLACE INTO {RANKING_TABLE} (ingest_id, criteria, created_at, ranking_json)
+                VALUES (?, ?, ?, ?);
                 """,
-                (run_id, criteria, timestamp),
+                (ingest_id, criteria, timestamp, json.dumps(ranking)),
             )
-            ranking_run_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
-            summary_metrics = {s.get("name"): s.get("metrics", {}) for s in summaries if isinstance(s, dict)}
-            for item in ranking.get("ranked_projects", []) or []:
-                project_name = item.get("name")
-                if not project_name:
-                    continue
-                project_run_id = project_run_map.get(project_name)
-                if not project_run_id:
-                    continue
-                metrics = summary_metrics.get(project_name, {})
-                conn.execute(
-                    f"""
-                    INSERT OR REPLACE INTO {RANKING_RESULTS_TABLE} (
-                        ranking_run_id, project_run_id, rank, score, recency_days, commits, loc, duration_days
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-                    """,
-                    (
-                        ranking_run_id,
-                        project_run_id,
-                        item.get("rank"),
-                        item.get("score"),
-                        metrics.get("recency_days"),
-                        item.get("commits"),
-                        item.get("lines_of_code"),
-                        item.get("duration_days"),
-                    ),
-                )
-            for summary in summaries:
-                if not isinstance(summary, dict):
-                    continue
-                project_name = summary.get("name")
-                if not project_name:
-                    continue
-                project_run_id = project_run_map.get(project_name)
-                if not project_run_id:
-                    continue
-                conn.execute(
-                    f"""
-                    INSERT OR REPLACE INTO {RANKING_SUMMARIES_TABLE} (
-                        ranking_run_id, project_run_id, summary
-                    ) VALUES (?, ?, ?);
-                    """,
-                    (ranking_run_id, project_run_id, summary.get("summary", "")),
-                )
 
         chronology = extras.get("chronological_skills") or {}
-        timeline = chronology.get("timeline") if isinstance(chronology, dict) else None
-        if isinstance(timeline, list):
-            for event in timeline:
-                if not isinstance(event, dict):
-                    continue
-                file_path = event.get("file")
-                file_revision_id = None
-                if file_path:
-                    file_revision_id = file_revision_lookup.get(file_path) or file_revision_lookup.get(
-                        str(Path(file_path).resolve())
-                    )
-                conn.execute(
-                    f"""
-                    INSERT INTO {CHRONOLOGY_EVENTS_TABLE} (
-                        run_id, file_revision_id, event_timestamp, category
-                    ) VALUES (?, ?, ?, ?);
-                    """,
-                    (
-                        run_id,
-                        file_revision_id,
-                        event.get("timestamp"),
-                        event.get("category"),
-                    ),
-                )
-                event_id = conn.execute("SELECT last_insert_rowid();").fetchone()[0]
-                for skill in event.get("skills", []) or []:
-                    tag_id = self._ensure_tag_id(conn, "skill", str(skill))
-                    conn.execute(
-                        f"""
-                        INSERT OR IGNORE INTO {CHRONOLOGY_EVENT_SKILLS_TABLE} (event_id, tag_id)
-                        VALUES (?, ?);
-                        """,
-                        (event_id, tag_id),
-                    )
-                metadata = event.get("metadata") or {}
-                for key, value in metadata.items():
-                    value_text = None
-                    value_num = None
-                    if isinstance(value, (int, float)):
-                        value_num = float(value)
-                    else:
-                        try:
-                            value_text = json.dumps(value)
-                        except TypeError:
-                            value_text = str(value)
-                    conn.execute(
-                        f"""
-                        INSERT INTO {CHRONOLOGY_EVENT_METADATA_TABLE} (
-                            event_id, metric_key, metric_value_text, metric_value_num
-                        ) VALUES (?, ?, ?, ?);
-                        """,
-                        (event_id, str(key), value_text, value_num),
-                    )
+        if isinstance(chronology, dict) and chronology:
+            conn.execute(
+                f"""
+                INSERT OR REPLACE INTO {CHRONOLOGY_TABLE} (ingest_id, chronology_json, created_at)
+                VALUES (?, ?, ?);
+                """,
+                (ingest_id, json.dumps(chronology), timestamp),
+            )
 
     def _build_project_payload(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         include_global_insights: bool = True,
     ) -> Dict[str, Any]:
         row = conn.execute(
             f"""
-            SELECT pr.project_id, pr.project_path, pr.is_git_repo, pr.run_id, p.project_name, p.root_path
-            FROM {PROJECT_RUNS_TABLE} pr
-            JOIN {PROJECTS_TABLE} p ON p.id = pr.project_id
-            WHERE pr.id = ?;
+            SELECT pi.project_id, pi.project_path, pi.is_git_repo, pi.ingest_id, p.project_name, p.root_path
+            FROM {PROJECT_INFO_TABLE} pi
+            JOIN {PROJECTS_TABLE} p ON p.id = pi.project_id
+            WHERE pi.id = ?;
             """,
-            (project_run_id,),
+            (project_info_id,),
         ).fetchone()
         if not row:
             return {}
-        project_id, project_path, is_git_repo, run_id, project_name, root_path = row
+        project_id, project_path, is_git_repo, ingest_id, project_name, root_path = row
 
         categorized, file_revision_ids, file_rev_to_path = self._load_categorized_contents(
             conn,
-            project_run_id,
+            project_info_id,
         )
-        project_metrics = self._load_project_metrics(conn, project_run_id)
+        project_metrics = self._load_project_metrics(conn, project_info_id)
         analysis_results = self._load_analysis_results(
             conn,
             file_revision_ids,
@@ -2076,9 +1717,9 @@ class ProjectInsightsStore:
             categorized,
             project_metrics,
         )
-        portfolio_item, resume_item = self._load_presentation_items(conn, project_run_id, project_name, project_metrics)
-        git_analysis = self._load_git_analysis(conn, project_run_id, project_metrics)
-        global_insights = self._load_global_insights(conn, run_id) if include_global_insights else {}
+        portfolio_item, resume_item = self._load_presentation_items(conn, project_info_id, project_name, project_metrics)
+        git_analysis = self._load_git_analysis(conn, project_info_id, project_metrics)
+        global_insights = self._load_global_insights(conn, ingest_id) if include_global_insights else {}
 
         payload = {
             "project_name": project_name,
@@ -2098,16 +1739,16 @@ class ProjectInsightsStore:
     def _load_categorized_contents(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
     ) -> Tuple[Dict[str, Any], List[int], Dict[int, str]]:
         rows = conn.execute(
             f"""
-            SELECT fr.id, f.relative_path, f.extension, fr.category, fr.language
-            FROM {FILE_REVISIONS_TABLE} fr
-            JOIN {FILES_TABLE} f ON f.id = fr.file_id
-            WHERE fr.project_run_id = ?;
+            SELECT fi.id, f.relative_path, f.extension, fi.category, fi.language
+            FROM {FILE_INFO_TABLE} fi
+            JOIN {FILES_TABLE} f ON f.id = fi.file_id
+            WHERE fi.project_info_id = ?;
             """,
-            (project_run_id,),
+            (project_info_id,),
         ).fetchall()
         categorized = {
             "code": [],
@@ -2151,20 +1792,34 @@ class ProjectInsightsStore:
         placeholders = ",".join("?" for _ in file_revision_ids)
         rows = conn.execute(
             f"""
-            SELECT file_revision_id, metric_value_text
-            FROM {FILE_METRIC_VALUES_TABLE}
-            WHERE metric_namespace = ? AND metric_key = ? AND file_revision_id IN ({placeholders});
+            SELECT id, metrics_json
+            FROM {FILE_INFO_TABLE}
+            WHERE id IN ({placeholders});
             """,
-            (namespace, key, *file_revision_ids),
+            (*file_revision_ids,),
         ).fetchall()
         out: Dict[int, Dict[str, Any]] = {}
-        for file_revision_id, value_text in rows:
-            if not value_text:
+        for file_info_id, metrics_json in rows:
+            if not metrics_json:
                 continue
             try:
-                out[file_revision_id] = json.loads(value_text)
+                metrics = json.loads(metrics_json)
             except Exception:
-                out[file_revision_id] = {"raw": value_text}
+                continue
+            for entry in metrics:
+                if entry.get("namespace") != namespace or entry.get("key") != key:
+                    continue
+                value_text = entry.get("value_text")
+                if value_text is None and entry.get("value_num") is not None:
+                    out[file_info_id] = {"value": entry.get("value_num")}
+                    continue
+                if not value_text:
+                    continue
+                try:
+                    out[file_info_id] = json.loads(value_text)
+                except Exception:
+                    out[file_info_id] = {"raw": value_text}
+                break
         return out
 
     def _load_analysis_results(
@@ -2362,18 +2017,19 @@ class ProjectInsightsStore:
             "transcribed_videos": transcribed,
         }
 
-    def _load_project_metrics(self, conn: sqlite3.Connection, project_run_id: int) -> Dict[str, Any]:
+    def _load_project_metrics(self, conn: sqlite3.Connection, project_info_id: int) -> Dict[str, Any]:
         row = conn.execute(
             f"""
             SELECT total_files, total_lines, total_commits, total_contributors,
                    activity_code, activity_test, activity_doc,
                    duration_start, duration_end, duration_days,
                    doc_files, doc_words, image_files, video_files, test_files,
-                   has_documentation, has_tests, has_images, has_videos
-            FROM {PROJECT_METRICS_TABLE}
-            WHERE project_run_id = ?;
+                   has_documentation, has_tests, has_images, has_videos,
+                   languages_json, frameworks_json, skills_json
+            FROM {PROJECT_INFO_TABLE}
+            WHERE id = ?;
             """,
-            (project_run_id,),
+            (project_info_id,),
         ).fetchone()
         metrics = {
             "languages": [],
@@ -2421,6 +2077,9 @@ class ProjectInsightsStore:
                 has_tests,
                 has_images,
                 has_videos,
+                languages_json,
+                frameworks_json,
+                skills_json,
             ) = row
             metrics.update(
                 {
@@ -2446,52 +2105,42 @@ class ProjectInsightsStore:
                     "has_videos": bool(has_videos),
                 }
             )
-
-        rows = conn.execute(
-            f"""
-            SELECT t.tag_type, t.name, pt.display_order
-            FROM {PROJECT_TAGS_TABLE} pt
-            JOIN {TAGS_TABLE} t ON t.id = pt.tag_id
-            WHERE pt.project_run_id = ?
-            ORDER BY pt.display_order ASC, t.name ASC;
-            """,
-            (project_run_id,),
-        ).fetchall()
-        tags_by_type: Dict[str, List[str]] = {"language": [], "framework": [], "skill": []}
-        for tag_type, name, _order in rows:
-            if tag_type in tags_by_type:
-                tags_by_type[tag_type].append(name)
-        metrics["languages"] = tags_by_type["language"]
-        metrics["frameworks"] = tags_by_type["framework"]
-        metrics["skills"] = tags_by_type["skill"]
+            try:
+                metrics["languages"] = json.loads(languages_json) if languages_json else []
+            except Exception:
+                metrics["languages"] = []
+            try:
+                metrics["frameworks"] = json.loads(frameworks_json) if frameworks_json else []
+            except Exception:
+                metrics["frameworks"] = []
+            try:
+                metrics["skills"] = json.loads(skills_json) if skills_json else []
+            except Exception:
+                metrics["skills"] = []
         return metrics
 
     def _load_presentation_items(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_name: str,
         project_metrics: Dict[str, Any],
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         row = conn.execute(
             f"""
-            SELECT id, tagline, description, project_type, complexity, is_collaborative, summary
+            SELECT id, tagline, description, project_type, complexity, is_collaborative, summary, key_features_json
             FROM {PORTFOLIO_INSIGHTS_TABLE}
-            WHERE project_run_id = ?;
+            WHERE project_info_id = ?;
             """,
-            (project_run_id,),
+            (project_info_id,),
         ).fetchone()
         if not row:
             return {}, {}
-        insight_id, tagline, description, project_type, complexity, is_collaborative, summary = row
-        features = conn.execute(
-            f"""
-            SELECT feature_text FROM {PORTFOLIO_KEY_FEATURES_TABLE}
-            WHERE portfolio_insight_id = ?
-            ORDER BY display_order ASC;
-            """,
-            (insight_id,),
-        ).fetchall()
+        insight_id, tagline, description, project_type, complexity, is_collaborative, summary, key_features_json = row
+        try:
+            features = json.loads(key_features_json) if key_features_json else []
+        except Exception:
+            features = []
         bullets = conn.execute(
             f"""
             SELECT bullet_text FROM {RESUME_BULLETS_TABLE}
@@ -2512,7 +2161,7 @@ class ProjectInsightsStore:
             "total_lines": project_metrics.get("total_lines", 0),
             "project_type": project_type,
             "complexity": complexity,
-            "key_features": [row[0] for row in features],
+            "key_features": features,
             "summary": summary,
             "has_documentation": project_metrics.get("has_documentation", False),
             "has_tests": project_metrics.get("has_tests", False),
@@ -2526,21 +2175,23 @@ class ProjectInsightsStore:
     def _load_git_analysis(
         self,
         conn: sqlite3.Connection,
-        project_run_id: int,
+        project_info_id: int,
         project_metrics: Dict[str, Any],
     ) -> Dict[str, Any]:
-        contributors = conn.execute(
+        row = conn.execute(
             f"""
-            SELECT name, email, commits
-            FROM {PROJECT_CONTRIBUTORS_TABLE}
-            WHERE project_run_id = ?
-            ORDER BY commits DESC;
+            SELECT contributors_json
+            FROM {PROJECT_INFO_TABLE}
+            WHERE id = ?;
             """,
-            (project_run_id,),
-        ).fetchall()
-        contributor_rows = [
-            {"author": {"name": row[0], "email": row[1]}, "commits": row[2]} for row in contributors
-        ]
+            (project_info_id,),
+        ).fetchone()
+        contributor_rows: List[Dict[str, Any]] = []
+        if row and row[0]:
+            try:
+                contributor_rows = json.loads(row[0])
+            except Exception:
+                contributor_rows = []
         return {
             "total_commits": project_metrics.get("total_commits", 0),
             "total_contributors": project_metrics.get("total_contributors", 0),
@@ -2555,156 +2206,39 @@ class ProjectInsightsStore:
             "duration_days": project_metrics.get("duration_days", 0),
         }
 
-    def _load_global_insights(self, conn: sqlite3.Connection, run_id: int) -> Dict[str, Any]:
+    def _load_global_insights(self, conn: sqlite3.Connection, ingest_id: int) -> Dict[str, Any]:
         global_insights: Dict[str, Any] = {}
         ranking_row = conn.execute(
             f"""
-            SELECT id, criteria FROM {RANKING_RUNS_TABLE}
-            WHERE run_id = ?
+            SELECT ranking_json
+            FROM {RANKING_TABLE}
+            WHERE ingest_id = ?
             ORDER BY id DESC
             LIMIT 1;
             """,
-            (run_id,),
+            (ingest_id,),
         ).fetchone()
-        if ranking_row:
-            ranking_run_id, criteria = ranking_row
-            ranked_rows = conn.execute(
-                f"""
-                SELECT rr.project_run_id, rr.rank, rr.score, rr.recency_days, rr.commits, rr.loc, rr.duration_days
-                FROM {RANKING_RESULTS_TABLE} rr
-                WHERE rr.ranking_run_id = ?
-                ORDER BY rr.rank ASC;
-                """,
-                (ranking_run_id,),
-            ).fetchall()
-            summaries = conn.execute(
-                f"""
-                SELECT rs.project_run_id, rs.summary
-                FROM {RANKING_SUMMARIES_TABLE} rs
-                WHERE rs.ranking_run_id = ?;
-                """,
-                (ranking_run_id,),
-            ).fetchall()
-            summary_map = {row[0]: row[1] for row in summaries}
-            ranked_projects = []
-            top_summaries = []
-            for project_run_id, rank, score, recency_days, commits, loc, duration_days in ranked_rows:
-                project_row = conn.execute(
-                    f"""
-                    SELECT p.project_name
-                    FROM {PROJECT_RUNS_TABLE} pr
-                    JOIN {PROJECTS_TABLE} p ON p.id = pr.project_id
-                    WHERE pr.id = ?;
-                    """,
-                    (project_run_id,),
-                ).fetchone()
-                if not project_row:
-                    continue
-                project_name = project_row[0]
-                metrics = self._load_project_metrics(conn, project_run_id)
-                ranked_projects.append(
-                    {
-                        "rank": rank,
-                        "name": project_name,
-                        "score": score,
-                        "is_collaborative": metrics.get("is_collaborative", False),
-                        "languages": metrics.get("languages", []),
-                        "frameworks": metrics.get("frameworks", []),
-                        "commits": commits or metrics.get("total_commits", 0),
-                        "lines_of_code": loc or metrics.get("total_lines", 0),
-                        "duration_days": duration_days or 0,
-                        "recency_days": recency_days,
-                    }
-                )
-                if project_run_id in summary_map:
-                    top_summaries.append(
-                        {
-                            "rank": rank,
-                            "id": project_run_id,
-                            "name": project_name,
-                            "score": score,
-                            "criteria": criteria,
-                            "summary": summary_map[project_run_id],
-                            "metrics": {
-                                "commits": commits or metrics.get("total_commits", 0),
-                                "loc": loc or metrics.get("total_lines", 0),
-                                "recency_days": recency_days,
-                                "languages": metrics.get("languages", []),
-                                "duration_days": duration_days or 0,
-                            },
-                        }
-                    )
-            global_insights["project_ranking"] = {
-                "ranked_projects": ranked_projects,
-                "top_summaries": top_summaries,
-                "total_projects_ranked": len(ranked_projects),
-            }
+        if ranking_row and ranking_row[0]:
+            try:
+                global_insights["project_ranking"] = json.loads(ranking_row[0])
+            except Exception:
+                pass
 
-        chron_rows = conn.execute(
+        chronology_row = conn.execute(
             f"""
-            SELECT id, file_revision_id, event_timestamp, category
-            FROM {CHRONOLOGY_EVENTS_TABLE}
-            WHERE run_id = ?
-            ORDER BY event_timestamp ASC;
+            SELECT chronology_json
+            FROM {CHRONOLOGY_TABLE}
+            WHERE ingest_id = ?
+            ORDER BY id DESC
+            LIMIT 1;
             """,
-            (run_id,),
-        ).fetchall()
-        if chron_rows:
-            timeline = []
-            for event_id, file_revision_id, event_timestamp, category in chron_rows:
-                file_path = None
-                if file_revision_id:
-                    row = conn.execute(
-                        f"""
-                        SELECT f.relative_path
-                        FROM {FILE_REVISIONS_TABLE} fr
-                        JOIN {FILES_TABLE} f ON f.id = fr.file_id
-                        WHERE fr.id = ?;
-                        """,
-                        (file_revision_id,),
-                    ).fetchone()
-                    if row:
-                        file_path = row[0]
-                skill_rows = conn.execute(
-                    f"""
-                    SELECT t.name
-                    FROM {CHRONOLOGY_EVENT_SKILLS_TABLE} ces
-                    JOIN {TAGS_TABLE} t ON t.id = ces.tag_id
-                    WHERE ces.event_id = ?;
-                    """,
-                    (event_id,),
-                ).fetchall()
-                meta_rows = conn.execute(
-                    f"""
-                    SELECT metric_key, metric_value_text, metric_value_num
-                    FROM {CHRONOLOGY_EVENT_METADATA_TABLE}
-                    WHERE event_id = ?;
-                    """,
-                    (event_id,),
-                ).fetchall()
-                metadata: Dict[str, Any] = {}
-                for key, value_text, value_num in meta_rows:
-                    if value_num is not None:
-                        metadata[key] = value_num
-                    elif value_text is not None:
-                        try:
-                            metadata[key] = json.loads(value_text)
-                        except Exception:
-                            metadata[key] = value_text
-                timeline.append(
-                    {
-                        "file": file_path,
-                        "timestamp": event_timestamp,
-                        "category": category,
-                        "skills": [row[0] for row in skill_rows],
-                        "metadata": metadata,
-                    }
-                )
-            global_insights["chronological_skills"] = {
-                "timeline": timeline,
-                "total_events": len(timeline),
-                "categories": sorted({item["category"] for item in timeline}),
-            }
+            (ingest_id,),
+        ).fetchone()
+        if chronology_row and chronology_row[0]:
+            try:
+                global_insights["chronological_skills"] = json.loads(chronology_row[0])
+            except Exception:
+                pass
 
         return global_insights
 

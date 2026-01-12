@@ -610,7 +610,7 @@ def generate_items_from_project_id(
     This allows updating presentation items for old projects when templates change.
     
     Args:
-        project_id: The project_runs.id primary key from the SQLite insights database.
+        project_id: The project_info.id primary key from the SQLite insights database.
         db_path: Optional database path. If None, uses default from environment.
             Ignored if `store` is provided.
         store: Optional ProjectInsightsStore instance. If None, creates a new one.

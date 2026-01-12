@@ -10,7 +10,7 @@ End-to-end checklist to demo the pipeline: install, run without LLM, run with LL
   docker compose build backend
   docker compose up -d backend
   ```
-- Default DB path is `data/app.db`; insights are stored in normalized tables (`ingest_sources`/`ingest_runs`, `projects`/`files`, `portfolio_insights`, `resume_bullets`) and reconstructed on read. `ProjectInsightsStore.load_zip_report()` can rebuild a full report payload. `INSIGHTS_ENCRYPTION_KEY` applies only to legacy blobs and is not used for new rows.
+- Default DB path is `data/app.db`; insights are stored in grouped tables (`ingest`, `projects`/`project_info`, `files`/`file_info`, `portfolio_insights`, `resume_bullets`, `ranking`, `chronology`) and reconstructed on read. `ProjectInsightsStore.load_zip_report()` can rebuild a full report payload. `INSIGHTS_ENCRYPTION_KEY` applies only to legacy blobs and is not used for new rows.
 - Data access consent is prompted once per user/ZIP and stored (like LLM consent). If the user declines, the pipeline exits immediately with no output on subsequent runs too.
 
 ## 1) Consent + baseline run (no LLM)
@@ -140,7 +140,7 @@ PY
   PY
   ```
 
-- Whole report payload for the zip (normalized tables only):
+- Whole report payload for the zip (grouped tables only):
   ```bash
   docker compose run --rm -T backend python - <<'PY'
   from src.insights.storage import ProjectInsightsStore
@@ -220,14 +220,14 @@ PY
   PY
   ```
 
-## 6) Retrieve via example CLI (full report, normalized read)
+## 6) Retrieve via example CLI (full report, grouped read)
 
 ```bash
 docker compose run --rm backend python -m src.insights.example_retrieval --db-path data/app.db
 ```
 
 - Shows per-project outputs (#12), ranking (#16), top summaries (#17), timelines (#19, #20).
-- Portfolio/resume items are loaded from normalized tables (`portfolio_insights`, `resume_bullets`).
+- Portfolio/resume items are loaded from grouped tables (`portfolio_insights`, `resume_bullets`).
 - For a more readable, report-like view in the terminal, pipe through `less`:
   ```bash
   docker compose run --rm backend python -m src.insights.example_retrieval --db-path data/app.db | less -R
