@@ -179,11 +179,20 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT p.id, p.project_name, p.slug, z.zip_hash, z.zip_path,
-                       p.code_files, p.doc_files, p.is_git_repo, p.created_at, p.updated_at
-                FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                ORDER BY p.updated_at DESC;
+                SELECT pi.id, p.project_name, p.slug, i.source_hash, i.source_path,
+                       (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'code') AS code_files,
+                       (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'documentation') AS doc_files,
+                       pi.is_git_repo, pi.created_at, pi.updated_at
+                FROM project_info pi
+                JOIN projects p ON p.id = pi.project_id
+                JOIN ingest i ON i.id = pi.ingest_id
+                WHERE i.id = (
+                    SELECT id FROM ingest i2
+                    WHERE i2.source_hash = i.source_hash
+                    ORDER BY i2.id DESC
+                    LIMIT 1
+                )
+                ORDER BY pi.updated_at DESC;
                 """
             ).fetchall()
         
@@ -205,9 +214,16 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             row = conn.execute(
                 """
-                SELECT p.id FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                WHERE z.zip_hash = ? AND p.project_name = ?;
+                SELECT pi.id FROM project_info pi
+                JOIN projects p ON p.id = pi.project_id
+                JOIN ingest i ON i.id = pi.ingest_id
+                WHERE i.source_hash = ? AND p.project_name = ?
+                  AND i.id = (
+                    SELECT id FROM ingest i2
+                    WHERE i2.source_hash = i.source_hash
+                    ORDER BY i2.id DESC
+                    LIMIT 1
+                );
                 """,
                 (zip_hash, project_name)
             ).fetchone()
@@ -218,9 +234,11 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             row = conn.execute(
                 """
-                SELECT p.project_name, z.zip_hash FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                WHERE p.id = ?;
+                SELECT p.project_name, s.source_hash
+                FROM project_info pi
+                JOIN projects p ON p.id = pi.project_id
+                JOIN ingest s ON s.id = pi.ingest_id
+                WHERE pi.id = ?;
                 """,
                 (project_id,)
             ).fetchone()
@@ -231,9 +249,16 @@ class PresentationPipeline:
         with sqlite3.connect(self.store.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT p.id FROM project p
-                JOIN zipfile z ON p.zip_id = z.id
-                WHERE z.zip_hash = ?
+                SELECT pi.id FROM project_info pi
+                JOIN projects p ON p.id = pi.project_id
+                JOIN ingest s ON s.id = pi.ingest_id
+                WHERE s.source_hash = ?
+                  AND s.id = (
+                    SELECT id FROM ingest s2
+                    WHERE s2.source_hash = s.source_hash
+                    ORDER BY s2.id DESC
+                    LIMIT 1
+                )
                 ORDER BY p.project_name ASC;
                 """,
                 (zip_hash,)
@@ -242,7 +267,18 @@ class PresentationPipeline:
     
     def _get_all_project_ids(self, limit: Optional[int] = None) -> List[int]:
         import sqlite3
-        query = "SELECT id FROM project ORDER BY updated_at DESC"
+        query = """
+            SELECT pi.id
+            FROM project_info pi
+            JOIN ingest s ON s.id = pi.ingest_id
+            WHERE s.id = (
+                SELECT id FROM ingest s2
+                WHERE s2.source_hash = s.source_hash
+                ORDER BY s2.id DESC
+                LIMIT 1
+            )
+            ORDER BY pi.updated_at DESC
+        """
         if limit:
             query += f" LIMIT {limit}"
         query += ";"

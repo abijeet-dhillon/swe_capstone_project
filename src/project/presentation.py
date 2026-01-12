@@ -739,14 +739,14 @@ def generate_items_from_project_id(
     resume_customization: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Generate portfolio and resume items from a stored project by its database ID.
+    Generate portfolio and resume items from a stored project run by its database ID.
     
     This function fetches a project's stored insights from the SQLite database
     and regenerates portfolio/resume items using the current template logic.
     This allows updating presentation items for old projects when templates change.
     
     Args:
-        project_id: The project.id primary key from the SQLite insights database.
+        project_id: The project_info.id primary key from the SQLite insights database.
         db_path: Optional database path. If None, uses default from environment.
             Ignored if `store` is provided.
         store: Optional ProjectInsightsStore instance. If None, creates a new one.

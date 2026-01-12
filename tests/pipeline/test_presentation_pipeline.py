@@ -139,7 +139,15 @@ class TestGenerateById:
     def test_generate_by_id_success(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT id FROM project WHERE project_name = ?;", ("TestProject",)).fetchone()
+            row = conn.execute(
+                """
+                SELECT pi.id
+                FROM project_info pi
+                JOIN projects p ON p.id = pi.project_id
+                WHERE p.project_name = ?;
+                """,
+                ("TestProject",),
+            ).fetchone()
             project_id = row[0]
         
         result = pipeline.generate_by_id(project_id)
@@ -159,7 +167,7 @@ class TestGenerateById:
     def test_generate_by_id_to_dict(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT id FROM project LIMIT 1;").fetchone()
+            row = conn.execute("SELECT id FROM project_info LIMIT 1;").fetchone()
             project_id = row[0]
         result = pipeline.generate_by_id(project_id)
         result_dict = result.to_dict()
@@ -171,7 +179,7 @@ class TestGenerateByName:
     def test_generate_by_name_success(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT zip_hash FROM zipfile LIMIT 1;").fetchone()
+            row = conn.execute("SELECT source_hash FROM ingest LIMIT 1;").fetchone()
             zip_hash = row[0]
         result = pipeline.generate_by_name(zip_hash, "TestProject")
         assert result.success is True
@@ -180,7 +188,7 @@ class TestGenerateByName:
     def test_generate_by_name_nonexistent_project(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT zip_hash FROM zipfile LIMIT 1;").fetchone()
+            row = conn.execute("SELECT source_hash FROM ingest LIMIT 1;").fetchone()
             zip_hash = row[0]
         result = pipeline.generate_by_name(zip_hash, "NonExistentProject")
         assert result.success is False
@@ -190,7 +198,7 @@ class TestGenerateForZip:
     def test_generate_for_zip_success(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT zip_hash FROM zipfile LIMIT 1;").fetchone()
+            row = conn.execute("SELECT source_hash FROM ingest LIMIT 1;").fetchone()
             zip_hash = row[0]
         result = pipeline.generate_for_zip(zip_hash)
         assert isinstance(result, BatchPresentationResult)
@@ -205,7 +213,7 @@ class TestGenerateForZip:
     def test_generate_for_zip_to_dict(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT zip_hash FROM zipfile LIMIT 1;").fetchone()
+            row = conn.execute("SELECT source_hash FROM ingest LIMIT 1;").fetchone()
             zip_hash = row[0]
         result = pipeline.generate_for_zip(zip_hash)
         result_dict = result.to_dict()
@@ -249,7 +257,7 @@ class TestInternalHelpers:
     def test_get_project_id(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT zip_hash FROM zipfile LIMIT 1;").fetchone()
+            row = conn.execute("SELECT source_hash FROM ingest LIMIT 1;").fetchone()
             zip_hash = row[0]
         project_id = pipeline._get_project_id(zip_hash, "TestProject")
         assert project_id is not None
@@ -257,7 +265,7 @@ class TestInternalHelpers:
     def test_get_project_metadata(self, populated_store):
         pipeline = PresentationPipeline(insights_store=populated_store)
         with sqlite3.connect(populated_store.db_path) as conn:
-            row = conn.execute("SELECT id FROM project LIMIT 1;").fetchone()
+            row = conn.execute("SELECT id FROM project_info LIMIT 1;").fetchone()
             project_id = row[0]
         metadata = pipeline._get_project_metadata(project_id)
         assert metadata is not None
