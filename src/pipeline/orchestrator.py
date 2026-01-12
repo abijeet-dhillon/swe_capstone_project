@@ -19,6 +19,7 @@ from src.analyze.text_analyzer import TextAnalyzer
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
+from src.analyze.success_metrics import SuccessMetricsAnalyzer
 from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
@@ -61,6 +62,7 @@ class ArtifactPipeline:
         self.video_analyzer = VideoAnalyzer()
         self.image_processor = ImageProcessor()
         self.skill_extractor = AdvancedSkillExtractor()
+        self.success_metrics_analyzer = SuccessMetricsAnalyzer()
         self.temp_dir = None
         self.insights_store = insights_store
 
@@ -477,6 +479,16 @@ class ArtifactPipeline:
             print(f"     ⚠️  Warning: Failed to generate presentation items: {e}")
             result["portfolio_item"] = {"error": str(e)}
             result["resume_item"] = {"error": str(e)}
+        
+        # Generate success metrics
+        print(f"     🎯 Generating success metrics...")
+        try:
+            success_metrics = self.success_metrics_analyzer.analyze(result)
+            result["success_metrics"] = success_metrics.to_dict()
+            print(f"     ✓ Success metrics generated (Overall: {success_metrics.overall_score:.1f}/100)")
+        except Exception as e:
+            print(f"     ⚠️  Warning: Failed to generate success metrics: {e}")
+            result["success_metrics"] = {"error": str(e)}
         
         return result
     
@@ -898,6 +910,31 @@ class ArtifactPipeline:
                     # Truncate long bullets for display
                     display_bullet = bullet[:120] + '...' if len(bullet) > 120 else bullet
                     print(f"      {i}. {display_bullet}")
+            
+            # Success Metrics
+            success_metrics = project_data.get('success_metrics')
+            if success_metrics and 'error' not in success_metrics:
+                print(f"\n   🎯 Evidence of Success:")
+                print(f"      • Overall Score: {success_metrics.get('overall_score', 0):.1f}/100")
+                print(f"      • Code Quality: {success_metrics.get('code_quality_score', 0):.1f}/100")
+                print(f"      • Documentation: {success_metrics.get('documentation_score', 0):.1f}/100")
+                print(f"      • Activity: {success_metrics.get('activity_score', 0):.1f}/100")
+                print(f"      • Collaboration: {success_metrics.get('collaboration_score', 0):.1f}/100")
+                
+                # Show test coverage if available
+                test_cov = success_metrics.get('test_coverage_indicator')
+                if test_cov is not None:
+                    print(f"      • Estimated Test Coverage: {test_cov:.1f}%")
+                
+                # Show badges if found
+                badges = success_metrics.get('badges', [])
+                if badges:
+                    print(f"      • Badges Found: {len(badges)} ({', '.join(set(b['type'] for b in badges))})")
+                
+                # Show feedback items if found
+                feedback = success_metrics.get('feedback_items', [])
+                if feedback:
+                    print(f"      • Positive Feedback Indicators: {len(feedback)} found")
         
         # Miscellaneous files summary
         if misc_files:
@@ -1626,6 +1663,16 @@ def main():  # pragma: no cover - CLI entry point
                 print(json.dumps(video_data, indent=2))
             else:
                 print("No video files found")
+            
+            # Success Metrics
+            print("\n" + "-"*70)
+            print("🎯 SUCCESS METRICS")
+            print("-"*70)
+            success_data = project_data.get('success_metrics')
+            if success_data and 'error' not in success_data:
+                print(json.dumps(success_data, indent=2))
+            else:
+                print("Success metrics not available")
         
         # Process miscellaneous files section if it exists
         if misc_files:
@@ -1706,6 +1753,16 @@ def main():  # pragma: no cover - CLI entry point
                 print(json.dumps(video_data, indent=2))
             else:
                 print("No video files")
+            
+            # Success Metrics
+            print("\n" + "-"*70)
+            print("🎯 SUCCESS METRICS")
+            print("-"*70)
+            success_data = misc_files.get('success_metrics')
+            if success_data and 'error' not in success_data:
+                print(json.dumps(success_data, indent=2))
+            else:
+                print("Success metrics not available for miscellaneous files")
         
         if llm_consent:
             llm_output = result.get("llm_summaries")
