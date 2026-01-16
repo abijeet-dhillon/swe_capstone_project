@@ -5,6 +5,7 @@ These tests verify the apply_resume_item_customization function without
 requiring OpenAI API keys or any external dependencies.
 """
 
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -12,7 +13,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
+from src.insights.storage import ProjectInsightsStore
 from src.project.presentation import apply_resume_item_customization
+from tests.insights.utils import build_pipeline_payload
 
 
 def test_apply_resume_item_customization_edits_does_not_mutate():
@@ -268,3 +271,39 @@ def test_apply_resume_item_customization_project_name_only():
     assert customized["project_name"] == "New Name"
     assert customized["bullets"] == original["bullets"]
     assert customized["bullets"] is not original["bullets"]  # Still a copy
+
+
+def test_update_resume_item_persists_project_name(tmp_path):
+    """
+    Test that a saved resume item can update the stored project_name.
+    """
+    # Arrange
+    db_path = tmp_path / "insights.db"
+    store = ProjectInsightsStore(db_path=str(db_path), encryption_key=b"test-key")
+    payload = build_pipeline_payload(project_names=("ProjectAlpha",))
+    store.record_pipeline_run("/tmp/demo.zip", payload)
+
+    with sqlite3.connect(store.db_path) as conn:
+        project_info_id = conn.execute(
+            """
+            SELECT pi.id
+            FROM project_info pi
+            JOIN projects p ON p.id = pi.project_id
+            WHERE p.project_name = ?;
+            """,
+            ("ProjectAlpha",),
+        ).fetchone()[0]
+
+    resume_item = {
+        "project_name": "Custom Project Name",
+        "bullets": ["Updated bullet"]
+    }
+
+    # Act
+    updated = store.update_resume_item_by_id(project_info_id, resume_item)
+
+    # Assert
+    assert updated is True
+    insight = store.load_project_insight_by_id(project_info_id)
+    assert insight["project_name"] == "Custom Project Name"
+    assert insight["resume_item"]["bullets"] == ["Updated bullet"]

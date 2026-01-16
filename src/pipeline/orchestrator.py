@@ -73,7 +73,13 @@ class ArtifactPipeline:
                 print(f"⚠️  Insights storage disabled: {exc}")
                 self.insights_store = None
     
-    def start(self, zip_path: str, use_llm: bool = False, data_access_consent: bool = True) -> Dict[str, Any]:
+    def start(
+        self,
+        zip_path: str,
+        use_llm: bool = False,
+        data_access_consent: bool = True,
+        prompt_project_names: bool = False,
+    ) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
         
@@ -81,6 +87,7 @@ class ArtifactPipeline:
             zip_path: Path to the ZIP file to analyze
             use_llm: When True, also run the optional LLM summarization step
             data_access_consent: When False, exits immediately without processing
+            prompt_project_names: When True, prompt for custom project names after analysis
             
         Returns:
             Dictionary containing:
@@ -197,6 +204,9 @@ class ArtifactPipeline:
             else:
                 print(f"     ℹ️  {skills_timeline.get('message', 'No skill timeline generated')}")
             
+            if prompt_project_names:
+                self._prompt_for_project_names(project_results)
+
             # Step 9: Persist to database (after all analysis including ranking and skills)
             if self.insights_store:
                 print(f"\n[9/9] Persisting insights to database...")
@@ -1372,6 +1382,22 @@ class ArtifactPipeline:
                 "error": str(e)
             }
 
+    def _prompt_for_project_names(self, project_results: Dict[str, Any]) -> None:
+        if not project_results:
+            return
+        print("\nOptional: customize project names for presentation outputs.")
+        for project_name, project_data in project_results.items():
+            if project_name == "_misc_files":
+                continue
+            if not _prompt_yes_no(
+                f"\nAdd a custom project name for '{project_name}'?",
+                default=False,
+            ):
+                continue
+            custom_name = input("  Enter project name (leave blank to keep default): ").strip()
+            if custom_name:
+                project_data["project_name"] = custom_name
+
 
 def _prompt_for_llm_consent() -> bool:
     """
@@ -1550,7 +1576,12 @@ def main():  # pragma: no cover - CLI entry point
     try:
         # Create pipeline and run
         pipeline = ArtifactPipeline()
-        result = pipeline.start(args.zip_path, use_llm=llm_consent, data_access_consent=data_access_consent)
+        result = pipeline.start(
+            args.zip_path,
+            use_llm=llm_consent,
+            data_access_consent=data_access_consent,
+            prompt_project_names=True,
+        )
 
         # If user declined data access or nothing to report, exit quietly
         if not result:
@@ -1586,7 +1617,7 @@ def main():  # pragma: no cover - CLI entry point
                         print(json.dumps(git_analysis, indent=2))
                 else:
                     print("No Git analysis data available")
-            
+
             # File Analysis Results
             analysis = project_data.get('analysis_results', {})
             
