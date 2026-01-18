@@ -38,6 +38,7 @@ PROJECTS_TABLE = "projects"
 PROJECT_INFO_TABLE = "project_info"
 FILES_TABLE = "files"
 FILE_INFO_TABLE = "file_info"
+FILE_ANALYSIS_CACHE_TABLE = "file_analysis_cache"
 PORTFOLIO_INSIGHTS_TABLE = "portfolio_insights"
 RESUME_BULLETS_TABLE = "resume_bullets"
 TAGS_TABLE = "tags"
@@ -357,6 +358,27 @@ class ProjectInsightsStore:
         )
         conn.execute(
             f"""
+            CREATE TABLE IF NOT EXISTS {FILE_ANALYSIS_CACHE_TABLE} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sha256 TEXT NOT NULL,
+                file_ext TEXT,
+                analysis_type TEXT NOT NULL CHECK (analysis_type IN ('code', 'text', 'video', 'image')),
+                analysis_result BLOB NOT NULL,
+                created_at TEXT NOT NULL,
+                last_accessed TEXT NOT NULL,
+                access_count INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(sha256, analysis_type)
+            );
+            """
+        )
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{FILE_ANALYSIS_CACHE_TABLE}_sha256 ON {FILE_ANALYSIS_CACHE_TABLE}(sha256);"
+        )
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{FILE_ANALYSIS_CACHE_TABLE}_type ON {FILE_ANALYSIS_CACHE_TABLE}(sha256, analysis_type);"
+        )
+        conn.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS {PORTFOLIO_INSIGHTS_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_info_id INTEGER NOT NULL,
@@ -485,6 +507,93 @@ class ProjectInsightsStore:
             );
             """
         )
+
+    # File Analysis Cache API
+    def cache_file_analysis(
+        self,
+        sha256: str,
+        analysis_type: str,
+        analysis_result: Dict[str, Any],
+        file_ext: Optional[str] = None,
+    ) -> None:
+        """
+        Store or update file analysis results in cache.
+        
+        Args:
+            sha256: SHA256 hash of the file content
+            analysis_type: Type of analysis ('code', 'text', 'video', 'image')
+            analysis_result: Dictionary containing analysis results
+            file_ext: File extension (optional)
+        """
+        if analysis_type not in ('code', 'text', 'video', 'image'):
+            raise ValueError(f"Invalid analysis_type: {analysis_type}")
+        
+        encrypted_result = self.serializer.encrypt(analysis_result)
+        now = _utcnow()
+        
+        with self._lock:
+            with self._connect() as conn:
+                # Try to insert, or update if exists
+                conn.execute(
+                    f"""
+                    INSERT INTO {FILE_ANALYSIS_CACHE_TABLE}
+                        (sha256, file_ext, analysis_type, analysis_result, created_at, last_accessed, access_count)
+                    VALUES (?, ?, ?, ?, ?, ?, 0)
+                    ON CONFLICT(sha256, analysis_type) DO UPDATE SET
+                        analysis_result = excluded.analysis_result,
+                        last_accessed = excluded.last_accessed,
+                        file_ext = excluded.file_ext;
+                    """,
+                    (sha256, file_ext, analysis_type, encrypted_result, now, now),
+                )
+                conn.commit()
+    
+    def get_cached_file_analysis(
+        self,
+        sha256: str,
+        analysis_type: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve cached file analysis results.
+        
+        Args:
+            sha256: SHA256 hash of the file content
+            analysis_type: Type of analysis to retrieve
+            
+        Returns:
+            Dictionary with analysis results, or None if not found
+        """
+        if analysis_type not in ('code', 'text', 'video', 'image'):
+            raise ValueError(f"Invalid analysis_type: {analysis_type}")
+        
+        with self._lock:
+            with self._connect() as conn:
+                row = conn.execute(
+                    f"""
+                    SELECT analysis_result FROM {FILE_ANALYSIS_CACHE_TABLE}
+                    WHERE sha256 = ? AND analysis_type = ?;
+                    """,
+                    (sha256, analysis_type),
+                ).fetchone()
+                
+                if row is None:
+                    return None
+                
+                # Update access tracking
+                now = _utcnow()
+                conn.execute(
+                    f"""
+                    UPDATE {FILE_ANALYSIS_CACHE_TABLE}
+                    SET last_accessed = ?, access_count = access_count + 1
+                    WHERE sha256 = ? AND analysis_type = ?;
+                    """,
+                    (now, sha256, analysis_type),
+                )
+                conn.commit()
+                
+                # Decrypt and return result
+                encrypted_result = row[0]
+                return self.serializer.decrypt(encrypted_result)
 
     # Public API
     def record_pipeline_run(

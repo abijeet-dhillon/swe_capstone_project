@@ -65,6 +65,7 @@ class ArtifactPipeline:
         self.success_metrics_analyzer = SuccessMetricsAnalyzer()
         self.temp_dir = None
         self.insights_store = insights_store
+        self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
 
         if self.insights_store is None and enable_insights:
             try:
@@ -124,6 +125,7 @@ class ArtifactPipeline:
 
             # Capture file-level metadata for the entire archive
             file_info = self._build_file_info(zip_index)
+            self.sha256_lookup = self._build_sha256_lookup(file_info)
             try:
                 categorized_contents_full = categorize_folder_structure(str(self.temp_dir))
             except Exception as exc:
@@ -329,6 +331,21 @@ class ArtifactPipeline:
             })
 
         return file_info
+    
+    def _build_sha256_lookup(self, file_info: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Build a mapping from absolute file paths to SHA256 hashes.
+        
+        Args:
+            file_info: List of file metadata dictionaries
+            
+        Returns:
+            Dictionary mapping abs_path to sha256 hash
+        """
+        lookup = {}
+        for info in file_info:
+            lookup[info["abs_path"]] = info["sha256"]
+        return lookup
     
     def _process_loose_files(self, loose_files: List[Path]) -> Dict[str, Any]:
         """
@@ -569,6 +586,20 @@ class ArtifactPipeline:
             print(f"  📄 Analyzing {len(doc_files)} documentation file(s)...")
             try:
                 results['documentation'] = self.text_analyzer.analyze_batch(doc_files)
+                
+                # Cache each documentation file analysis result
+                if self.insights_store and 'files' in results['documentation']:
+                    for i, doc_file in enumerate(doc_files):
+                        if i < len(results['documentation']['files']) and doc_file in self.sha256_lookup:
+                            file_hash = self.sha256_lookup[doc_file]
+                            file_ext = Path(doc_file).suffix
+                            self.insights_store.cache_file_analysis(
+                                sha256=file_hash,
+                                analysis_type='text',
+                                analysis_result=results['documentation']['files'][i],
+                                file_ext=file_ext
+                            )
+                
                 print(f"     ✓ Documentation analysis complete")
             except Exception as e:
                 print(f"     ✗ Error analyzing documentation: {e}")
@@ -583,6 +614,20 @@ class ArtifactPipeline:
             print(f"  🖼️  Analyzing {len(image_files)} image file(s)...")
             try:
                 results['images'] = self.image_processor.batch_analyze(image_files)
+                
+                # Cache each image analysis result
+                if self.insights_store:
+                    for i, image_file in enumerate(image_files):
+                        if i < len(results['images']) and image_file in self.sha256_lookup:
+                            file_hash = self.sha256_lookup[image_file]
+                            file_ext = Path(image_file).suffix
+                            self.insights_store.cache_file_analysis(
+                                sha256=file_hash,
+                                analysis_type='image',
+                                analysis_result=results['images'][i],
+                                file_ext=file_ext
+                            )
+                
                 print(f"     ✓ Image analysis complete")
             except Exception as e:
                 print(f"     ✗ Error analyzing images: {e}")
@@ -605,6 +650,17 @@ class ArtifactPipeline:
                         # Run standard code analysis
                         analysis = self.code_analyzer.analyze_file(code_file)
                         code_results.append(analysis.to_dict())
+                        
+                        # Cache the code analysis result if insights store is enabled
+                        if self.insights_store and code_file in self.sha256_lookup:
+                            file_hash = self.sha256_lookup[code_file]
+                            file_ext = Path(code_file).suffix
+                            self.insights_store.cache_file_analysis(
+                                sha256=file_hash,
+                                analysis_type='code',
+                                analysis_result=analysis.to_dict(),
+                                file_ext=file_ext
+                            )
                         
                         # Run advanced skill extraction
                         skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
@@ -657,6 +713,17 @@ class ArtifactPipeline:
                         analysis = self.video_analyzer.analyze_file(video_file, transcribe=False)
                         if analysis:
                             video_results.append(analysis.to_dict())
+                            
+                            # Cache the video analysis result
+                            if self.insights_store and video_file in self.sha256_lookup:
+                                file_hash = self.sha256_lookup[video_file]
+                                file_ext = Path(video_file).suffix
+                                self.insights_store.cache_file_analysis(
+                                    sha256=file_hash,
+                                    analysis_type='video',
+                                    analysis_result=analysis.to_dict(),
+                                    file_ext=file_ext
+                                )
                     except Exception as e:
                         print(f"     ⚠️  Warning: Could not analyze {Path(video_file).name}: {e}")
                         continue
