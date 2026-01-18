@@ -1,11 +1,4 @@
-"""
-Unified CLI for Pipeline Operations
-
-Provides a single command-line interface for:
-1. Running the full artifact pipeline (orchestrator)
-2. Running the presentation pipeline
-3. Displaying textual information about projects (portfolio/resume)
-"""
+"""Unified CLI for artifact pipeline operations."""
 
 import sys
 import os
@@ -16,15 +9,6 @@ from typing import Optional, List, Dict, Any
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """
-    Main CLI entry point with subcommands.
-    
-    Args:
-        argv: Optional argument list (for testing); uses sys.argv if None
-        
-    Returns:
-        Exit code (0 for success, non-zero for error)
-    """
     parser = argparse.ArgumentParser(
         prog="python -m src.pipeline",
         description="Unified pipeline CLI for analysis, presentation, and display"
@@ -32,7 +16,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
-    # A) analyze subcommand
     analyze_parser = subparsers.add_parser(
         "analyze",
         help="Run the full artifact pipeline on a ZIP file"
@@ -46,7 +29,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="User ID for consent storage (default: $PIPELINE_USER_ID or current user)"
     )
     
-    # B) present subcommand
     present_parser = subparsers.add_parser(
         "present",
         help="Generate portfolio and resume items from stored project insights"
@@ -91,7 +73,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Limit number of projects (only for --all)"
     )
     
-    # C) show-portfolio subcommand
     portfolio_parser = subparsers.add_parser(
         "show-portfolio",
         help="Display human-friendly portfolio showcase for a project"
@@ -121,7 +102,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Environment variable name containing encryption key"
     )
     
-    # D) show-resume subcommand
     resume_parser = subparsers.add_parser(
         "show-resume",
         help="Display human-friendly resume item for a project"
@@ -151,7 +131,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Environment variable name containing encryption key"
     )
     
-    # E) list subcommand
     list_parser = subparsers.add_parser(
         "list",
         help="List available projects from the insights database"
@@ -200,17 +179,12 @@ def handle_analyze(args) -> int:
     
     user_id = args.user_id or os.getenv("PIPELINE_USER_ID") or getpass.getuser() or "default"
     zip_path = args.zip_path
-    
-    # Resolve data access consent
     data_consent = resolve_data_access_consent(zip_path, user_id)
     if not data_consent:
         print("✗ Data access consent not granted. Exiting.")
         return 0
     
-    # Resolve LLM consent
     llm_consent = resolve_llm_consent(zip_path, user_id)
-    
-    # Run pipeline
     print(f"\n🚀 Starting artifact pipeline for: {zip_path}")
     print(f"   User: {user_id}")
     print(f"   LLM: {'enabled' if llm_consent else 'disabled'}\n")
@@ -231,7 +205,6 @@ def handle_present(args) -> int:
     """Handle the 'present' subcommand"""
     from src.pipeline.presentation_pipeline import PresentationPipeline
     
-    # Get encryption key if specified
     encryption_key = None
     if args.encryption_key_env:
         key_str = os.getenv(args.encryption_key_env)
@@ -244,7 +217,6 @@ def handle_present(args) -> int:
         encryption_key=encryption_key
     )
     
-    # Determine mode and execute
     if args.project_id:
         result = pipeline.generate_by_id(args.project_id, regenerate=True)
         print_single_result(result)
@@ -274,7 +246,6 @@ def handle_show_portfolio(args) -> int:
     """Handle the 'show-portfolio' subcommand"""
     from src.pipeline.presentation_pipeline import PresentationPipeline
     
-    # Validate arguments
     if args.zip_hash and not args.project_name:
         print("Error: --zip-hash requires --project-name", file=sys.stderr)
         return 1
@@ -302,7 +273,6 @@ def handle_show_portfolio(args) -> int:
         print(f"Error: {result.error}", file=sys.stderr)
         return 1
     
-    # Format and print portfolio
     format_portfolio(result.portfolio_item)
     return 0
 
@@ -311,7 +281,6 @@ def handle_show_resume(args) -> int:
     """Handle the 'show-resume' subcommand"""
     from src.pipeline.presentation_pipeline import PresentationPipeline
     
-    # Validate arguments
     if args.zip_hash and not args.project_name:
         print("Error: --zip-hash requires --project-name", file=sys.stderr)
         return 1
@@ -339,7 +308,6 @@ def handle_show_resume(args) -> int:
         print(f"Error: {result.error}", file=sys.stderr)
         return 1
     
-    # Format and print resume
     format_resume(result.resume_item)
     return 0
 
@@ -348,20 +316,13 @@ def handle_list(args) -> int:
     """Handle the 'list' subcommand"""
     from src.pipeline.presentation_pipeline import PresentationPipeline
     
-    # Get encryption key if specified
     encryption_key = None
     if args.encryption_key_env:
         key_str = os.getenv(args.encryption_key_env)
         if key_str:
             encryption_key = key_str.encode('utf-8')
     
-    # Initialize pipeline
-    pipeline = PresentationPipeline(
-        db_path=args.db_path,
-        encryption_key=encryption_key
-    )
-    
-    # List projects
+    pipeline = PresentationPipeline(db_path=args.db_path, encryption_key=encryption_key)
     projects = pipeline.list_available_projects()
     
     if not projects:
@@ -371,12 +332,9 @@ def handle_list(args) -> int:
     print(f"\n{'='*100}")
     print(f"Available Projects ({len(projects)} total)")
     print(f"{'='*100}\n")
-    
-    # Table header
     print(f"{'ID':<6} | {'Project Name':<30} | {'Zip Hash':<12} | {'Code':<5} | {'Docs':<5} | {'Git':<4} | {'Updated'}")
     print(f"{'-'*6}-+-{'-'*30}-+-{'-'*12}-+-{'-'*5}-+-{'-'*5}-+-{'-'*4}-+-{'-'*19}")
     
-    # Table rows
     for proj in projects:
         zip_short = proj['zip_hash'][:12] if proj['zip_hash'] else 'N/A'
         name_short = proj['project_name'][:30] if proj['project_name'] else 'N/A'
@@ -436,29 +394,24 @@ def format_portfolio(portfolio_item: Dict[str, Any]) -> None:
     print(f"\nDescription:")
     print(f"  {portfolio_item.get('description', 'N/A')}")
     
-    # Languages
     languages = portfolio_item.get('languages', [])
     if languages:
         print(f"\nLanguages: {', '.join(languages)}")
     
-    # Frameworks
     frameworks = portfolio_item.get('frameworks', [])
     if frameworks:
         print(f"Frameworks: {', '.join(frameworks)}")
     
-    # Skills
     skills = portfolio_item.get('skills', [])
     if skills:
         print(f"Skills: {', '.join(skills)}")
     
-    # Key features
     key_features = portfolio_item.get('key_features', [])
     if key_features:
         print(f"\nKey Features:")
         for feature in key_features:
             print(f"  • {feature}")
     
-    # Collaboration metrics
     is_collab = portfolio_item.get('is_collaborative', False)
     commits = portfolio_item.get('total_commits', 0)
     loc = portfolio_item.get('total_lines', 0)
