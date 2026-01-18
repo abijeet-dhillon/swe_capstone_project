@@ -566,6 +566,145 @@ class ProjectInsightsStore:
             metadata_updated=metadata_updated,
         )
 
+    # Customization API
+    def update_portfolio_insights_fields(
+        self,
+        project_info_id: int,
+        fields: Dict[str, Any],
+    ) -> bool:
+        """
+        Update editable fields for a portfolio insight row identified by project_info_id.
+
+        Editable keys: tagline, description, project_type, complexity, is_collaborative,
+        summary, key_features (list -> stored as JSON).
+
+        Returns True if a row was updated.
+        """
+        editable = {
+            "tagline",
+            "description",
+            "project_type",
+            "complexity",
+            "is_collaborative",
+            "summary",
+            "key_features",
+        }
+        update_data: Dict[str, Any] = {}
+        for k, v in (fields or {}).items():
+            if k in editable:
+                update_data[k] = v
+        if not update_data:
+            return False
+
+        with self._lock:
+            with self._connect() as conn:
+                row = conn.execute(
+                    f"SELECT id FROM {PORTFOLIO_INSIGHTS_TABLE} WHERE project_info_id = ?;",
+                    (project_info_id,),
+                ).fetchone()
+                if not row:
+                    return False
+                sets = []
+                params: List[Any] = []
+                if "tagline" in update_data:
+                    sets.append("tagline = ?")
+                    params.append(update_data["tagline"])
+                if "description" in update_data:
+                    sets.append("description = ?")
+                    params.append(update_data["description"])
+                if "project_type" in update_data:
+                    sets.append("project_type = ?")
+                    params.append(update_data["project_type"])
+                if "complexity" in update_data:
+                    sets.append("complexity = ?")
+                    params.append(update_data["complexity"])
+                if "is_collaborative" in update_data:
+                    sets.append("is_collaborative = ?")
+                    params.append(1 if update_data["is_collaborative"] else 0)
+                if "summary" in update_data:
+                    sets.append("summary = ?")
+                    params.append(update_data["summary"])
+                if "key_features" in update_data:
+                    sets.append("key_features_json = ?")
+                    try:
+                        params.append(json.dumps(update_data["key_features"] or []))
+                    except Exception:
+                        params.append("[]")
+                if not sets:
+                    return False
+                params.append(project_info_id)
+                conn.execute(
+                    f"UPDATE {PORTFOLIO_INSIGHTS_TABLE} SET " + ", ".join(sets) + " WHERE project_info_id = ?;",
+                    tuple(params),
+                )
+                return True
+
+    def replace_resume_bullets(
+        self,
+        project_info_id: int,
+        bullets: List[str],
+    ) -> bool:
+        """
+        Replace resume bullets for a given project_info_id. All existing bullets are removed
+        and replaced with the provided list as manual, selected bullets in display order.
+
+        Returns True if replacement occurred (portfolio insight row existed).
+        """
+        # Normalize bullets
+        cleaned: List[str] = []
+        for b in bullets or []:
+            if isinstance(b, str):
+                s = b.strip()
+                if s:
+                    cleaned.append(s)
+
+        with self._lock:
+            with self._connect() as conn:
+                insight_row = conn.execute(
+                    f"SELECT id FROM {PORTFOLIO_INSIGHTS_TABLE} WHERE project_info_id = ?;",
+                    (project_info_id,),
+                ).fetchone()
+                if not insight_row:
+                    return False
+                insight_id = insight_row[0]
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    conn.execute(
+                        f"DELETE FROM {RESUME_BULLETS_TABLE} WHERE portfolio_insight_id = ?;",
+                        (insight_id,),
+                    )
+                    for order, text in enumerate(cleaned):
+                        conn.execute(
+                            f"""
+                            INSERT INTO {RESUME_BULLETS_TABLE} (portfolio_insight_id, bullet_text, display_order, is_selected, source)
+                            VALUES (?, ?, ?, ?, ?);
+                            """,
+                            (insight_id, text, order, 1, "manual"),
+                        )
+                    conn.execute("COMMIT;")
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+                return True
+
+    def save_portfolio_customization(
+        self,
+        project_info_id: int,
+        portfolio_fields: Optional[Dict[str, Any]] = None,
+        resume_bullets: Optional[List[str]] = None,
+    ) -> bool:
+        """
+        Convenience method to update portfolio fields and/or replace resume bullets.
+        Returns True if at least one change was applied.
+        """
+        changed = False
+        if portfolio_fields:
+            changed = self.update_portfolio_insights_fields(project_info_id, portfolio_fields) or changed
+        if resume_bullets is not None:
+            changed = self.replace_resume_bullets(project_info_id, resume_bullets) or changed
+        return changed
+
     def load_project_insight(self, zip_hash: str, project_name: str) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
             ingest_id = self._latest_ingest_id(conn, zip_hash)
