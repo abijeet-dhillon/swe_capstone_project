@@ -65,6 +65,7 @@ class ArtifactPipeline:
         self.success_metrics_analyzer = SuccessMetricsAnalyzer()
         self.temp_dir = None
         self.insights_store = insights_store
+        self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
 
         if self.insights_store is None and enable_insights:
             try:
@@ -131,6 +132,7 @@ class ArtifactPipeline:
 
             # Capture file-level metadata for the entire archive
             file_info = self._build_file_info(zip_index)
+            self.sha256_lookup = self._build_sha256_lookup(file_info)
             try:
                 categorized_contents_full = categorize_folder_structure(str(self.temp_dir))
             except Exception as exc:
@@ -339,6 +341,80 @@ class ArtifactPipeline:
             })
 
         return file_info
+    
+    def _build_sha256_lookup(self, file_info: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Build a mapping from absolute file paths to SHA256 hashes.
+        
+        Args:
+            file_info: List of file metadata dictionaries
+            
+        Returns:
+            Dictionary mapping abs_path to sha256 hash
+        """
+        lookup = {}
+        for info in file_info:
+            lookup[info["abs_path"]] = info["sha256"]
+        return lookup
+    
+    def _get_cached_analysis(self, file_path: str, analysis_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Check if a file's analysis is cached and return it.
+        
+        Args:
+            file_path: Absolute path to the file
+            analysis_type: Type of analysis ('code', 'text', 'image', 'video')
+            
+        Returns:
+            Cached analysis result or None if not found
+        """
+        if not self.insights_store:
+            return None
+        
+        # Get SHA256 hash for this file
+        file_hash = self.sha256_lookup.get(file_path)
+        if not file_hash:
+            return None
+        
+        # Query cache
+        try:
+            cached = self.insights_store.get_cached_file_analysis(
+                sha256=file_hash,
+                analysis_type=analysis_type
+            )
+            return cached
+        except Exception:
+            return None
+    
+    def _cache_analysis(self, file_path: str, analysis_type: str, result: Dict[str, Any]) -> None:
+        """
+        Cache a file's analysis result.
+        
+        Args:
+            file_path: Absolute path to the file
+            analysis_type: Type of analysis ('code', 'text', 'image', 'video')
+            result: Analysis result dictionary to cache
+        """
+        if not self.insights_store:
+            return
+        
+        # Get SHA256 hash and file extension
+        file_hash = self.sha256_lookup.get(file_path)
+        if not file_hash:
+            return
+        
+        file_ext = Path(file_path).suffix
+        
+        # Store in cache
+        try:
+            self.insights_store.cache_file_analysis(
+                sha256=file_hash,
+                analysis_type=analysis_type,
+                analysis_result=result,
+                file_ext=file_ext
+            )
+        except Exception:
+            pass
     
     def _process_loose_files(self, loose_files: List[Path]) -> Dict[str, Any]:
         """
@@ -578,7 +654,41 @@ class ArtifactPipeline:
         if doc_files:
             print(f"  📄 Analyzing {len(doc_files)} documentation file(s)...")
             try:
-                results['documentation'] = self.text_analyzer.analyze_batch(doc_files)
+                doc_results = []
+                cache_hits = 0
+                
+                for doc_file in doc_files:
+                    # Check cache first
+                    cached_result = self._get_cached_analysis(doc_file, 'text')
+                    
+                    if cached_result:
+                        doc_results.append(cached_result)
+                        cache_hits += 1
+                    else:
+                        # Not in cache - analyze it
+                        try:
+                            metrics = self.text_analyzer.analyze_file(doc_file)
+                            result_dict = metrics.to_dict()
+                            doc_results.append(result_dict)
+                            # Cache for future use
+                            self._cache_analysis(doc_file, 'text', result_dict)
+                        except Exception as e:
+                            print(f"     ⚠️  Warning: Could not analyze {Path(doc_file).name}: {e}")
+                            continue
+                
+                # Calculate totals
+                totals = self.text_analyzer._calculate_totals(
+                    [self.text_analyzer.TextMetrics(**r) for r in doc_results]
+                )
+                
+                results['documentation'] = {
+                    'files': doc_results,
+                    'totals': totals
+                }
+                
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(doc_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(doc_files)} ({cache_rate:.1f}%)")
                 print(f"     ✓ Documentation analysis complete")
             except Exception as e:
                 print(f"     ✗ Error analyzing documentation: {e}")
@@ -592,7 +702,36 @@ class ArtifactPipeline:
         if image_files:
             print(f"  🖼️  Analyzing {len(image_files)} image file(s)...")
             try:
-                results['images'] = self.image_processor.batch_analyze(image_files)
+                image_results = []
+                cache_hits = 0
+                
+                for image_file in image_files:
+                    # Check cache first
+                    cached_result = self._get_cached_analysis(image_file, 'image')
+                    
+                    if cached_result:
+                        image_results.append(cached_result)
+                        cache_hits += 1
+                    else:
+                        # Not in cache - analyze it
+                        try:
+                            result = self.image_processor.analyze_image(image_file)
+                            image_results.append(result)
+                            # Cache for future use
+                            self._cache_analysis(image_file, 'image', result)
+                        except Exception as e:
+                            print(f"     ⚠️  Warning: Could not analyze {Path(image_file).name}: {e}")
+                            image_results.append({
+                                "file_path": image_file,
+                                "error": str(e)
+                            })
+                            continue
+                
+                results['images'] = image_results
+                
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(image_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(image_files)} ({cache_rate:.1f}%)")
                 print(f"     ✓ Image analysis complete")
             except Exception as e:
                 print(f"     ✗ Error analyzing images: {e}")
@@ -609,16 +748,35 @@ class ArtifactPipeline:
                 # CodeAnalyzer needs to be called per file
                 code_results = []
                 skill_analyses = []
+                cache_hits = 0
                 
                 for code_file in code_files:
                     try:
-                        # Run standard code analysis
-                        analysis = self.code_analyzer.analyze_file(code_file)
-                        code_results.append(analysis.to_dict())
+                        # Check cache first
+                        cached_result = self._get_cached_analysis(code_file, 'code')
                         
-                        # Run advanced skill extraction
-                        skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
-                        skill_analyses.append(skill_analysis)
+                        if cached_result:
+                            # Use cached result
+                            code_results.append(cached_result)
+                            cache_hits += 1
+                            # Still run skill extraction (not cached separately yet)
+                            try:
+                                skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
+                                skill_analyses.append(skill_analysis)
+                            except Exception:
+                                pass
+                        else:
+                            # Not in cache - analyze it
+                            analysis = self.code_analyzer.analyze_file(code_file)
+                            result_dict = analysis.to_dict()
+                            code_results.append(result_dict)
+                            
+                            # Cache for future use
+                            self._cache_analysis(code_file, 'code', result_dict)
+                            
+                            # Run advanced skill extraction
+                            skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
+                            skill_analyses.append(skill_analysis)
                     except Exception as e:
                         print(f"     ⚠️  Warning: Could not analyze {Path(code_file).name}: {e}")
                         continue
@@ -644,6 +802,9 @@ class ArtifactPipeline:
                         'aggregate': skill_aggregate
                     }
                 }
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(code_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(code_files)} ({cache_rate:.1f}%)")
                 print(f"     ✓ Code analysis complete ({len(code_results)} files)")
                 print(f"     ✓ Skill extraction complete ({skill_aggregate['total_files_analyzed']} files, {len(skill_aggregate['advanced_skills'])} advanced skills)")
             except Exception as e:
@@ -662,11 +823,24 @@ class ArtifactPipeline:
             try:
                 # VideoAnalyzer needs to be called per file
                 video_results = []
+                cache_hits = 0
+                
                 for video_file in video_files:
                     try:
-                        analysis = self.video_analyzer.analyze_file(video_file, transcribe=False)
-                        if analysis:
-                            video_results.append(analysis.to_dict())
+                        # Check cache first
+                        cached_result = self._get_cached_analysis(video_file, 'video')
+                        
+                        if cached_result:
+                            video_results.append(cached_result)
+                            cache_hits += 1
+                        else:
+                            # Not in cache - analyze it
+                            analysis = self.video_analyzer.analyze_file(video_file, transcribe=False)
+                            if analysis:
+                                result_dict = analysis.to_dict()
+                                video_results.append(result_dict)
+                                # Cache for future use
+                                self._cache_analysis(video_file, 'video', result_dict)
                     except Exception as e:
                         print(f"     ⚠️  Warning: Could not analyze {Path(video_file).name}: {e}")
                         continue
@@ -683,6 +857,9 @@ class ArtifactPipeline:
                     'files': video_results,
                     'metrics': metrics.to_dict()
                 }
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(video_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(video_files)} ({cache_rate:.1f}%)")
                 print(f"     ✓ Video analysis complete ({len(video_results)} files)")
             except Exception as e:
                 print(f"     ✗ Error analyzing videos: {e}")
