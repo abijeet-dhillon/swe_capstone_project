@@ -3,9 +3,11 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI
 
 from src.api.deps import get_store
+from src.api.routers import api_router
 from src.insights.storage import ProjectInsightsStore
 
 app = FastAPI(title="Project Insights API")
+app.include_router(api_router)
 
 
 @app.get("/health")
