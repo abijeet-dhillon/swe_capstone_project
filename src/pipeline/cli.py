@@ -143,6 +143,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--encryption-key-env",
         help="Environment variable name containing encryption key"
     )
+    list_parser.add_argument(
+        "--language",
+        action="append",
+        help="Filter by programming language (can be specified multiple times)"
+    )
+    list_parser.add_argument(
+        "--framework",
+        action="append",
+        help="Filter by framework (can be specified multiple times)"
+    )
     
     args = parser.parse_args(argv)
     
@@ -323,14 +333,39 @@ def handle_list(args) -> int:
             encryption_key = key_str.encode('utf-8')
     
     pipeline = PresentationPipeline(db_path=args.db_path, encryption_key=encryption_key)
-    projects = pipeline.list_available_projects()
+    
+    # Apply filters if specified
+    filters = {}
+    if hasattr(args, 'language') and args.language:
+        filters['languages'] = args.language
+    if hasattr(args, 'framework') and args.framework:
+        filters['frameworks'] = args.framework
+    
+    projects = pipeline.list_available_projects(filters=filters if filters else None)
     
     if not projects:
-        print("\nNo projects found in database.\n")
+        filter_msg = ""
+        if filters:
+            filter_parts = []
+            if 'languages' in filters:
+                filter_parts.append(f"languages: {', '.join(filters['languages'])}")
+            if 'frameworks' in filters:
+                filter_parts.append(f"frameworks: {', '.join(filters['frameworks'])}")
+            filter_msg = f" (filtered by {'; '.join(filter_parts)})"
+        print(f"\nNo projects found in database{filter_msg}.\n")
         return 0
     
+    filter_info = ""
+    if filters:
+        filter_parts = []
+        if 'languages' in filters:
+            filter_parts.append(f"Language: {', '.join(filters['languages'])}")
+        if 'frameworks' in filters:
+            filter_parts.append(f"Framework: {', '.join(filters['frameworks'])}")
+        filter_info = f" [Filtered by {' | '.join(filter_parts)}]"
+    
     print(f"\n{'='*100}")
-    print(f"Available Projects ({len(projects)} total)")
+    print(f"Available Projects ({len(projects)} total){filter_info}")
     print(f"{'='*100}\n")
     print(f"{'ID':<6} | {'Project Name':<30} | {'Zip Hash':<12} | {'Code':<5} | {'Docs':<5} | {'Git':<4} | {'Updated'}")
     print(f"{'-'*6}-+-{'-'*30}-+-{'-'*12}-+-{'-'*5}-+-{'-'*5}-+-{'-'*4}-+-{'-'*19}")

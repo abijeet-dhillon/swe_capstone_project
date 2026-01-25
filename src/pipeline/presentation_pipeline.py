@@ -172,42 +172,106 @@ class PresentationPipeline:
             results=results
         )
     
-    def list_available_projects(self) -> List[Dict[str, Any]]:
-        """List all projects available in the database with their metadata."""
+    def list_available_projects(self, filters: Optional[Dict[str, List[str]]] = None) -> List[Dict[str, Any]]:
+        """
+        List all projects available in the database with their metadata.
+        
+        Args:
+            filters: Optional dict with 'languages' and/or 'frameworks' keys containing lists of values to filter by
+        
+        Returns:
+            List of project metadata dictionaries
+        """
         import sqlite3
         
-        with sqlite3.connect(self.store.db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT pi.id, p.project_name, p.slug, i.source_hash, i.source_path,
-                       (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'code') AS code_files,
-                       (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'documentation') AS doc_files,
-                       pi.is_git_repo, pi.created_at, pi.updated_at
-                FROM project_info pi
-                JOIN projects p ON p.id = pi.project_id
-                JOIN ingest i ON i.id = pi.ingest_id
-                WHERE i.id = (
-                    SELECT id FROM ingest i2
-                    WHERE i2.source_hash = i.source_hash
-                    ORDER BY i2.id DESC
-                    LIMIT 1
-                )
-                ORDER BY pi.updated_at DESC;
-                """
-            ).fetchall()
+        # Build base query
+        query = """
+            SELECT pi.id, p.project_name, p.slug, i.source_hash, i.source_path,
+                   (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'code') AS code_files,
+                   (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'documentation') AS doc_files,
+                   pi.is_git_repo, pi.created_at, pi.updated_at, pi.languages_json, pi.frameworks_json
+            FROM project_info pi
+            JOIN projects p ON p.id = pi.project_id
+            JOIN ingest i ON i.id = pi.ingest_id
+            WHERE i.id = (
+                SELECT id FROM ingest i2
+                WHERE i2.source_hash = i.source_hash
+                ORDER BY i2.id DESC
+                LIMIT 1
+            )
+            ORDER BY pi.updated_at DESC;
+        """
         
-        return [{
-            "project_id": row[0],
-            "project_name": row[1],
-            "slug": row[2],
-            "zip_hash": row[3],
-            "zip_path": row[4],
-            "code_files": row[5],
-            "doc_files": row[6],
-            "is_git_repo": bool(row[7]),
-            "created_at": row[8],
-            "updated_at": row[9]
-        } for row in rows]
+        with sqlite3.connect(self.store.db_path) as conn:
+            rows = conn.execute(query).fetchall()
+        
+        projects = []
+        for row in rows:
+            project = {
+                "project_id": row[0],
+                "project_name": row[1],
+                "slug": row[2],
+                "zip_hash": row[3],
+                "zip_path": row[4],
+                "code_files": row[5],
+                "doc_files": row[6],
+                "is_git_repo": bool(row[7]),
+                "created_at": row[8],
+                "updated_at": row[9],
+                "_languages_json": row[10],
+                "_frameworks_json": row[11]
+            }
+            projects.append(project)
+        
+        # Apply filters if specified
+        if filters:
+            filtered_projects = []
+            for project in projects:
+                include_project = True
+                
+                # Filter by languages
+                if 'languages' in filters and filters['languages']:
+                    import json
+                    project_languages = []
+                    if project['_languages_json']:
+                        try:
+                            project_languages = json.loads(project['_languages_json'])
+                        except:
+                            pass
+                    # Case-insensitive matching
+                    project_langs_lower = [lang.lower() for lang in project_languages]
+                    filter_langs_lower = [lang.lower() for lang in filters['languages']]
+                    if not any(lang in project_langs_lower for lang in filter_langs_lower):
+                        include_project = False
+                
+                # Filter by frameworks
+                if include_project and 'frameworks' in filters and filters['frameworks']:
+                    import json
+                    project_frameworks = []
+                    if project['_frameworks_json']:
+                        try:
+                            project_frameworks = json.loads(project['_frameworks_json'])
+                        except:
+                            pass
+                    # Case-insensitive matching
+                    project_fws_lower = [fw.lower() for fw in project_frameworks]
+                    filter_fws_lower = [fw.lower() for fw in filters['frameworks']]
+                    if not any(fw in project_fws_lower for fw in filter_fws_lower):
+                        include_project = False
+                
+                if include_project:
+                    # Remove internal JSON fields before returning
+                    project.pop('_languages_json', None)
+                    project.pop('_frameworks_json', None)
+                    filtered_projects.append(project)
+            
+            return filtered_projects
+        
+        # No filters - remove internal JSON fields and return all
+        for project in projects:
+            project.pop('_languages_json', None)
+            project.pop('_frameworks_json', None)
+        return projects
     
     def _get_project_id(self, zip_hash: str, project_name: str) -> Optional[int]:
         import sqlite3
