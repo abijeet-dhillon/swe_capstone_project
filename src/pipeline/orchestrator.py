@@ -23,6 +23,7 @@ from src.analyze.success_metrics import SuccessMetricsAnalyzer
 from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
+from src.pipeline.progress_tracker import ProgressTracker
 from src.project.presentation import (
     extract_project_metrics,
     generate_portfolio_item,
@@ -66,6 +67,7 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
+        self.progress_tracker = ProgressTracker()
 
         if self.insights_store is None and enable_insights:
             try:
@@ -117,11 +119,23 @@ class ArtifactPipeline:
         print(f"{'='*70}")
         print(f"📦 ZIP File: {zip_path.name}")
         
+        # Initialize progress tracking
+        self.progress_tracker.reset()
+        self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
+        
         try:
             # Step 1: Parse ZIP metadata
             print(f"\n[1/9] Parsing ZIP file metadata...")
             zip_index = parse_zip(str(zip_path))
             print(f"✓ Parsed {zip_index.file_count} files")
+            
+            # Check for cancellation
+            if self.progress_tracker.should_cancel():
+                print("\n⚠️  Analysis cancelled by user")
+                self.progress_tracker.update(stage='cancelled')
+                return {"status": "cancelled", "message": "Analysis cancelled by user"}
+            
+            self.progress_tracker.update(total_files=zip_index.file_count, stage='extracting')
             
             # Step 2: Extract to temporary directory
             print(f"\n[2/9] Extracting ZIP contents...")
@@ -130,9 +144,17 @@ class ArtifactPipeline:
                 zf.extractall(self.temp_dir)
             print(f"✓ Extracted to: {self.temp_dir}")
 
+            # Check for cancellation
+            if self.progress_tracker.should_cancel():
+                print("\n⚠️  Analysis cancelled by user")
+                self.progress_tracker.update(stage='cancelled')
+                return {"status": "cancelled", "message": "Analysis cancelled by user"}
+
             # Capture file-level metadata for the entire archive
             file_info = self._build_file_info(zip_index)
             self.sha256_lookup = self._build_sha256_lookup(file_info)
+            self.progress_tracker.update(stage='categorizing')
+            
             try:
                 categorized_contents_full = categorize_folder_structure(str(self.temp_dir))
             except Exception as exc:
@@ -145,12 +167,21 @@ class ArtifactPipeline:
             if loose_files:
                 print(f"✓ Found {len(loose_files)} loose file(s) not in any project")
             
+            self.progress_tracker.update(stage='analyzing', processed_files=0)
+            
             # Step 4: Process each project
             print(f"\n[4/9] Processing each project...")
             project_results = {}
             
             for project_name, project_path in projects.items():
+                # Check for cancellation before processing each project
+                if self.progress_tracker.should_cancel():
+                    print("\n⚠️  Analysis cancelled by user")
+                    self.progress_tracker.update(stage='cancelled')
+                    return {"status": "cancelled", "message": "Analysis cancelled by user"}
+                
                 print(f"\n  📁 Processing project: {project_name}")
+                self.progress_tracker.update(current_project=project_name)
                 project_results[project_name] = self._process_project(project_name, project_path)
             
             # Step 4b: Process loose files if any exist
@@ -161,6 +192,7 @@ class ArtifactPipeline:
             
             # Step 5: Build final result
             print(f"\n[5/9] Compiling results...")
+            self.progress_tracker.update(stage='compiling')
             result = {
                 "zip_metadata": {
                     "root_name": zip_index.root_name,
@@ -223,6 +255,9 @@ class ArtifactPipeline:
             print(f"\n📄 Saving JSON report...")
             report_path = self._save_json_report(zip_path, result)
             print(f"     ✓ Report saved to: {report_path}")
+            
+            # Mark progress as complete
+            self.progress_tracker.update(stage='complete', processed_files=zip_index.file_count)
             
             return result
             
@@ -658,6 +693,10 @@ class ArtifactPipeline:
                 cache_hits = 0
                 
                 for doc_file in doc_files:
+                    # Check for cancellation
+                    if self.progress_tracker.should_cancel():
+                        break
+                    
                     # Check cache first
                     cached_result = self._get_cached_analysis(doc_file, 'text')
                     
@@ -675,6 +714,9 @@ class ArtifactPipeline:
                         except Exception as e:
                             print(f"     ⚠️  Warning: Could not analyze {Path(doc_file).name}: {e}")
                             continue
+                    
+                    # Update progress after each file
+                    self.progress_tracker.increment_processed(current_file=Path(doc_file).name)
                 
                 # Calculate totals
                 totals = self.text_analyzer._calculate_totals(
@@ -706,6 +748,10 @@ class ArtifactPipeline:
                 cache_hits = 0
                 
                 for image_file in image_files:
+                    # Check for cancellation
+                    if self.progress_tracker.should_cancel():
+                        break
+                    
                     # Check cache first
                     cached_result = self._get_cached_analysis(image_file, 'image')
                     
@@ -726,6 +772,9 @@ class ArtifactPipeline:
                                 "error": str(e)
                             })
                             continue
+                    
+                    # Update progress after each file
+                    self.progress_tracker.increment_processed(current_file=Path(image_file).name)
                 
                 results['images'] = image_results
                 
