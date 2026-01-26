@@ -15,7 +15,7 @@ from datetime import datetime
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
-from src.analyze.text_analyzer import TextAnalyzer
+from src.analyze.text_analyzer import TextAnalyzer, TextMetrics
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
@@ -678,7 +678,7 @@ class ArtifactPipeline:
                 
                 # Calculate totals
                 totals = self.text_analyzer._calculate_totals(
-                    [self.text_analyzer.TextMetrics(**r) for r in doc_results]
+                    [TextMetrics(**r) for r in doc_results]
                 )
                 
                 results['documentation'] = {
@@ -1673,9 +1673,22 @@ def resolve_data_access_consent(zip_path: str, user_id: str) -> bool:
     if existing:
         if existing.zip_file != zip_str:
             manager.update_config(user_id, zip_file=zip_str)
-        status = "granted" if existing.data_access_consent else "denied"
-        print(f"\n🔐 Using stored data access consent for user '{user_id}': {status}")
-        return existing.data_access_consent
+            existing.zip_file = zip_str
+        if existing.data_access_consent:
+            print(f"\n🔐 Using stored data access consent for user '{user_id}': granted")
+            return True
+        print(f"\n🔐 Data access consent for user '{user_id}' was not previously provided.")
+        consent = _prompt_for_data_access_consent()
+        stored = manager.update_config(
+            user_id,
+            zip_file=existing.zip_file,
+            data_access_consent=consent,
+        )
+        if not stored:
+            print("⚠️  Unable to persist consent choice; proceeding with this selection for the current run.")
+        else:
+            print(f"✅ Saved data access consent for user '{user_id}' to local configuration.")
+        return consent
 
     consent = _prompt_for_data_access_consent()
     stored = manager.create_config(

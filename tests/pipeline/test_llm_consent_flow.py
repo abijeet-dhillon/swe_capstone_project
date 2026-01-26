@@ -131,6 +131,49 @@ def test_resolve_llm_consent_prompts_and_saves(monkeypatch, temp_db, tmp_path):
     assert cfg.zip_file == str(zip_path)
 
 
+def test_resolve_data_access_consent_prompts_and_saves(monkeypatch, temp_db, tmp_path):
+    responses = iter(["y"])
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
+
+    zip_path = tmp_path / "data.zip"
+    zip_path.write_text("placeholder zip path marker")
+
+    consent = orchestrator.resolve_data_access_consent(str(zip_path), "fresh-user")
+    assert consent is True
+
+    cfg = config_manager.UserConfigManager(db_path=temp_db).load_config("fresh-user")
+    assert cfg is not None
+    assert cfg.data_access_consent is True
+    assert cfg.llm_consent is False
+    assert cfg.llm_consent_asked is False
+    assert cfg.zip_file == str(zip_path)
+
+
+def test_resolve_data_access_consent_reprompts_after_denial(monkeypatch, temp_db, tmp_path):
+    manager = config_manager.UserConfigManager(db_path=temp_db)
+    manager.create_config(
+        "tester",
+        "/tmp/original.zip",
+        llm_consent=False,
+        llm_consent_asked=False,
+        data_access_consent=False,
+    )
+
+    prompts = []
+    monkeypatch.setattr("builtins.input", lambda _: prompts.append(True) or "y")
+
+    zip_path = tmp_path / "latest.zip"
+    zip_path.write_text("placeholder zip path marker")
+
+    consent = orchestrator.resolve_data_access_consent(str(zip_path), "tester")
+    assert consent is True
+    assert len(prompts) == 1
+
+    cfg = manager.load_config("tester")
+    assert cfg.data_access_consent is True
+    assert cfg.zip_file == str(zip_path)
+
+
 def test_pipeline_runs_llm_when_enabled(monkeypatch, tmp_path):
     zip_path = _create_test_zip(tmp_path)
 

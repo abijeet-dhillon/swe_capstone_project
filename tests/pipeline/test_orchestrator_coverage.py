@@ -140,7 +140,38 @@ def test_process_project_local_only(monkeypatch, tmp_path):
         def to_dict(self):
             return self.__dict__
 
-    pipeline.text_analyzer.analyze_batch = lambda files: {"files": [], "totals": {"total_files": len(files), "total_words": 1}}
+    from src.analyze.text_analyzer import TextMetrics
+
+    class StubTextAnalyzer:
+        def analyze_file(self, file_path):
+            return TextMetrics(
+                file_path=str(file_path),
+                file_name=Path(file_path).name,
+                file_type="txt",
+                file_size_bytes=1,
+                created_time="now",
+                modified_time="now",
+                page_count=None,
+                word_count=1,
+                sentence_count=1,
+                paragraph_count=1,
+                character_count=1,
+                estimated_reading_time_minutes=0.01,
+                lexical_diversity=1.0,
+                avg_word_length=1.0,
+                avg_sentence_length=1.0,
+                top_keywords=[("test", 1)],
+                heading_count=None,
+                heading_breakdown=None,
+            )
+
+        def _calculate_totals(self, results):
+            return {
+                "total_files": len(results),
+                "total_words": sum(r.word_count for r in results),
+            }
+
+    pipeline.text_analyzer = StubTextAnalyzer()
     pipeline.image_processor.batch_analyze = lambda files: []
     pipeline.code_analyzer.analyze_file = lambda f: StubAnalysisResult()
     pipeline.code_analyzer.calculate_contribution_metrics = lambda results: types.SimpleNamespace(
@@ -304,12 +335,45 @@ def test_analyze_categorized_files_all_paths(monkeypatch):
     pipeline = orchestrator.ArtifactPipeline(enable_insights=False)
 
     class StubTextAnalyzer:
-        def analyze_batch(self, files):
-            return {"files": [], "totals": {"total_files": len(files), "total_words": 10}}
+        def analyze_file(self, file_path):
+            from src.analyze.text_analyzer import TextMetrics
+
+            return TextMetrics(
+                file_path=str(file_path),
+                file_name=Path(file_path).name,
+                file_type="txt",
+                file_size_bytes=1,
+                created_time="now",
+                modified_time="now",
+                page_count=None,
+                word_count=10,
+                sentence_count=1,
+                paragraph_count=1,
+                character_count=10,
+                estimated_reading_time_minutes=0.05,
+                lexical_diversity=1.0,
+                avg_word_length=1.0,
+                avg_sentence_length=1.0,
+                top_keywords=[("test", 1)],
+                heading_count=None,
+                heading_breakdown=None,
+            )
+
+        def _calculate_totals(self, results):
+            return {
+                "total_files": len(results),
+                "total_words": sum(r.word_count for r in results),
+            }
 
     class StubImageProcessor:
-        def batch_analyze(self, files):
-            return [{"file_name": Path(f).name, "file_stats": {"size_mb": 1}, "resolution": {"width": 1, "height": 1}, "format": {"format": "png"}, "content_classification": {"primary_type": "image"}} for f in files]
+        def analyze_image(self, file_path):
+            return {
+                "file_name": Path(file_path).name,
+                "file_stats": {"size_mb": 1},
+                "resolution": {"width": 1, "height": 1},
+                "format": {"format": "png"},
+                "content_classification": {"primary_type": "image"},
+            }
 
     class StubCodeAnalyzer:
         def analyze_file(self, f):
