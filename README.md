@@ -6,7 +6,11 @@ Privacy-first pipeline that scans approved folders (code, docs, media), normaliz
 
 ## Quick links
 
+- **[📚 Documentation Index](./docs/DOCUMENTATION_INDEX.md)** - Complete documentation overview
+- **[⚡ Quick Commands](./docs/QUICK_COMMANDS.md)** - Ultra-short commands for common operations
+- **[📅 Chronological Skills Guide](./docs/CHRONOLOGICAL_SKILLS_GUIDE.md)** - Complete guide for skills timeline
 - [system demo walkthrough](./docs/system_demo_walkthrough.md)
+- [test results](./docs/TEST_RESULTS.md)
 - [team contract](./docs/plan/team14_team_contract.pdf)
 
 ## Getting started
@@ -39,7 +43,26 @@ docker compose up -d backend
 docker compose run --rm backend python -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
 ```
 
-4. More commands (retrieving runs, deleting data, etc.) are in the [system demo walkthrough](./docs/system_demo_walkthrough.md).
+4. **Short commands**: Use the helper scripts for easier operations:
+
+```bash
+# Make scripts executable (one-time)
+chmod +x scripts/*.sh
+
+# Run pipeline (short version)
+./scripts/run-pipeline.sh tests/categorize/demo_projects.zip
+
+# View chronological skills
+./scripts/chronological-skills.sh
+
+# List all projects
+./scripts/list-projects.sh
+
+# Start API server
+./scripts/start-api.sh
+```
+
+5. More commands (retrieving runs, deleting data, etc.) are in the [system demo walkthrough](./docs/system_demo_walkthrough.md) or [Quick Commands](./docs/QUICK_COMMANDS.md).
 
 ## Usage
 
