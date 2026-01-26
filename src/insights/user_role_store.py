@@ -12,10 +12,11 @@ import sqlite3
 import threading
 from typing import Any, Dict, Optional
 
-from .storage import DEFAULT_DB_PATH, PROJECT_TABLE, ZIP_TABLE, ProjectInsightsStore
+from .storage import DEFAULT_DB_PATH, PROJECTS_TABLE, ProjectInsightsStore
 
 ROLE_TABLE = "project_user_metadata"
 ROLE_MIGRATIONS_TABLE = "role_schema_migrations"
+PROJECT_TABLE = PROJECTS_TABLE
 
 
 def _utcnow() -> str:
@@ -81,8 +82,7 @@ class ProjectRoleStore:
             f"""
             SELECT p.id
             FROM {PROJECT_TABLE} p
-            JOIN {ZIP_TABLE} z ON p.zip_id = z.id
-            WHERE z.zip_hash = ? AND p.project_name = ?;
+            WHERE p.source_hash = ? AND p.project_name = ?;
             """,
             (zip_hash, project_name),
         ).fetchone()
@@ -123,8 +123,7 @@ class ProjectRoleStore:
                 SELECT m.user_role
                 FROM {ROLE_TABLE} m
                 JOIN {PROJECT_TABLE} p ON m.project_id = p.id
-                JOIN {ZIP_TABLE} z ON p.zip_id = z.id
-                WHERE z.zip_hash = ? AND p.project_name = ?;
+                WHERE p.source_hash = ? AND p.project_name = ?;
                 """,
                 (zip_hash, project_name),
             ).fetchone()
