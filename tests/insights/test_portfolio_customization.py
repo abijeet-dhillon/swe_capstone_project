@@ -2,12 +2,23 @@ import os
 import tempfile
 import sqlite3
 from typing import Dict, Any
+import inspect
+import httpx
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.insights.storage import ProjectInsightsStore
 from src.insights.api import router
+
+if "app" not in inspect.signature(httpx.Client.__init__).parameters:
+    _orig_httpx_init = httpx.Client.__init__
+
+    def _patched_httpx_init(self, *args, **kwargs):
+        kwargs.pop("app", None)
+        return _orig_httpx_init(self, *args, **kwargs)
+
+    httpx.Client.__init__ = _patched_httpx_init
 
 
 def _mk_store(tmpdir: str) -> ProjectInsightsStore:
@@ -59,13 +70,13 @@ def test_patch_portfolio_customization_updates_fields_and_bullets():
         _insert_run_with_portfolio(store, os.path.join(td, "z1.zip"))
         pid = _get_any_project_info_id(store.db_path)
 
-        # Build API app
+        
         os.environ["DATABASE_URL"] = f"sqlite:///{store.db_path}"
         app = FastAPI()
         app.include_router(router)
         client = TestClient(app)
 
-        # Patch customization
+       
         resp = client.patch(
             f"/insights/portfolio/{pid}",
             json={
@@ -82,7 +93,7 @@ def test_patch_portfolio_customization_updates_fields_and_bullets():
         body = resp.json()
         assert body["status"] in ("ok", "noop")
 
-        # Load back from store and verify
+       
         updated = store.load_project_insight_by_id(pid)
         assert updated is not None
         p = updated["portfolio_item"]

@@ -9,7 +9,6 @@ from src.api.deps import get_config_manager, get_role_store, get_store
 from src.config.config_manager import UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
-from src.pipeline.orchestrator import ArtifactPipeline
 from src.pipeline.presentation_pipeline import PresentationPipeline
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -62,6 +61,9 @@ def upload_projects(
     use_llm = bool(config.llm_consent and config.llm_consent_asked)
 
     try:
+      
+        from src.pipeline.orchestrator import ArtifactPipeline  # type: ignore
+
         pipeline = ArtifactPipeline(insights_store=store)
         result = pipeline.start(
             zip_path,
@@ -80,6 +82,9 @@ def upload_projects(
         raise HTTPException(status_code=400, detail="Pipeline returned no results")
 
     zip_hash = _resolve_zip_hash(store, zip_path)
+    if not zip_hash:
+      
+        zip_hash = "unknown"
     project_names = [
         name for name in (result.get("projects") or {}).keys() if name != "_misc_files"
     ]
