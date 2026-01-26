@@ -15,7 +15,6 @@ from src.api.app import app
 from src.config.config_manager import UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
-from src.pipeline.orchestrator import ArtifactPipeline
 from src.pipeline.presentation_pipeline import PresentationPipeline
 from tests.insights.utils import build_pipeline_payload
 
@@ -89,11 +88,24 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
         app.dependency_overrides[deps.get_store] = lambda: store
         app.dependency_overrides[deps.get_config_manager] = lambda: manager
 
-        monkeypatch.setattr(
-            ArtifactPipeline,
-            "_save_json_report",
-            lambda self, zip_path, result: Path(zip_path),
-        )
+        # Inject a lightweight dummy ArtifactPipeline to avoid importing heavy deps (pyzbar/zbar)
+        import types, sys as _sys
+
+        dummy_module = types.ModuleType("src.pipeline.orchestrator")
+
+        class _DummyPipeline:
+            def __init__(self, insights_store=None):
+                self.insights_store = insights_store
+
+            def _save_json_report(self, zip_path, result):
+                return Path(zip_path)
+
+            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False):
+                # Minimal shape expected by the API handler
+                return {"projects": {"ProjectAlpha": {}, "ProjectBeta": {}}}
+
+        dummy_module.ArtifactPipeline = _DummyPipeline
+        _sys.modules["src.pipeline.orchestrator"] = dummy_module
 
         client = TestClient(app)
         response = client.post(

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from src.api.deps import get_role_store, get_store
 from src.insights.storage import ProjectInsightsStore
@@ -60,3 +61,48 @@ def get_portfolio_showcase(
         response["success_metrics"] = success_metrics
 
     return response
+
+
+class PortfolioEditPayload(BaseModel):
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    project_type: Optional[str] = None
+    complexity: Optional[str] = None
+    is_collaborative: Optional[bool] = None
+    summary: Optional[str] = None
+    key_features: Optional[List[str]] = Field(default=None)
+
+
+@router.post("/{project_id}/edit")
+def edit_portfolio(
+    project_id: int,
+    payload: PortfolioEditPayload,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    fields: Dict[str, Any] = {}
+    for k in ("tagline", "description", "project_type", "complexity", "is_collaborative", "summary", "key_features"):
+        v = getattr(payload, k)
+        if v is not None:
+            fields[k] = v
+    changed = store.update_portfolio_insights_fields(project_id, fields)
+    if not changed:
+        raise HTTPException(status_code=404, detail="Project not found or no changes")
+    updated = store.load_project_insight_by_id(project_id)
+    return {"status": "ok", "project_id": project_id, "portfolio_item": updated.get("portfolio_item")}
+
+
+@router.post("/generate")
+def generate_portfolio(project_id: int, store: ProjectInsightsStore = Depends(get_store)):
+   
+    from src.project.presentation import generate_items_from_project_id
+
+    result = generate_items_from_project_id(project_id, store=store, regenerate=True)
+    portfolio = result.get("portfolio_item") or {}
+    persist_fields = {
+        k: portfolio.get(k)
+        for k in ("tagline", "description", "project_type", "complexity", "is_collaborative", "summary", "key_features")
+        if k in portfolio
+    }
+    if persist_fields:
+        store.update_portfolio_insights_fields(project_id, persist_fields)
+    return {"project_id": project_id, "portfolio_item": portfolio}
