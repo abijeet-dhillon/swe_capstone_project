@@ -24,6 +24,14 @@ from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
 from src.pipeline.progress_tracker import ProgressTracker
+
+# Dummy progress tracker to avoid threading issues in Docker
+class DummyProgressTracker:
+    def reset(self): pass
+    def update(self, **kwargs): pass
+    def should_cancel(self): return False
+    def increment_processed(self, **kwargs): pass
+    def register_callback(self, callback): pass
 from src.project.presentation import (
     extract_project_metrics,
     generate_portfolio_item,
@@ -67,7 +75,7 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
-        self.progress_tracker = ProgressTracker()
+        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
 
         if self.insights_store is None and enable_insights:
             try:
@@ -114,20 +122,21 @@ class ArtifactPipeline:
             print("\n✗ Data access consent not granted. Exiting without processing.\n")
             return {}
         
-        print(f"\n{'='*70}")
-        print(f"🚀 Starting Artifact Pipeline")
-        print(f"{'='*70}")
-        print(f"📦 ZIP File: {zip_path.name}")
+        print(f"\n{'='*70}", flush=True)
+        print(f"🚀 Starting Artifact Pipeline", flush=True)
+        print(f"{'='*70}", flush=True)
+        print(f"📦 ZIP File: {zip_path.name}", flush=True)
+        print(f"", flush=True)  # Empty line for spacing
         
-        # Initialize progress tracking
-        self.progress_tracker.reset()
-        self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
+        # Initialize progress tracking (disabled for now due to threading issues in Docker)
+        # self.progress_tracker.reset()
+        # self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
         
         try:
             # Step 1: Parse ZIP metadata
-            print(f"\n[1/9] Parsing ZIP file metadata...")
+            print(f"\n[1/9] Parsing ZIP file metadata...", flush=True)
             zip_index = parse_zip(str(zip_path))
-            print(f"✓ Parsed {zip_index.file_count} files")
+            print(f"✓ Parsed {zip_index.file_count} files", flush=True)
             
             # Check for cancellation
             if self.progress_tracker.should_cancel():
@@ -138,11 +147,11 @@ class ArtifactPipeline:
             self.progress_tracker.update(total_files=zip_index.file_count, stage='extracting')
             
             # Step 2: Extract to temporary directory
-            print(f"\n[2/9] Extracting ZIP contents...")
+            print(f"\n[2/9] Extracting ZIP contents...", flush=True)
             self.temp_dir = Path(tempfile.mkdtemp(prefix="unzipped_"))
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(self.temp_dir)
-            print(f"✓ Extracted to: {self.temp_dir}")
+            print(f"✓ Extracted to: {self.temp_dir}", flush=True)
 
             # Check for cancellation
             if self.progress_tracker.should_cancel():
@@ -151,36 +160,42 @@ class ArtifactPipeline:
                 return {"status": "cancelled", "message": "Analysis cancelled by user"}
 
             # Capture file-level metadata for the entire archive
+            print(f"     Building file metadata...", flush=True)
             file_info = self._build_file_info(zip_index)
             self.sha256_lookup = self._build_sha256_lookup(file_info)
+            print(f"     ✓ Built metadata for {len(file_info)} files", flush=True)
+            
             self.progress_tracker.update(stage='categorizing')
+            print(f"     Categorizing files...", flush=True)
             
             try:
                 categorized_contents_full = categorize_folder_structure(str(self.temp_dir))
+                print(f"     ✓ Categorization complete", flush=True)
             except Exception as exc:
                 categorized_contents_full = {"error": str(exc)}
+                print(f"     ⚠️  Categorization error: {exc}", flush=True)
             
             # Step 3: Identify top-level projects and loose files
-            print(f"\n[3/9] Identifying projects (top-level directories)...")
+            print(f"\n[3/9] Identifying projects (top-level directories)...", flush=True)
             projects, loose_files = self._identify_projects()
-            print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}")
+            print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}", flush=True)
             if loose_files:
-                print(f"✓ Found {len(loose_files)} loose file(s) not in any project")
+                print(f"✓ Found {len(loose_files)} loose file(s) not in any project", flush=True)
             
             self.progress_tracker.update(stage='analyzing', processed_files=0)
             
             # Step 4: Process each project
-            print(f"\n[4/9] Processing each project...")
+            print(f"\n[4/9] Processing each project...", flush=True)
             project_results = {}
             
             for project_name, project_path in projects.items():
                 # Check for cancellation before processing each project
                 if self.progress_tracker.should_cancel():
-                    print("\n⚠️  Analysis cancelled by user")
+                    print("\n⚠️  Analysis cancelled by user", flush=True)
                     self.progress_tracker.update(stage='cancelled')
                     return {"status": "cancelled", "message": "Analysis cancelled by user"}
                 
-                print(f"\n  📁 Processing project: {project_name}")
+                print(f"\n  📁 Processing project: {project_name}", flush=True)
                 self.progress_tracker.update(current_project=project_name)
                 project_results[project_name] = self._process_project(project_name, project_path)
             
@@ -540,8 +555,8 @@ class ArtifactPipeline:
         result["is_git_repo"] = is_git
         
         if is_git:
-            print(f"     🔍 Git repository detected")
-            print(f"     📊 Running Git analysis...")
+            print(f"     🔍 Git repository detected", flush=True)
+            print(f"     📊 Running Git analysis...", flush=True)
             try:
                 # Run git analysis - we'll analyze all contributors
                 git_analysis = self._analyze_git_project(project_path)
@@ -550,18 +565,18 @@ class ArtifactPipeline:
                 # Print appropriate message based on results
                 if git_analysis.get('total_commits', 0) > 0:
                     contributors = git_analysis.get('total_contributors', 0)
-                    print(f"     ✓ Git analysis complete ({git_analysis['total_commits']} commits, {contributors} contributors)")
+                    print(f"     ✓ Git analysis complete ({git_analysis['total_commits']} commits, {contributors} contributors)", flush=True)
                 else:
                     message = git_analysis.get('message', 'No commits found')
-                    print(f"     ℹ️  {message}")
+                    print(f"     ℹ️  {message}", flush=True)
             except Exception as e:
-                print(f"     ⚠️  Warning: Git analysis failed: {e}")
+                print(f"     ⚠️  Warning: Git analysis failed: {e}", flush=True)
                 result["git_analysis"] = {"error": str(e)}
         else:
-            print(f"     ℹ️  Not a Git repository")
+            print(f"     ℹ️  Not a Git repository", flush=True)
         
         # Categorize files in this project
-        print(f"     📁 Categorizing files...")
+        print(f"     📁 Categorizing files...", flush=True)
         try:
             categorized_contents = categorize_folder_structure(str(project_path))
             result["categorized_contents"] = categorized_contents
@@ -570,24 +585,24 @@ class ArtifactPipeline:
             code_count = len(categorized_contents.get('code', []))
             doc_count = len(categorized_contents.get('documentation', []))
             img_count = len(categorized_contents.get('images', []))
-            print(f"     ✓ Categorized: {code_count} code, {doc_count} docs, {img_count} images")
+            print(f"     ✓ Categorized: {code_count} code, {doc_count} docs, {img_count} images", flush=True)
         except Exception as e:
-            print(f"     ✗ Error categorizing files: {e}")
+            print(f"     ✗ Error categorizing files: {e}", flush=True)
             result["categorized_contents"] = {"error": str(e)}
             return result
         
         # Analyze files with appropriate analyzers
-        print(f"     🔬 Running file analyzers...")
+        print(f"     🔬 Running file analyzers...", flush=True)
         try:
             analysis_results = self._analyze_categorized_files(categorized_contents)
             result["analysis_results"] = analysis_results
-            print(f"     ✓ Analysis complete")
+            print(f"     ✓ Analysis complete", flush=True)
         except Exception as e:
-            print(f"     ✗ Error during analysis: {e}")
+            print(f"     ✗ Error during analysis: {e}", flush=True)
             result["analysis_results"] = {"error": str(e)}
         
         # Generate portfolio and resume items
-        print(f"     📝 Generating presentation items...")
+        print(f"     📝 Generating presentation items...", flush=True)
         try:
             metrics = extract_project_metrics(result)
             result["project_metrics"] = metrics.to_dict()
@@ -595,20 +610,20 @@ class ArtifactPipeline:
             resume_item = generate_resume_item(result, metrics=metrics)
             result["portfolio_item"] = portfolio_item
             result["resume_item"] = resume_item
-            print(f"     ✓ Presentation items generated")
+            print(f"     ✓ Presentation items generated", flush=True)
         except Exception as e:
-            print(f"     ⚠️  Warning: Failed to generate presentation items: {e}")
+            print(f"     ⚠️  Warning: Failed to generate presentation items: {e}", flush=True)
             result["portfolio_item"] = {"error": str(e)}
             result["resume_item"] = {"error": str(e)}
         
         # Generate success metrics
-        print(f"     🎯 Generating success metrics...")
+        print(f"     🎯 Generating success metrics...", flush=True)
         try:
             success_metrics = self.success_metrics_analyzer.analyze(result)
             result["success_metrics"] = success_metrics.to_dict()
-            print(f"     ✓ Success metrics generated (Overall: {success_metrics.overall_score:.1f}/100)")
+            print(f"     ✓ Success metrics generated (Overall: {success_metrics.overall_score:.1f}/100)", flush=True)
         except Exception as e:
-            print(f"     ⚠️  Warning: Failed to generate success metrics: {e}")
+            print(f"     ⚠️  Warning: Failed to generate success metrics: {e}", flush=True)
             result["success_metrics"] = {"error": str(e)}
         
         return result
@@ -687,7 +702,7 @@ class ArtifactPipeline:
         # Analyze documentation files (PDF, DOCX, TXT, MD)
         doc_files = categorized_contents.get('documentation', [])
         if doc_files:
-            print(f"  📄 Analyzing {len(doc_files)} documentation file(s)...")
+            print(f"  📄 Analyzing {len(doc_files)} documentation file(s)...", flush=True)
             try:
                 doc_results = []
                 cache_hits = 0
@@ -730,19 +745,19 @@ class ArtifactPipeline:
                 
                 if cache_hits > 0:
                     cache_rate = (cache_hits / len(doc_files)) * 100
-                    print(f"     ♻️  Cache hits: {cache_hits}/{len(doc_files)} ({cache_rate:.1f}%)")
-                print(f"     ✓ Documentation analysis complete")
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(doc_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Documentation analysis complete", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing documentation: {e}")
+                print(f"     ✗ Error analyzing documentation: {e}", flush=True)
                 results['documentation'] = {"error": str(e)}
         else:
-            print(f"  📄 No documentation files to analyze")
+            print(f"  📄 No documentation files to analyze", flush=True)
             results['documentation'] = None
         
         # Analyze image files (PNG, JPG, JPEG, etc.)
         image_files = categorized_contents.get('images', [])
         if image_files:
-            print(f"  🖼️  Analyzing {len(image_files)} image file(s)...")
+            print(f"  🖼️  Analyzing {len(image_files)} image file(s)...", flush=True)
             try:
                 image_results = []
                 cache_hits = 0
@@ -780,19 +795,19 @@ class ArtifactPipeline:
                 
                 if cache_hits > 0:
                     cache_rate = (cache_hits / len(image_files)) * 100
-                    print(f"     ♻️  Cache hits: {cache_hits}/{len(image_files)} ({cache_rate:.1f}%)")
-                print(f"     ✓ Image analysis complete")
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(image_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Image analysis complete", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing images: {e}")
+                print(f"     ✗ Error analyzing images: {e}", flush=True)
                 results['images'] = {"error": str(e)}
         else:
-            print(f"  🖼️  No image files to analyze")
+            print(f"  🖼️  No image files to analyze", flush=True)
             results['images'] = None
         
         # Analyze code files
         code_files = categorized_contents.get('code', [])
         if code_files:
-            print(f"  💻 Analyzing {len(code_files)} code file(s)...")
+            print(f"  💻 Analyzing {len(code_files)} code file(s)...", flush=True)
             try:
                 # CodeAnalyzer needs to be called per file
                 code_results = []
@@ -853,14 +868,14 @@ class ArtifactPipeline:
                 }
                 if cache_hits > 0:
                     cache_rate = (cache_hits / len(code_files)) * 100
-                    print(f"     ♻️  Cache hits: {cache_hits}/{len(code_files)} ({cache_rate:.1f}%)")
-                print(f"     ✓ Code analysis complete ({len(code_results)} files)")
-                print(f"     ✓ Skill extraction complete ({skill_aggregate['total_files_analyzed']} files, {len(skill_aggregate['advanced_skills'])} advanced skills)")
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(code_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Code analysis complete ({len(code_results)} files)", flush=True)
+                print(f"     ✓ Skill extraction complete ({skill_aggregate['total_files_analyzed']} files, {len(skill_aggregate['advanced_skills'])} advanced skills)", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing code: {e}")
+                print(f"     ✗ Error analyzing code: {e}", flush=True)
                 results['code'] = {"error": str(e)}
         else:
-            print(f"  💻 No code files to analyze")
+            print(f"  💻 No code files to analyze", flush=True)
             results['code'] = None
         
         # Analyze video files (check "other" category for video extensions)
@@ -868,7 +883,7 @@ class ArtifactPipeline:
         video_files = [f for f in other_files if Path(f).suffix.lower() in self.VIDEO_EXTENSIONS]
         
         if video_files:
-            print(f"  🎥 Analyzing {len(video_files)} video file(s)...")
+            print(f"  🎥 Analyzing {len(video_files)} video file(s)...", flush=True)
             try:
                 # VideoAnalyzer needs to be called per file
                 video_results = []
@@ -908,13 +923,13 @@ class ArtifactPipeline:
                 }
                 if cache_hits > 0:
                     cache_rate = (cache_hits / len(video_files)) * 100
-                    print(f"     ♻️  Cache hits: {cache_hits}/{len(video_files)} ({cache_rate:.1f}%)")
-                print(f"     ✓ Video analysis complete ({len(video_results)} files)")
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(video_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Video analysis complete ({len(video_results)} files)", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing videos: {e}")
+                print(f"     ✗ Error analyzing videos: {e}", flush=True)
                 results['videos'] = {"error": str(e)}
         else:
-            print(f"  🎥 No video files to analyze")
+            print(f"  🎥 No video files to analyze", flush=True)
             results['videos'] = None
         
         return results
