@@ -325,6 +325,53 @@ class TestEdgeCases:
         # Should find the deeply nested Python file
         assert len(categorized['code']) > 0
         assert any('deep_file.py' in f for f in categorized['code'])
+    
+    def test_zip_with_windows_style_backslash_paths(self, pipeline, tmp_path):
+        """
+        Test ZIP file with Windows-style backslash paths (regression test)
+        
+        This tests the fix for issue where ZIP files created on Windows
+        with backslash separators were not being extracted properly,
+        causing all files to appear as flat file names instead of
+        creating proper directory structures.
+        """
+        # Create a ZIP file with Windows-style paths manually
+        zip_path = tmp_path / "windows_paths.zip"
+        
+        # Create multiple projects with backslash paths
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            # Create a multi-project structure with Windows paths
+            zipf.writestr('project-a\\README.md', '# Project A')
+            zipf.writestr('project-a\\src\\main.py', 'print("A")')
+            zipf.writestr('project-b\\README.md', '# Project B')
+            zipf.writestr('project-b\\src\\app.js', 'console.log("B");')
+            zipf.writestr('README.md', '# Root README')
+        
+        result = pipeline.start(str(zip_path))
+        
+        # Verify that project ranking was generated with multiple projects
+        assert 'project_ranking' in result
+        project_ranking = result['project_ranking']
+        
+        # Should detect 2 separate projects, not treat everything as flat files
+        assert 'ranked_projects' in project_ranking
+        assert len(project_ranking['ranked_projects']) == 2, "Should detect 2 separate projects"
+        
+        # Verify project names from summaries
+        assert 'top_summaries' in project_ranking
+        project_names = {proj['name'] for proj in project_ranking['top_summaries']}
+        assert 'project-a' in project_names
+        assert 'project-b' in project_names
+        
+        # Verify the projects have proper directory structure (not flat files)
+        code_files = result['categorized_contents']['code']
+        doc_files = result['categorized_contents']['documentation']
+        
+        # Files should have proper paths with forward slashes (normalized)
+        assert any('project-a/src/main.py' in f for f in code_files)
+        assert any('project-b/src/app.js' in f for f in code_files)
+        assert any('project-a/README.md' in f for f in doc_files)
+        assert any('project-b/README.md' in f for f in doc_files)
 
 
 class TestIntegration:
