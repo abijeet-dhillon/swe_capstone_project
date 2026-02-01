@@ -75,6 +75,7 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
+        self.file_info: List[Dict[str, Any]] = []
         self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
 
         if self.insights_store is None and enable_insights:
@@ -162,6 +163,7 @@ class ArtifactPipeline:
             # Capture file-level metadata for the entire archive
             print(f"     Building file metadata...", flush=True)
             file_info = self._build_file_info(zip_index)
+            self.file_info = file_info
             self.sha256_lookup = self._build_sha256_lookup(file_info)
             print(f"     ✓ Built metadata for {len(file_info)} files", flush=True)
             
@@ -385,6 +387,7 @@ class ArtifactPipeline:
                 "compressed_size": entry.compressed_size,
                 "is_compressed": entry.is_compressed,
                 "sha256": entry.sha256,
+                "zip_timestamp": getattr(entry, "zip_timestamp", ""),
                 "depth": entry.depth,
                 "ext": entry.ext,
                 "is_text_guess": entry.is_text_guess,
@@ -1595,8 +1598,18 @@ class ArtifactPipeline:
                     "message": "No temporary directory available for skill timeline"
                 }
             
+            timestamp_overrides = {}
+            for info in self.file_info or []:
+                rel_path = info.get("rel_path")
+                zip_timestamp = info.get("zip_timestamp")
+                if rel_path and zip_timestamp:
+                    timestamp_overrides[rel_path] = zip_timestamp
+
             skill_tracker = ChronologicalSkillList()
-            timeline = skill_tracker.build_skill_timeline(str(self.temp_dir))
+            timeline = skill_tracker.build_skill_timeline(
+                str(self.temp_dir),
+                timestamp_overrides=timestamp_overrides or None,
+            )
             
             # Convert timeline to serializable format
             serializable_timeline = []

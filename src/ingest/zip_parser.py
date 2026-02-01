@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import zipfile
 import hashlib
+from datetime import datetime
 from pathlib import Path
 from typing import Union
 
@@ -68,6 +69,12 @@ def parse_zip(zip_path: Union[str, Path]) -> ZipIndex:
                 
                 # Compute SHA256 hash
                 sha256_hash = hashlib.sha256(content).hexdigest()
+
+                # Capture ZIP-stored timestamp (no timezone info in ZIP metadata)
+                try:
+                    zip_timestamp = datetime(*info.date_time).isoformat()
+                except Exception:
+                    zip_timestamp = ""
                 
                 # Simple text detection
                 is_text = _is_text_content(content)
@@ -83,6 +90,7 @@ def parse_zip(zip_path: Union[str, Path]) -> ZipIndex:
                     compressed_size=info.compress_size,
                     is_compressed=is_compressed,
                     sha256=sha256_hash,
+                    zip_timestamp=zip_timestamp,
                     depth=depth,
                     ext=ext,
                     is_text_guess=is_text
@@ -173,6 +181,7 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
                 "compressed_size": entry.compressed_size,
                 "is_compressed": entry.is_compressed,
                 "sha256": entry.sha256,
+                "zip_timestamp": entry.zip_timestamp,
                 "depth": entry.depth,
                 "ext": entry.ext,
                 "is_text_guess": entry.is_text_guess,
