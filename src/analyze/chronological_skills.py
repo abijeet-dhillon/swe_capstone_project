@@ -66,7 +66,8 @@ class ChronologicalSkillList:
 
         def _rel_path(path: Path) -> Optional[str]:
             try:
-                return path.relative_to(root_path).as_posix()
+                rel = path.relative_to(root_path).as_posix()
+                return rel.replace("\\", "/")
             except Exception:
                 return None
 

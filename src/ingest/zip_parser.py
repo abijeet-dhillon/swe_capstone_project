@@ -169,8 +169,24 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
             # Compute where this file was extracted to
             extracted_path = temp_dir / entry.rel_path
             if not extracted_path.exists():
-                # Skip entries that don't exist in the extracted folder
-                continue
+                alt_rel_path = entry.rel_path.replace("/", "\\")
+                alt_path = temp_dir / alt_rel_path
+                if alt_path.exists():
+                    extracted_path = alt_path
+                else:
+                    parts = entry.rel_path.split("/", 1)
+                    if len(parts) == 2:
+                        tail = parts[1].replace("/", "\\")
+                        alt_rel_path = f"{parts[0]}/{tail}"
+                        alt_path = temp_dir / alt_rel_path
+                        if alt_path.exists():
+                            extracted_path = alt_path
+                        else:
+                            # Skip entries that don't exist in the extracted folder
+                            continue
+                    else:
+                        # Skip entries that don't exist in the extracted folder
+                        continue
 
             abs_extracted_path = str(extracted_path.resolve())
 

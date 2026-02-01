@@ -378,7 +378,22 @@ class ArtifactPipeline:
 
             extracted_path = self.temp_dir / entry.rel_path
             if not extracted_path.exists():
-                continue
+                alt_rel_path = entry.rel_path.replace("/", "\\")
+                alt_path = self.temp_dir / alt_rel_path
+                if alt_path.exists():
+                    extracted_path = alt_path
+                else:
+                    parts = entry.rel_path.split("/", 1)
+                    if len(parts) == 2:
+                        tail = parts[1].replace("/", "\\")
+                        alt_rel_path = f"{parts[0]}/{tail}"
+                        alt_path = self.temp_dir / alt_rel_path
+                        if alt_path.exists():
+                            extracted_path = alt_path
+                        else:
+                            continue
+                    else:
+                        continue
 
             file_info.append({
                 "abs_path": str(extracted_path.resolve()),
@@ -1603,7 +1618,8 @@ class ArtifactPipeline:
                 rel_path = info.get("rel_path")
                 zip_timestamp = info.get("zip_timestamp")
                 if rel_path and zip_timestamp:
-                    timestamp_overrides[rel_path] = zip_timestamp
+                    normalized = rel_path.replace("\\", "/")
+                    timestamp_overrides[normalized] = zip_timestamp
 
             skill_tracker = ChronologicalSkillList()
             timeline = skill_tracker.build_skill_timeline(
