@@ -150,7 +150,29 @@ class ArtifactPipeline:
             print(f"\n[2/9] Extracting ZIP contents...", flush=True)
             self.temp_dir = Path(tempfile.mkdtemp(prefix="unzipped_"))
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(self.temp_dir)
+                # Extract with path normalization to handle Windows-style backslashes
+                for member in zf.infolist():
+                    # Normalize path separators (handle Windows ZIP files on Linux)
+                    member_path = member.filename.replace('\\', '/')
+                    
+                    # Skip macOS metadata files
+                    if '__MACOSX' in member_path or member_path.startswith('.'):
+                        continue
+                    
+                    # Skip directory entries (they'll be created automatically)
+                    # Directory entries end with / or are explicitly marked as directories
+                    if member.is_dir() or member_path.endswith('/'):
+                        continue
+                    
+                    # Create the target path
+                    target_path = self.temp_dir / member_path
+                    
+                    # Create parent directories
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Extract the file
+                    with zf.open(member) as source, open(target_path, 'wb') as target:
+                        target.write(source.read())
             print(f"✓ Extracted to: {self.temp_dir}", flush=True)
 
             # Check for cancellation
