@@ -327,6 +327,29 @@ class ArtifactPipeline:
         
         if not self.temp_dir or not self.temp_dir.exists():
             return projects, loose_files
+
+        def _find_git_repos_under(base: Path) -> List[Path]:
+            """
+            Find git repositories under a base directory (including base itself if it is a repo).
+            A repo is detected by the presence of a `.git/` directory.
+            """
+            if (base / ".git").is_dir():
+                return [base]
+            repos: List[Path] = []
+            for root, dirs, _files in os.walk(base):
+                # Skip macOS metadata folders
+                dirs[:] = [d for d in dirs if d != "__MACOSX"]
+                if ".git" in dirs:
+                    repos.append(Path(root))
+                    # Don't traverse into .git internals
+                    dirs[:] = [d for d in dirs if d != ".git"]
+            return repos
+
+        # Case 0: The extracted root directory itself is a git repo
+        root_repos = _find_git_repos_under(self.temp_dir)
+        if root_repos and root_repos[0] == self.temp_dir:
+            projects["root"] = self.temp_dir
+            return projects, []
         
         # Get all top-level items in the extracted directory
         top_level_dirs = []
@@ -361,6 +384,11 @@ class ArtifactPipeline:
                     subdirs.append(item)
                 elif item.is_file():
                     wrapper_files.append(item)
+
+            # If the wrapper itself is a git repo, treat it as the project (not its children)
+            if (wrapper_dir / ".git").is_dir():
+                projects[wrapper_dir.name] = wrapper_dir
+                return projects, wrapper_files
             
             # If we found subdirectories, use those as projects
             if subdirs:
@@ -379,8 +407,25 @@ class ArtifactPipeline:
                 projects[item.name] = item
             # Top-level files become loose files
             loose_files = top_level_files
-        
-        return projects, loose_files
+
+        # Expand non-git "projects" into nested git repos when present.
+        expanded: Dict[str, Path] = {}
+        for project_name, project_path in projects.items():
+            # Keep direct git repos as-is
+            if (project_path / ".git").is_dir():
+                expanded[project_name] = project_path
+                continue
+
+            nested = _find_git_repos_under(project_path)
+            if nested:
+                for repo_path in nested:
+                    rel = repo_path.relative_to(project_path)
+                    key = project_name if str(rel) == "." else f"{project_name}/{rel.as_posix()}"
+                    expanded[key] = repo_path
+            else:
+                expanded[project_name] = project_path
+
+        return expanded, loose_files
 
     def _build_file_info(self, zip_index) -> List[Dict[str, Any]]:
         """
