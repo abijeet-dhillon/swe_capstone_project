@@ -781,6 +781,14 @@ class ArtifactPipeline:
     def _normalized_token(self, value: str) -> str:
         return re.sub(r"[^a-z0-9]", "", (value or "").lower())
 
+    def _tokenize_identity(self, value: str) -> set:
+        return {t for t in re.split(r"[^a-z0-9]+", (value or "").lower()) if t}
+
+    def _is_low_confidence_username(self, username: str) -> bool:
+        return len(username) < 4 or username.isdigit() or username in {
+            "user", "users", "dev", "admin", "test", "github", "noreply"
+        }
+
     def _infer_noreply_email_map(self, commits: List[Dict[str, Any]]) -> Dict[str, str]:
         """
         Heuristically map GitHub noreply emails to a likely real email in this repo.
@@ -799,14 +807,16 @@ class ArtifactPipeline:
                 continue
 
             if email not in real_email_profiles:
+                local_part = email.split("@", 1)[0]
                 real_email_profiles[email] = {
-                    "local_part": self._normalized_token(email.split("@", 1)[0]),
+                    "local_part": self._normalized_token(local_part),
+                    "local_tokens": self._tokenize_identity(local_part),
                     "name_tokens": set(),
                     "commits": 0,
                 }
             real_email_profiles[email]["commits"] += 1
-            real_email_profiles[email]["name_tokens"].add(
-                self._normalized_token(commit.get("author_name", ""))
+            real_email_profiles[email]["name_tokens"].update(
+                self._tokenize_identity(commit.get("author_name", ""))
             )
 
         resolved: Dict[str, str] = {}
@@ -816,27 +826,32 @@ class ArtifactPipeline:
                 continue
 
             username = self._normalized_token(username_match.group(1))
-            best_candidate = None
+            if self._is_low_confidence_username(username):
+                continue
+            best_candidate, second_candidate = None, None
 
             for real_email, profile in real_email_profiles.items():
-                score = 0
+                score, strong = 0, False
                 local_part = profile["local_part"]
                 if username == local_part:
-                    score += 5
-                elif username in local_part:
-                    score += 3
-
-                if any(username and username in token for token in profile["name_tokens"]):
+                    score, strong = 10, True
+                elif username in profile["local_tokens"]:
+                    score, strong = 6, True
+                if username in profile["name_tokens"]:
                     score += 2
-
-                if score <= 0:
+                if not strong:
                     continue
 
                 candidate = (score, profile["commits"], real_email)
                 if best_candidate is None or candidate > best_candidate:
+                    second_candidate = best_candidate
                     best_candidate = candidate
+                elif second_candidate is None or candidate > second_candidate:
+                    second_candidate = candidate
 
             if best_candidate:
+                if second_candidate and best_candidate[0] == second_candidate[0] and abs(best_candidate[1] - second_candidate[1]) <= 2:
+                    continue
                 resolved[noreply_email] = best_candidate[2]
 
         return resolved
