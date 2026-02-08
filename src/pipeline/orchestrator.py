@@ -8,10 +8,12 @@ import os
 import zipfile
 import tempfile
 import shutil
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import getpass
 from datetime import datetime
+from collections import Counter
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
@@ -21,7 +23,6 @@ from src.analyze.video_analyzer import VideoAnalyzer
 from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
 from src.analyze.success_metrics import SuccessMetricsAnalyzer
 from src.image_processor import ImageProcessor
-from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
 from src.pipeline.progress_tracker import ProgressTracker
 
@@ -52,6 +53,7 @@ class ArtifactPipeline:
     
     # Video file extensions to detect in "other" category
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.wmv'}
+    GITHUB_NOREPLY_RE = re.compile(r"^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$", re.IGNORECASE)
     
     def __init__(
         self,
@@ -660,7 +662,7 @@ class ArtifactPipeline:
         Returns:
             Dictionary with Git analysis results
         """
-        from src.git._git_utils import iter_commits
+        from src.git._git_utils import iter_commits, classify_intent, iso_week_start
         
         # Get all commits to identify contributors
         try:
@@ -679,35 +681,165 @@ class ArtifactPipeline:
                 "message": "Git repository is empty (no commits yet)"
             }
         
-        # Identify unique contributors
-        contributors_set = set()
+        noreply_map = self._infer_noreply_email_map(all_commits)
+        total_repo_commits = len(all_commits)
+
+        contributor_buckets: Dict[str, Dict[str, Any]] = {}
         for commit in all_commits:
-            contributors_set.add((commit["author_name"], commit["author_email"]))
-        
-        # Analyze each contributor
+            raw_email = self._normalize_email(commit.get("author_email", ""))
+            canonical_email = noreply_map.get(raw_email, raw_email) or "unknown"
+            author_name = (commit.get("author_name", "") or "").strip() or "Unknown"
+
+            if canonical_email not in contributor_buckets:
+                contributor_buckets[canonical_email] = {
+                    "name_counts": Counter(),
+                    "commits": 0,
+                    "insertions": 0,
+                    "deletions": 0,
+                    "files_counter": Counter(),
+                    "activity_mix": Counter(),
+                    "active_weeks": set(),
+                    "first_commit_date": None,
+                    "last_commit_date": None,
+                }
+
+            bucket = contributor_buckets[canonical_email]
+            bucket["name_counts"][author_name] += 1
+            bucket["commits"] += 1
+            bucket["insertions"] += int(commit.get("insertions", 0) or 0)
+            bucket["deletions"] += int(commit.get("deletions", 0) or 0)
+
+            for file_path in commit.get("files", []):
+                bucket["files_counter"][file_path] += 1
+
+            commit_date = commit.get("date")
+            if commit_date is not None:
+                first = bucket["first_commit_date"]
+                last = bucket["last_commit_date"]
+                if first is None or commit_date < first:
+                    bucket["first_commit_date"] = commit_date
+                if last is None or commit_date > last:
+                    bucket["last_commit_date"] = commit_date
+                bucket["active_weeks"].add(iso_week_start(commit_date))
+
+            intent = classify_intent(commit.get("msg", ""))
+            bucket["activity_mix"][intent] += 1
+
         contributor_analyses = []
-        for name, email in contributors_set:
-            try:
-                # Use email as identifier (preferred)
-                contrib_summary = summarize_author_contrib(
-                    project_path,
-                    email,
-                    prefer_email=True,
-                    fuzzy=False
-                )
-                contributor_analyses.append(contrib_summary)
-            except Exception as e:
-                print(f"        ⚠️  Could not analyze contributor {name}: {e}")
-                continue
-        
-        # Sort contributors by commit count
-        contributor_analyses.sort(key=lambda x: x["commits"], reverse=True)
+        for canonical_email, bucket in contributor_buckets.items():
+            display_name = sorted(
+                bucket["name_counts"].items(),
+                key=lambda item: (-item[1], item[0].lower())
+            )[0][0]
+            first = bucket["first_commit_date"]
+            last = bucket["last_commit_date"]
+
+            contributor_analyses.append({
+                "author": {"name": display_name, "email": canonical_email},
+                "commits": bucket["commits"],
+                "insertions": bucket["insertions"],
+                "deletions": bucket["deletions"],
+                "files_touched": len(bucket["files_counter"]),
+                "active_weeks": len(bucket["active_weeks"]),
+                "first_commit_at": first.date().isoformat() if first else "",
+                "last_commit_at": last.date().isoformat() if last else "",
+                "activity_mix": {
+                    "feature": bucket["activity_mix"].get("feature", 0),
+                    "bugfix": bucket["activity_mix"].get("bugfix", 0),
+                    "refactor": bucket["activity_mix"].get("refactor", 0),
+                    "docs": bucket["activity_mix"].get("docs", 0),
+                    "test": bucket["activity_mix"].get("test", 0),
+                    "other": bucket["activity_mix"].get("other", 0),
+                },
+                "share_of_commits_pct": (
+                    bucket["commits"] / total_repo_commits * 100.0
+                    if total_repo_commits > 0 else 0.0
+                ),
+                "top_files": [
+                    {"path": path, "touches": touches}
+                    for path, touches in bucket["files_counter"].most_common(10)
+                ],
+            })
+
+        contributor_analyses.sort(
+            key=lambda item: (
+                -item["commits"],
+                item["author"]["name"].lower(),
+                item["author"]["email"],
+            )
+        )
         
         return {
             "total_commits": len(all_commits),
             "total_contributors": len(contributor_analyses),
             "contributors": contributor_analyses
         }
+
+    def _normalize_email(self, email: str) -> str:
+        return (email or "").strip().lower()
+
+    def _normalized_token(self, value: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", (value or "").lower())
+
+    def _infer_noreply_email_map(self, commits: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Heuristically map GitHub noreply emails to a likely real email in this repo.
+        """
+        real_email_profiles: Dict[str, Dict[str, Any]] = {}
+        noreply_emails = set()
+
+        for commit in commits:
+            email = self._normalize_email(commit.get("author_email", ""))
+            if not email:
+                continue
+
+            noreply_match = self.GITHUB_NOREPLY_RE.match(email)
+            if noreply_match:
+                noreply_emails.add(email)
+                continue
+
+            if email not in real_email_profiles:
+                real_email_profiles[email] = {
+                    "local_part": self._normalized_token(email.split("@", 1)[0]),
+                    "name_tokens": set(),
+                    "commits": 0,
+                }
+            real_email_profiles[email]["commits"] += 1
+            real_email_profiles[email]["name_tokens"].add(
+                self._normalized_token(commit.get("author_name", ""))
+            )
+
+        resolved: Dict[str, str] = {}
+        for noreply_email in noreply_emails:
+            username_match = self.GITHUB_NOREPLY_RE.match(noreply_email)
+            if not username_match:
+                continue
+
+            username = self._normalized_token(username_match.group(1))
+            best_candidate = None
+
+            for real_email, profile in real_email_profiles.items():
+                score = 0
+                local_part = profile["local_part"]
+                if username == local_part:
+                    score += 5
+                elif username in local_part:
+                    score += 3
+
+                if any(username and username in token for token in profile["name_tokens"]):
+                    score += 2
+
+                if score <= 0:
+                    continue
+
+                candidate = (score, profile["commits"], real_email)
+                if best_candidate is None or candidate > best_candidate:
+                    best_candidate = candidate
+
+            if best_candidate:
+                resolved[noreply_email] = best_candidate[2]
+
+        return resolved
     
     def _analyze_categorized_files(self, categorized_contents: Dict[str, Any]) -> Dict[str, Any]:
         """
