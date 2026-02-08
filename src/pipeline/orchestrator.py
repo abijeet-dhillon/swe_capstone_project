@@ -24,14 +24,6 @@ from src.image_processor import ImageProcessor
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
 from src.pipeline.progress_tracker import ProgressTracker
-
-# Dummy progress tracker to avoid threading issues in Docker
-class DummyProgressTracker:
-    def reset(self): pass
-    def update(self, **kwargs): pass
-    def should_cancel(self): return False
-    def increment_processed(self, **kwargs): pass
-    def register_callback(self, callback): pass
 from src.project.presentation import (
     extract_project_metrics,
     generate_portfolio_item,
@@ -75,7 +67,7 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
-        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
+        self.progress_tracker = ProgressTracker()
 
         if self.insights_store is None and enable_insights:
             try:
@@ -128,9 +120,16 @@ class ArtifactPipeline:
         print(f"📦 ZIP File: {zip_path.name}", flush=True)
         print(f"", flush=True)  # Empty line for spacing
         
-        # Initialize progress tracking (disabled for now due to threading issues in Docker)
-        # self.progress_tracker.reset()
-        # self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
+        # Calculate zip hash for tracking
+        zip_hash = self._get_zip_hash(zip_path)
+        
+        # Register tracker for cancellation support
+        from src.insights.api import register_tracker, unregister_tracker
+        register_tracker(zip_hash, self.progress_tracker)
+        
+        # Initialize progress tracking
+        self.progress_tracker.reset()
+        self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
         
         try:
             # Step 1: Parse ZIP metadata
@@ -141,7 +140,7 @@ class ArtifactPipeline:
             # Check for cancellation
             if self.progress_tracker.should_cancel():
                 print("\n⚠️  Analysis cancelled by user")
-                self.progress_tracker.update(stage='cancelled')
+                self._cleanup_on_cancel(zip_hash)
                 return {"status": "cancelled", "message": "Analysis cancelled by user"}
             
             self.progress_tracker.update(total_files=zip_index.file_count, stage='extracting')
@@ -178,7 +177,7 @@ class ArtifactPipeline:
             # Check for cancellation
             if self.progress_tracker.should_cancel():
                 print("\n⚠️  Analysis cancelled by user")
-                self.progress_tracker.update(stage='cancelled')
+                self._cleanup_on_cancel(zip_hash)
                 return {"status": "cancelled", "message": "Analysis cancelled by user"}
 
             # Capture file-level metadata for the entire archive
@@ -214,7 +213,7 @@ class ArtifactPipeline:
                 # Check for cancellation before processing each project
                 if self.progress_tracker.should_cancel():
                     print("\n⚠️  Analysis cancelled by user", flush=True)
-                    self.progress_tracker.update(stage='cancelled')
+                    self._cleanup_on_cancel(zip_hash)
                     return {"status": "cancelled", "message": "Analysis cancelled by user"}
                 
                 print(f"\n  📁 Processing project: {project_name}", flush=True)
@@ -299,10 +298,31 @@ class ArtifactPipeline:
             return result
             
         finally:
+            # Unregister tracker
+            unregister_tracker(zip_hash)
+            
             # Always clean up temp directory
             if self.temp_dir and self.temp_dir.exists():
                 print(f"\n🧹 Cleaning up temporary directory...")
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def _get_zip_hash(self, zip_path: Path) -> str:
+        """Calculate SHA256 hash of zip file for tracking."""
+        import hashlib
+        hasher = hashlib.sha256()
+        with open(zip_path, 'rb') as f:
+            while chunk := f.read(8192):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    
+    def _cleanup_on_cancel(self, zip_hash: str) -> None:
+        """Clean up database records when cancelled."""
+        if self.insights_store:
+            try:
+                counts = self.insights_store.delete_zip(zip_hash)
+                print(f"     ✓ Deleted {counts.get('deleted_projects', 0)} partial records")
+            except Exception as e:
+                print(f"     ⚠️  Cleanup error: {e}")
     
     def _identify_projects(self) -> tuple[Dict[str, Path], List[Path]]:
         """

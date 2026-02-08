@@ -88,6 +88,7 @@ class ProgressTracker:
             **kwargs: Fields to update (total_files, processed_files, current_file, 
                      stage, current_project, etc.)
         """
+        # Create state copy outside the lock
         with self._lock:
             # Create new state with updated values
             state_dict = {
@@ -106,11 +107,14 @@ class ProgressTracker:
             # Create new immutable state
             self._state = ProgressState(**state_dict)
             
-            # Notify callbacks outside the lock
-            state_copy = self.get_state()
+            # Create copy for callbacks while we still have the lock
+            state_copy = ProgressState(**state_dict)
+            
+            # Get callbacks copy
+            callbacks_copy = self._callbacks.copy()
         
         # Call callbacks outside of lock to avoid deadlock
-        self._notify_callbacks(state_copy)
+        self._notify_callbacks_direct(state_copy, callbacks_copy)
     
     def increment_processed(self, current_file: str = "") -> None:
         """
@@ -223,7 +227,17 @@ class ProgressTracker:
         with self._lock:
             callbacks_copy = self._callbacks.copy()
         
-        for callback in callbacks_copy:
+        self._notify_callbacks_direct(state, callbacks_copy)
+    
+    def _notify_callbacks_direct(self, state: ProgressState, callbacks: list) -> None:
+        """
+        Notify callbacks without acquiring lock (lock must already be released).
+        
+        Args:
+            state: ProgressState to pass to callbacks
+            callbacks: List of callback functions
+        """
+        for callback in callbacks:
             try:
                 callback(state)
             except Exception:
