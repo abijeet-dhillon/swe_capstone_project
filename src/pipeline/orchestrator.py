@@ -789,6 +789,33 @@ class ArtifactPipeline:
             "user", "users", "dev", "admin", "test", "github", "noreply"
         }
 
+    def _edit_distance_leq(self, a: str, b: str, max_dist: int) -> bool:
+        """
+        Bounded Levenshtein distance check with early exit.
+        """
+        if a == b:
+            return True
+        if not a or not b:
+            return max(len(a), len(b)) <= max_dist
+        if abs(len(a) - len(b)) > max_dist:
+            return False
+
+        # DP with pruning, O(len(a)*len(b)) worst-case but short strings and small max_dist.
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            row_min = cur[0]
+            for j, cb in enumerate(b, 1):
+                cost = 0 if ca == cb else 1
+                cur_val = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                cur.append(cur_val)
+                if cur_val < row_min:
+                    row_min = cur_val
+            if row_min > max_dist:
+                return False
+            prev = cur
+        return prev[-1] <= max_dist
+
     def _infer_noreply_email_map(self, commits: List[Dict[str, Any]]) -> Dict[str, str]:
         """
         Heuristically map GitHub noreply emails to a likely real email in this repo.
@@ -836,6 +863,9 @@ class ArtifactPipeline:
                 if username == local_part:
                     score, strong = 10, True
                 elif username in profile["local_tokens"]:
+                    score, strong = 6, True
+                # Allow small local-part variations (e.g. added middle initial) only with strong name evidence.
+                if (not strong and username in profile["name_tokens"] and self._edit_distance_leq(username, local_part, 2)):
                     score, strong = 6, True
                 if username in profile["name_tokens"]:
                     score += 2

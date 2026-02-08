@@ -455,6 +455,26 @@ class TestGitContributorCanonicalization:
         mapped = pipeline._infer_noreply_email_map(commits)
         assert mapped["91719000+carsondrobe@users.noreply.github.com"] == "carsondrobe@gmail.com"
 
+    def test_infer_noreply_map_happy_path_near_local_part_with_name_signal(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Evanjager", "evantyjager@gmail.com", "feat: A", t0),
+            self._commit("Evan Jager", "77311002+evanjager@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert mapped["77311002+evanjager@users.noreply.github.com"] == "evantyjager@gmail.com"
+
+    def test_infer_noreply_map_does_not_use_near_match_without_name_signal(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Evan", "evantyjager@gmail.com", "feat: A", t0),
+            self._commit("Evan", "77311002+evanjager@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert "77311002+evanjager@users.noreply.github.com" not in mapped
+
     def test_infer_noreply_map_skips_low_confidence_username(self, pipeline):
         t0 = datetime(2025, 1, 1, 10, 0, 0)
         commits = [
