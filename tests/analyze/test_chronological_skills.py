@@ -189,3 +189,40 @@ def test_make_json_serializable():
     # empty structures
     assert make_json_serializable([]) == []
     assert make_json_serializable({}) == {}
+
+
+def test_build_skill_timeline_uses_timestamp_overrides(tmp_path, mock_analyzers):
+    analyzer = ChronologicalSkillList()
+    override_ts = "2020-01-01T00:00:00"
+    rel_path = "file1.py"
+    events = analyzer.build_skill_timeline(
+        tmp_path,
+        timestamp_overrides={rel_path: override_ts},
+    )
+
+    code_event = next(e for e in events if e["category"] == "code")
+    assert code_event["timestamp"].isoformat().startswith(override_ts)
+
+
+def test_build_skill_timeline_skips_macos_artifacts(tmp_path):
+    mac_dir = tmp_path / "__MACOSX" / "demo"
+    mac_dir.mkdir(parents=True)
+    mac_file = mac_dir / "._file.py"
+    mac_file.write_text("print('skip')")
+
+    normal_file = tmp_path / "file2.py"
+    normal_file.write_text("print('keep')")
+
+    with patch("src.analyze.chronological_skills.CodeAnalyzer") as MockCode:
+        code_instance = MockCode.return_value
+        code_instance.analyze_directory.return_value = [
+            MagicMock(file_path=str(mac_file), skills=["Python"], language="Python", frameworks=[]),
+            MagicMock(file_path=str(normal_file), skills=["Python"], language="Python", frameworks=[]),
+        ]
+
+        analyzer = ChronologicalSkillList()
+        events = analyzer.build_skill_timeline(tmp_path)
+
+    files = [Path(e["file"]).name for e in events if e["category"] == "code"]
+    assert "._file.py" not in files
+    assert "file2.py" in files

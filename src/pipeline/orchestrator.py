@@ -69,7 +69,12 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
+
+        self.file_info: List[Dict[str, Any]] = []
+        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
+
         self.progress_tracker = ProgressTracker()
+
 
         if self.insights_store is None and enable_insights:
             try:
@@ -185,6 +190,7 @@ class ArtifactPipeline:
             # Capture file-level metadata for the entire archive
             print(f"     Building file metadata...", flush=True)
             file_info = self._build_file_info(zip_index)
+            self.file_info = file_info
             self.sha256_lookup = self._build_sha256_lookup(file_info)
             print(f"     ✓ Built metadata for {len(file_info)} files", flush=True)
             
@@ -465,7 +471,22 @@ class ArtifactPipeline:
 
             extracted_path = self.temp_dir / entry.rel_path
             if not extracted_path.exists():
-                continue
+                alt_rel_path = entry.rel_path.replace("/", "\\")
+                alt_path = self.temp_dir / alt_rel_path
+                if alt_path.exists():
+                    extracted_path = alt_path
+                else:
+                    parts = entry.rel_path.split("/", 1)
+                    if len(parts) == 2:
+                        tail = parts[1].replace("/", "\\")
+                        alt_rel_path = f"{parts[0]}/{tail}"
+                        alt_path = self.temp_dir / alt_rel_path
+                        if alt_path.exists():
+                            extracted_path = alt_path
+                        else:
+                            continue
+                    else:
+                        continue
 
             file_info.append({
                 "abs_path": str(extracted_path.resolve()),
@@ -474,6 +495,7 @@ class ArtifactPipeline:
                 "compressed_size": entry.compressed_size,
                 "is_compressed": entry.is_compressed,
                 "sha256": entry.sha256,
+                "zip_timestamp": getattr(entry, "zip_timestamp", ""),
                 "depth": entry.depth,
                 "ext": entry.ext,
                 "is_text_guess": entry.is_text_guess,
@@ -1859,8 +1881,19 @@ class ArtifactPipeline:
                     "message": "No temporary directory available for skill timeline"
                 }
             
+            timestamp_overrides = {}
+            for info in self.file_info or []:
+                rel_path = info.get("rel_path")
+                zip_timestamp = info.get("zip_timestamp")
+                if rel_path and zip_timestamp:
+                    normalized = rel_path.replace("\\", "/")
+                    timestamp_overrides[normalized] = zip_timestamp
+
             skill_tracker = ChronologicalSkillList()
-            timeline = skill_tracker.build_skill_timeline(str(self.temp_dir))
+            timeline = skill_tracker.build_skill_timeline(
+                str(self.temp_dir),
+                timestamp_overrides=timestamp_overrides or None,
+            )
             
             # Convert timeline to serializable format
             serializable_timeline = []
