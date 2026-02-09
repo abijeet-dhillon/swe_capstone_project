@@ -177,7 +177,8 @@ class PresentationPipeline:
         List all projects available in the database with their metadata.
         
         Args:
-            filters: Optional dict with 'languages' and/or 'frameworks' keys containing lists of values to filter by
+            filters: Optional dict with 'languages' and/or 'frameworks' keys containing lists of values to filter by,
+                and optional 'zip_path' or 'zip_hash' to restrict to a specific ZIP run
         
         Returns:
             List of project metadata dictionaries
@@ -199,11 +200,18 @@ class PresentationPipeline:
                 ORDER BY i2.id DESC
                 LIMIT 1
             )
+            AND (? IS NULL OR i.source_path = ?)
+            AND (? IS NULL OR i.source_hash = ?)
             ORDER BY pi.updated_at DESC;
         """
         
         with sqlite3.connect(self.store.db_path) as conn:
-            rows = conn.execute(query).fetchall()
+            zip_path = None
+            zip_hash = None
+            if filters:
+                zip_path = filters.get("zip_path")
+                zip_hash = filters.get("zip_hash")
+            rows = conn.execute(query, (zip_path, zip_path, zip_hash, zip_hash)).fetchall()
         
         projects = []
         for row in rows:

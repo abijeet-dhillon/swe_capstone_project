@@ -52,6 +52,90 @@ class ArtifactPipeline:
     
     # Video file extensions to detect in "other" category
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.wmv'}
+    PROJECT_MARKER_FILES = {
+        "README.md",
+        "README.rst",
+        "README.txt",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "requirements.txt",
+        "Pipfile",
+        "Pipfile.lock",
+        "package.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "Cargo.toml",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
+        "Makefile",
+        "CMakeLists.txt",
+        "Dockerfile",
+        "composer.json",
+        "Gemfile",
+        ".gitignore",
+        ".editorconfig",
+    }
+    COMMON_TOP_LEVEL_DIRS = {
+        "src",
+        "tests",
+        "test",
+        "docs",
+        "doc",
+        "documentation",
+        "assets",
+        "asset",
+        "images",
+        "img",
+        "static",
+        "public",
+        "scripts",
+        "script",
+        "build",
+        "dist",
+        "lib",
+        "include",
+        "bin",
+        "config",
+        "configs",
+        "examples",
+        "example",
+        "data",
+        "notebooks",
+        "notebook",
+        "models",
+        "media",
+        "templates",
+        "app",
+        "apps",
+        "client",
+        "server",
+        "backend",
+        "frontend",
+        "android",
+        "ios",
+        "shared",
+        "common",
+        "core",
+    }
+    PROJECT_CODE_EXTENSIONS = {
+        ".py",
+        ".js",
+        ".ts",
+        ".java",
+        ".cpp",
+        ".c",
+        ".go",
+        ".rs",
+        ".cs",
+        ".rb",
+        ".php",
+        ".swift",
+        ".kt",
+        ".m",
+    }
     
     def __init__(
         self,
@@ -83,6 +167,23 @@ class ArtifactPipeline:
             except Exception as exc:  # pragma: no cover - warning path
                 print(f"⚠️  Insights storage disabled: {exc}")
                 self.insights_store = None
+
+    def _has_project_markers(self, path: Path) -> bool:
+        for marker in self.PROJECT_MARKER_FILES:
+            if (path / marker).exists():
+                return True
+        for item in path.iterdir():
+            if item.is_file() and item.suffix.lower() in self.PROJECT_CODE_EXTENSIONS:
+                return True
+        return False
+
+    def _looks_like_single_project_root(self, root: Path, subdirs: List[Path]) -> bool:
+        if subdirs:
+            # Multiple top-level directories that are not common project dirs => treat as multi-project zip.
+            if all(d.name.lower() in self.COMMON_TOP_LEVEL_DIRS for d in subdirs):
+                return True
+            return False
+        return self._has_project_markers(root)
     
     def start(
         self,
@@ -362,23 +463,24 @@ class ArtifactPipeline:
                 elif item.is_file():
                     wrapper_files.append(item)
             
-            # If we found subdirectories, use those as projects
-            if subdirs:
+            # Decide whether wrapper is a single project root or a container for projects
+            if subdirs and not self._looks_like_single_project_root(wrapper_dir, subdirs):
                 for subdir in subdirs:
                     projects[subdir.name] = subdir
-                # Files in wrapper become loose files
                 loose_files = wrapper_files
             else:
-                # No subdirectories, so the wrapper itself is the project
                 projects[wrapper_dir.name] = wrapper_dir
-                # No loose files in this case
+                loose_files = []
         
         # Case 3: Multiple top-level directories - each is a project
         else:
-            for item in top_level_dirs:
-                projects[item.name] = item
-            # Top-level files become loose files
-            loose_files = top_level_files
+            if self._looks_like_single_project_root(self.temp_dir, top_level_dirs):
+                projects['root'] = self.temp_dir
+                loose_files = []
+            else:
+                for item in top_level_dirs:
+                    projects[item.name] = item
+                loose_files = top_level_files
         
         return projects, loose_files
 
