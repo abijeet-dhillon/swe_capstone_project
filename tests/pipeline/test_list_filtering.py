@@ -232,6 +232,29 @@ class TestListFilterCombined:
         assert len(projects) == 0
 
 
+class TestListFilterByZip:
+    def test_filter_by_zip_path(self, temp_store_with_projects):
+        pipeline = PresentationPipeline(insights_store=temp_store_with_projects)
+        projects = pipeline.list_available_projects(filters={"zip_path": "/tmp/demo2.zip"})
+        assert len(projects) == 1
+        assert projects[0]["project_name"] == "ReactApp"
+
+    def test_filter_by_zip_hash(self, temp_store_with_projects):
+        import sqlite3
+
+        with sqlite3.connect(temp_store_with_projects.db_path) as conn:
+            row = conn.execute(
+                "SELECT source_hash FROM ingest WHERE source_path = ? ORDER BY id DESC LIMIT 1",
+                ("/tmp/demo3.zip",),
+            ).fetchone()
+        zip_hash = row[0]
+
+        pipeline = PresentationPipeline(insights_store=temp_store_with_projects)
+        projects = pipeline.list_available_projects(filters={"zip_hash": zip_hash})
+        assert len(projects) == 1
+        assert projects[0]["project_name"] == "FlaskAPI"
+
+
 class TestListFilterEmptyResults:
     def test_filter_nonexistent_language(self, temp_store_with_projects):
         pipeline = PresentationPipeline(insights_store=temp_store_with_projects)
@@ -285,3 +308,25 @@ class TestListCLIIntegration:
         assert "P1" in captured.out and "P2" in captured.out
         call_args = mock_pipeline_cls.return_value.list_available_projects.call_args
         assert call_args[1]["filters"] is None
+
+    @patch("src.pipeline.presentation_pipeline.PresentationPipeline")
+    def test_cli_list_with_zip_path_filter(self, mock_pipeline_cls, capsys):
+        mock_pipeline_cls.return_value.list_available_projects.return_value = []
+        exit_code = cli.main(["list", "--zip-path", "/tmp/demo2.zip"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "No projects found" in captured.out
+        assert "zip_path: /tmp/demo2.zip" in captured.out
+        call_args = mock_pipeline_cls.return_value.list_available_projects.call_args
+        assert call_args[1]["filters"]["zip_path"] == "/tmp/demo2.zip"
+
+    @patch("src.pipeline.presentation_pipeline.PresentationPipeline")
+    def test_cli_list_with_zip_hash_filter(self, mock_pipeline_cls, capsys):
+        mock_pipeline_cls.return_value.list_available_projects.return_value = []
+        exit_code = cli.main(["list", "--zip-hash", "deadbeef"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "No projects found" in captured.out
+        assert "zip_hash: deadbeef" in captured.out
+        call_args = mock_pipeline_cls.return_value.list_available_projects.call_args
+        assert call_args[1]["filters"]["zip_hash"] == "deadbeef"

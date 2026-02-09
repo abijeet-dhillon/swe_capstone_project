@@ -107,6 +107,22 @@ def test_identify_projects_no_dirs(tmp_path):
     assert loose == []
 
 
+def test_identify_projects_multi_project_root_with_readme(tmp_path):
+    (tmp_path / "deployment-infrastructure").mkdir()
+    (tmp_path / "design-system").mkdir()
+    (tmp_path / "ecommerce-backend").mkdir()
+    (tmp_path / "README.md").write_text("readme")
+
+    pipeline = orchestrator.ArtifactPipeline(enable_insights=False)
+    pipeline.temp_dir = tmp_path
+    projects, loose = pipeline._identify_projects()
+    assert "deployment-infrastructure" in projects
+    assert "design-system" in projects
+    assert "ecommerce-backend" in projects
+    assert "root" not in projects
+    assert any(p.name == "README.md" for p in loose)
+
+
 def test_process_project_local_only(monkeypatch, tmp_path):
     proj = tmp_path / "proj"
     (proj / "docs").mkdir(parents=True)

@@ -154,6 +154,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="append",
         help="Filter by framework (can be specified multiple times)"
     )
+    list_parser.add_argument(
+        "--zip-path",
+        help="Filter projects by ZIP file path"
+    )
+    list_parser.add_argument(
+        "--zip-hash",
+        help="Filter projects by ZIP hash"
 
     delete_parser = subparsers.add_parser(
         "delete",
@@ -394,6 +401,10 @@ def handle_list(args) -> int:
         filters['languages'] = args.language
     if hasattr(args, 'framework') and args.framework:
         filters['frameworks'] = args.framework
+    if hasattr(args, 'zip_path') and args.zip_path:
+        filters['zip_path'] = args.zip_path
+    if hasattr(args, 'zip_hash') and args.zip_hash:
+        filters['zip_hash'] = args.zip_hash
     
     projects = pipeline.list_available_projects(filters=filters if filters else None)
     
@@ -405,6 +416,10 @@ def handle_list(args) -> int:
                 filter_parts.append(f"languages: {', '.join(filters['languages'])}")
             if 'frameworks' in filters:
                 filter_parts.append(f"frameworks: {', '.join(filters['frameworks'])}")
+            if 'zip_path' in filters:
+                filter_parts.append(f"zip_path: {filters['zip_path']}")
+            if 'zip_hash' in filters:
+                filter_parts.append(f"zip_hash: {filters['zip_hash']}")
             filter_msg = f" (filtered by {'; '.join(filter_parts)})"
         print(f"\nNo projects found in database{filter_msg}.\n")
         return 0
@@ -416,6 +431,10 @@ def handle_list(args) -> int:
             filter_parts.append(f"Language: {', '.join(filters['languages'])}")
         if 'frameworks' in filters:
             filter_parts.append(f"Framework: {', '.join(filters['frameworks'])}")
+        if 'zip_path' in filters:
+            filter_parts.append(f"Zip Path: {filters['zip_path']}")
+        if 'zip_hash' in filters:
+            filter_parts.append(f"Zip Hash: {filters['zip_hash']}")
         filter_info = f" [Filtered by {' | '.join(filter_parts)}]"
     
     print(f"\n{'='*100}")
