@@ -36,3 +36,27 @@ def test_privacy_consent_creates_config():
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(td, ignore_errors=True)
+
+
+def test_git_identifier_set_and_get():
+    td = tempfile.mkdtemp()
+    try:
+        db_path = os.path.join(td, "app.db")
+        manager = UserConfigManager(db_path=db_path)
+        manager.create_config("git_tester", "/tmp/test.zip", False)
+        app.dependency_overrides[deps.get_config_manager] = lambda: manager
+
+        client = TestClient(app)
+        response = client.post(
+            "/git-identifier",
+            json={"user_id": "git_tester", "git_identifier": "test@example.com"},
+        )
+        assert response.status_code == 200
+        assert response.json()["git_identifier"] == "test@example.com"
+
+        get_response = client.get("/git-identifier/git_tester")
+        assert get_response.status_code == 200
+        assert get_response.json()["git_identifier"] == "test@example.com"
+    finally:
+        app.dependency_overrides.clear()
+        shutil.rmtree(td, ignore_errors=True)

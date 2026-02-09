@@ -195,3 +195,17 @@ def test_cli_update_accepts_llm_consent_flag(temp_db, monkeypatch, capsys):
 
     cfg = manager.load_config("toggle_user")
     assert cfg.llm_consent is False
+
+
+def test_git_identifier_stores_and_loads(manager):
+    manager.create_config("git_user", "/tmp/data.zip", False)
+    assert manager.update_config("git_user", git_identifier="user@example.com") is True
+    
+    cfg = manager.load_config("git_user")
+    assert cfg.git_identifier == "user@example.com"
+
+
+def test_git_identifier_defaults_to_none(manager):
+    manager.create_config("no_git_user", "/tmp/data.zip", False)
+    cfg = manager.load_config("no_git_user")
+    assert cfg.git_identifier is None
