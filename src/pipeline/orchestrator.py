@@ -154,7 +154,12 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
+
+        self.file_info: List[Dict[str, Any]] = []
+        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
+
         self.progress_tracker = ProgressTracker()
+
 
         if self.insights_store is None and enable_insights:
             try:
@@ -287,6 +292,7 @@ class ArtifactPipeline:
             # Capture file-level metadata for the entire archive
             print(f"     Building file metadata...", flush=True)
             file_info = self._build_file_info(zip_index)
+            self.file_info = file_info
             self.sha256_lookup = self._build_sha256_lookup(file_info)
             print(f"     ✓ Built metadata for {len(file_info)} files", flush=True)
             
@@ -451,6 +457,29 @@ class ArtifactPipeline:
         
         if not self.temp_dir or not self.temp_dir.exists():
             return projects, loose_files
+
+        def _find_git_repos_under(base: Path) -> List[Path]:
+            """
+            Find git repositories under a base directory (including base itself if it is a repo).
+            A repo is detected by the presence of a `.git/` directory.
+            """
+            if (base / ".git").is_dir():
+                return [base]
+            repos: List[Path] = []
+            for root, dirs, _files in os.walk(base):
+                # Skip macOS metadata folders
+                dirs[:] = [d for d in dirs if d != "__MACOSX"]
+                if ".git" in dirs:
+                    repos.append(Path(root))
+                    # Don't traverse into .git internals
+                    dirs[:] = [d for d in dirs if d != ".git"]
+            return repos
+
+        # Case 0: The extracted root directory itself is a git repo
+        root_repos = _find_git_repos_under(self.temp_dir)
+        if root_repos and root_repos[0] == self.temp_dir:
+            projects["root"] = self.temp_dir
+            return projects, []
         
         # Get all top-level items in the extracted directory
         top_level_dirs = []
@@ -485,6 +514,11 @@ class ArtifactPipeline:
                     subdirs.append(item)
                 elif item.is_file():
                     wrapper_files.append(item)
+
+            # If the wrapper itself is a git repo, treat it as the project (not its children)
+            if (wrapper_dir / ".git").is_dir():
+                projects[wrapper_dir.name] = wrapper_dir
+                return projects, wrapper_files
             
             # Decide whether wrapper is a single project root or a container for projects
             if subdirs and not self._looks_like_single_project_root(wrapper_dir, subdirs):
@@ -506,6 +540,29 @@ class ArtifactPipeline:
                 loose_files = top_level_files
         
         return projects, loose_files
+            for item in top_level_dirs:
+                projects[item.name] = item
+            # Top-level files become loose files
+            loose_files = top_level_files
+
+        # Expand non-git "projects" into nested git repos when present.
+        expanded: Dict[str, Path] = {}
+        for project_name, project_path in projects.items():
+            # Keep direct git repos as-is
+            if (project_path / ".git").is_dir():
+                expanded[project_name] = project_path
+                continue
+
+            nested = _find_git_repos_under(project_path)
+            if nested:
+                for repo_path in nested:
+                    rel = repo_path.relative_to(project_path)
+                    key = project_name if str(rel) == "." else f"{project_name}/{rel.as_posix()}"
+                    expanded[key] = repo_path
+            else:
+                expanded[project_name] = project_path
+
+        return expanded, loose_files
 
     def _build_file_info(self, zip_index) -> List[Dict[str, Any]]:
         """
@@ -523,7 +580,22 @@ class ArtifactPipeline:
 
             extracted_path = self.temp_dir / entry.rel_path
             if not extracted_path.exists():
-                continue
+                alt_rel_path = entry.rel_path.replace("/", "\\")
+                alt_path = self.temp_dir / alt_rel_path
+                if alt_path.exists():
+                    extracted_path = alt_path
+                else:
+                    parts = entry.rel_path.split("/", 1)
+                    if len(parts) == 2:
+                        tail = parts[1].replace("/", "\\")
+                        alt_rel_path = f"{parts[0]}/{tail}"
+                        alt_path = self.temp_dir / alt_rel_path
+                        if alt_path.exists():
+                            extracted_path = alt_path
+                        else:
+                            continue
+                    else:
+                        continue
 
             file_info.append({
                 "abs_path": str(extracted_path.resolve()),
@@ -532,6 +604,7 @@ class ArtifactPipeline:
                 "compressed_size": entry.compressed_size,
                 "is_compressed": entry.is_compressed,
                 "sha256": entry.sha256,
+                "zip_timestamp": getattr(entry, "zip_timestamp", ""),
                 "depth": entry.depth,
                 "ext": entry.ext,
                 "is_text_guess": entry.is_text_guess,
@@ -1917,8 +1990,19 @@ class ArtifactPipeline:
                     "message": "No temporary directory available for skill timeline"
                 }
             
+            timestamp_overrides = {}
+            for info in self.file_info or []:
+                rel_path = info.get("rel_path")
+                zip_timestamp = info.get("zip_timestamp")
+                if rel_path and zip_timestamp:
+                    normalized = rel_path.replace("\\", "/")
+                    timestamp_overrides[normalized] = zip_timestamp
+
             skill_tracker = ChronologicalSkillList()
-            timeline = skill_tracker.build_skill_timeline(str(self.temp_dir))
+            timeline = skill_tracker.build_skill_timeline(
+                str(self.temp_dir),
+                timestamp_overrides=timestamp_overrides or None,
+            )
             
             # Convert timeline to serializable format
             serializable_timeline = []

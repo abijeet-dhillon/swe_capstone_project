@@ -151,3 +151,15 @@ class TestCategorizeParser:
         all_categorized = json.dumps(result["categorized_contents"])
         for fname in file_names:
             assert fname in all_categorized, f"{fname} missing from categorized structure"
+
+    def test_backslash_paths_resolve_in_file_info(self, tmp_path):
+        """ZIPs with backslash paths should still populate file_info entries."""
+        zip_path = tmp_path / "backslash_paths.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("demo_capstone_project/ecommerce-backend\\products\\models.py", "print('x')")
+
+        result = categorize_parse_zip(zip_path)
+        file_info = result.get("file_info", [])
+        rel_paths = {f.get("rel_path") for f in file_info}
+        assert "demo_capstone_project/ecommerce-backend/products/models.py" in rel_paths
+        assert any(f.get("zip_timestamp") for f in file_info)

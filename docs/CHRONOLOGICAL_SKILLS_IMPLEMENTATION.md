@@ -20,7 +20,7 @@
 
 ## How It Works
 
-1. Pipeline analyzes files and extracts timestamps
+1. Pipeline analyzes files and extracts timestamps from ZIP metadata
 2. Detects skills in each file
 3. Creates chronological timeline
 4. Stores in database under `global_insights.chronological_skills`
@@ -36,6 +36,15 @@
   "metadata": {}
 }
 ```
+
+## Timestamp Source
+
+Timeline timestamps use the ZIP-stored file dates when available. If a ZIP entry
+has no timestamp, the pipeline falls back to the extracted file's modified time.
+macOS metadata artifacts are filtered out.
+
+ZIP entries that contain backslashes in their paths are normalized so timestamp
+lookup still works across platforms.
 
 ## Testing
 
