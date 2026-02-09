@@ -1,6 +1,8 @@
 # Chronological Skills Guide
 
-Shows when each skill was used, ordered by date.
+Shows when each skill was used, ordered by date. Timestamps come from the ZIP
+metadata (stored file dates), with a fallback to filesystem modified time if
+ZIP metadata is missing.
 
 ## CLI Usage
 
@@ -47,6 +49,10 @@ curl http://localhost:8000/chronological/projects
   ]
 }
 ```
+
+## Notes
+
+- macOS metadata entries (`__MACOSX`, `._*`) are excluded from the timeline.
 
 ## Troubleshooting
 

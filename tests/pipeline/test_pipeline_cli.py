@@ -150,6 +150,114 @@ class TestListCommand:
         assert "No projects found" in captured.out
 
 
+class TestDeleteCommand:
+    """Tests for the 'delete' subcommand"""
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    @patch("src.pipeline.cli.delete_user_configurations_all", return_value=3)
+    @patch("src.insights.storage.ProjectInsightsStore")
+    def test_delete_all_happy_path(self, mock_store, mock_configs, _confirm, capsys):
+        mock_store.return_value.delete_all.return_value = {"deleted_projects": 5}
+        exit_code = cli.main(["delete", "all"])
+        assert exit_code == 0
+        mock_store.return_value.delete_all.assert_called_once()
+        mock_configs.assert_called_once()
+        captured = capsys.readouterr()
+        assert "Deleted projects: 5" in captured.out
+        assert "Deleted user configurations: 3" in captured.out
+
+    @patch("src.pipeline.cli.confirm_action", return_value=False)
+    def test_delete_cancelled(self, _confirm, capsys):
+        exit_code = cli.main(["delete", "insight", "all"])
+        assert exit_code == 0
+        assert "Cancelled." in capsys.readouterr().out
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    @patch("src.pipeline.cli.delete_insights_for_project_id", return_value={"deleted_projects": 1, "deleted_zips": 0})
+    def test_delete_insight_by_project_id(self, mock_delete, _confirm):
+        exit_code = cli.main(["delete", "insight", "--project-id", "7"])
+        assert exit_code == 0
+        mock_delete.assert_called_once_with("data/app.db", 7)
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    @patch("src.insights.storage.ProjectInsightsStore")
+    def test_delete_insight_all(self, mock_store, _confirm, capsys):
+        mock_store.return_value.delete_all.return_value = {"deleted_projects": 4, "deleted_zips": 2}
+        exit_code = cli.main(["delete", "insight", "all"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "Deleted projects: 4" in captured.out
+        assert "Deleted zips: 2" in captured.out
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    @patch("src.pipeline.cli.delete_user_configurations_all", return_value=2)
+    def test_delete_config_all(self, _delete_all, _confirm, capsys):
+        exit_code = cli.main(["delete", "config", "all"])
+        assert exit_code == 0
+        assert "Deleted user configurations: 2" in capsys.readouterr().out
+
+    def test_delete_insight_missing_selector(self):
+        exit_code = cli.main(["delete", "insight"])
+        assert exit_code == 1
+
+    def test_delete_insight_invalid_argument_combo(self):
+        exit_code = cli.main(["delete", "insight", "--project-id", "3", "all"])
+        assert exit_code == 1
+
+    def test_delete_config_cancelled(self, capsys):
+        with patch("src.pipeline.cli.confirm_action", return_value=False):
+            exit_code = cli.main(["delete", "config", "all"])
+        assert exit_code == 0
+        assert "Cancelled." in capsys.readouterr().out
+
+    def test_delete_missing_target(self):
+        exit_code = cli.main(["delete"])
+        assert exit_code == 1
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    def test_delete_config_all_missing_table(self, _confirm, tmp_path, capsys):
+        db_path = tmp_path / "empty.db"
+        exit_code = cli.main(["delete", "--db-path", str(db_path), "config", "all"])
+        assert exit_code == 0
+        assert "Deleted user configurations: 0" in capsys.readouterr().out
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    def test_delete_insight_project_id_not_found(self, _confirm, tmp_path, capsys):
+        import sqlite3
+
+        db_path = tmp_path / "insights.db"
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("CREATE TABLE project_info (id INTEGER, project_id INTEGER, ingest_id INTEGER);")
+            conn.commit()
+        exit_code = cli.main(["delete", "--db-path", str(db_path), "insight", "--project-id", "42"])
+        assert exit_code == 0
+        output = capsys.readouterr().out
+        assert "Deleted projects: 0" in output
+        assert "Deleted zips: 0" in output
+
+    @patch("src.pipeline.cli.confirm_action", return_value=True)
+    def test_delete_insight_cleans_up_related_rows(self, _confirm, tmp_path):
+        import sqlite3
+
+        db_path = tmp_path / "insights_full.db"
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("CREATE TABLE ingest (id INTEGER PRIMARY KEY);")
+            conn.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY);")
+            conn.execute("CREATE TABLE project_info (id INTEGER, project_id INTEGER, ingest_id INTEGER);")
+            conn.execute("INSERT INTO ingest (id) VALUES (1);")
+            conn.execute("INSERT INTO projects (id) VALUES (10);")
+            conn.execute("INSERT INTO project_info (id, project_id, ingest_id) VALUES (5, 10, 1);")
+            conn.commit()
+
+        exit_code = cli.main(["delete", "--db-path", str(db_path), "insight", "--project-id", "5"])
+        assert exit_code == 0
+
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM project_info;").fetchone()[0] == 0
+            assert conn.execute("SELECT COUNT(*) FROM projects;").fetchone()[0] == 0
+            assert conn.execute("SELECT COUNT(*) FROM ingest;").fetchone()[0] == 0
+
+
 class TestMainFunction:
     """Tests for main() function behavior"""
     

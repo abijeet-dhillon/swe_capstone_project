@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import zipfile
 import hashlib
+from datetime import datetime
 from pathlib import Path
 from typing import Union
 
@@ -68,6 +69,12 @@ def parse_zip(zip_path: Union[str, Path]) -> ZipIndex:
                 
                 # Compute SHA256 hash
                 sha256_hash = hashlib.sha256(content).hexdigest()
+
+                # Capture ZIP-stored timestamp (no timezone info in ZIP metadata)
+                try:
+                    zip_timestamp = datetime(*info.date_time).isoformat()
+                except Exception:
+                    zip_timestamp = ""
                 
                 # Simple text detection
                 is_text = _is_text_content(content)
@@ -83,6 +90,7 @@ def parse_zip(zip_path: Union[str, Path]) -> ZipIndex:
                     compressed_size=info.compress_size,
                     is_compressed=is_compressed,
                     sha256=sha256_hash,
+                    zip_timestamp=zip_timestamp,
                     depth=depth,
                     ext=ext,
                     is_text_guess=is_text
@@ -161,8 +169,24 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
             # Compute where this file was extracted to
             extracted_path = temp_dir / entry.rel_path
             if not extracted_path.exists():
-                # Skip entries that don't exist in the extracted folder
-                continue
+                alt_rel_path = entry.rel_path.replace("/", "\\")
+                alt_path = temp_dir / alt_rel_path
+                if alt_path.exists():
+                    extracted_path = alt_path
+                else:
+                    parts = entry.rel_path.split("/", 1)
+                    if len(parts) == 2:
+                        tail = parts[1].replace("/", "\\")
+                        alt_rel_path = f"{parts[0]}/{tail}"
+                        alt_path = temp_dir / alt_rel_path
+                        if alt_path.exists():
+                            extracted_path = alt_path
+                        else:
+                            # Skip entries that don't exist in the extracted folder
+                            continue
+                    else:
+                        # Skip entries that don't exist in the extracted folder
+                        continue
 
             abs_extracted_path = str(extracted_path.resolve())
 
@@ -173,6 +197,7 @@ def categorize_parse_zip(zip_path: Union[str, Path]) -> dict:
                 "compressed_size": entry.compressed_size,
                 "is_compressed": entry.is_compressed,
                 "sha256": entry.sha256,
+                "zip_timestamp": entry.zip_timestamp,
                 "depth": entry.depth,
                 "ext": entry.ext,
                 "is_text_guess": entry.is_text_guess,

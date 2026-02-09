@@ -5,6 +5,7 @@ import os
 import json
 import getpass
 import argparse
+import sqlite3
 from typing import Optional, List, Dict, Any
 
 
@@ -153,6 +154,57 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="append",
         help="Filter by framework (can be specified multiple times)"
     )
+
+    delete_parser = subparsers.add_parser(
+        "delete",
+        help="Delete stored insights or user configurations",
+        description=(
+            "Delete stored insights and/or user configurations.\n\n"
+            "Examples:\n"
+            "  python -m src.pipeline delete all\n"
+            "  python -m src.pipeline delete insight --project-id 1\n"
+            "  python -m src.pipeline delete insight all\n"
+            "  python -m src.pipeline delete config all\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    delete_parser.add_argument(
+        "--db-path",
+        help="Path to the database (default: data/app.db)"
+    )
+    delete_subparsers = delete_parser.add_subparsers(dest="delete_target", help="Delete target")
+
+    delete_subparsers.add_parser(
+        "all",
+        help="Delete all insights and user configurations"
+    )
+
+    delete_insight_parser = delete_subparsers.add_parser(
+        "insight",
+        help="Delete insights by project id or delete all insights"
+    )
+    delete_insight_parser.add_argument(
+        "--project-id",
+        type=int,
+        help="Project ID from `list`"
+    )
+    delete_insight_parser.add_argument(
+        "scope",
+        nargs="?",
+        choices=["all"],
+        help="Delete all insights"
+    )
+
+    delete_config_parser = delete_subparsers.add_parser(
+        "config",
+        help="Delete all user configurations"
+    )
+    delete_config_parser.add_argument(
+        "scope",
+        nargs="?",
+        choices=["all"],
+        help="Delete all user configurations"
+    )
     
     args = parser.parse_args(argv)
     
@@ -171,6 +223,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return handle_show_resume(args)
         elif args.command == "list":
             return handle_list(args)
+        elif args.command == "delete":
+            return handle_delete(args)
         else:
             print(f"Unknown command: {args.command}", file=sys.stderr)
             return 1
@@ -383,6 +437,150 @@ def handle_list(args) -> int:
     
     print(f"\n{'='*100}\n")
     return 0
+
+
+def handle_delete(args) -> int:
+    """Handle the 'delete' subcommand."""
+    from src.insights.storage import DEFAULT_DB_PATH, ProjectInsightsStore
+
+    if not args.delete_target:
+        print("Error: Missing delete target. Use 'delete -h' for options.", file=sys.stderr)
+        return 1
+
+    db_path = args.db_path or DEFAULT_DB_PATH
+
+    if args.delete_target == "all":
+        if not confirm_action(
+            "Are you sure you want to delete all insights and user configurations? This cannot be undone."
+        ):
+            print("Cancelled.")
+            return 0
+        insights_store = ProjectInsightsStore(db_path=db_path)
+        insights_counts = insights_store.delete_all()
+        configs_deleted = delete_user_configurations_all(db_path)
+        print(f"Deleted projects: {insights_counts.get('deleted_projects', 0)}")
+        print(f"Deleted user configurations: {configs_deleted}")
+        return 0
+
+    if args.delete_target == "insight":
+        if args.project_id and args.scope:
+            print("Error: Use either --project-id or 'all' for delete insight.", file=sys.stderr)
+            return 1
+        if not args.project_id and args.scope != "all":
+            print("Error: Provide --project-id or 'all' for delete insight.", file=sys.stderr)
+            return 1
+
+        if args.scope == "all":
+            if not confirm_action(
+                "Are you sure you want to delete all insights? This cannot be undone."
+            ):
+                print("Cancelled.")
+                return 0
+            insights_store = ProjectInsightsStore(db_path=db_path)
+            insights_counts = insights_store.delete_all()
+            print(f"Deleted projects: {insights_counts.get('deleted_projects', 0)}")
+            print(f"Deleted zips: {insights_counts.get('deleted_zips', 0)}")
+            return 0
+
+        if not confirm_action(
+            f"Are you sure you want to delete insights for project id {args.project_id}? This cannot be undone."
+        ):
+            print("Cancelled.")
+            return 0
+        insights_counts = delete_insights_for_project_id(db_path, args.project_id)
+        print(f"Deleted projects: {insights_counts.get('deleted_projects', 0)}")
+        print(f"Deleted zips: {insights_counts.get('deleted_zips', 0)}")
+        return 0
+
+    if args.delete_target == "config":
+        if args.scope != "all":
+            print("Error: Use 'all' for delete config.", file=sys.stderr)
+            return 1
+        if not confirm_action(
+            "Are you sure you want to delete all user configurations? This cannot be undone."
+        ):
+            print("Cancelled.")
+            return 0
+        configs_deleted = delete_user_configurations_all(db_path)
+        print(f"Deleted user configurations: {configs_deleted}")
+        return 0
+
+    print(f"Unknown delete target: {args.delete_target}", file=sys.stderr)
+    return 1
+
+
+def confirm_action(prompt: str) -> bool:
+    """Prompt user for confirmation before destructive actions."""
+    try:
+        response = input(f"{prompt} [y/N]: ").strip().lower()
+    except EOFError:
+        return False
+    return response in {"y", "yes"}
+
+
+def delete_user_configurations_all(db_path: str) -> int:
+    """Delete all rows in user_configurations. Returns number of deleted rows."""
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys=ON;")
+        if not table_exists(conn, "user_configurations"):
+            return 0
+        conn.execute("DELETE FROM user_configurations;")
+        conn.commit()
+        return conn.execute("SELECT changes();").fetchone()[0]
+
+
+def delete_insights_for_project_id(db_path: str, project_info_id: int) -> Dict[str, int]:
+    """Delete insights for a single project_info id. Returns counts."""
+    from src.insights.storage import PROJECT_INFO_TABLE, PROJECTS_TABLE, INGEST_TABLE
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys=ON;")
+        if not table_exists(conn, PROJECT_INFO_TABLE):
+            return {"deleted_projects": 0, "deleted_zips": 0}
+        conn.isolation_level = None
+        conn.execute("BEGIN IMMEDIATE;")
+        try:
+            row = conn.execute(
+                f"SELECT project_id, ingest_id FROM {PROJECT_INFO_TABLE} WHERE id = ?;",
+                (project_info_id,),
+            ).fetchone()
+            if not row:
+                conn.execute("ROLLBACK;")
+                return {"deleted_projects": 0, "deleted_zips": 0}
+
+            project_id, ingest_id = row
+            conn.execute(f"DELETE FROM {PROJECT_INFO_TABLE} WHERE id = ?;", (project_info_id,))
+            deleted_projects = conn.execute("SELECT changes();").fetchone()[0]
+
+            remaining_for_project = conn.execute(
+                f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE} WHERE project_id = ?;",
+                (project_id,),
+            ).fetchone()[0]
+            if remaining_for_project == 0:
+                conn.execute(f"DELETE FROM {PROJECTS_TABLE} WHERE id = ?;", (project_id,))
+
+            remaining_for_ingest = conn.execute(
+                f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE} WHERE ingest_id = ?;",
+                (ingest_id,),
+            ).fetchone()[0]
+            deleted_zips = 0
+            if remaining_for_ingest == 0:
+                conn.execute(f"DELETE FROM {INGEST_TABLE} WHERE id = ?;", (ingest_id,))
+                deleted_zips = 1
+
+            conn.execute("COMMIT;")
+            return {"deleted_projects": deleted_projects, "deleted_zips": deleted_zips}
+        except Exception:
+            conn.execute("ROLLBACK;")
+            raise
+
+
+def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;",
+        (table_name,),
+    ).fetchone()
+    return bool(row)
 
 
 def print_single_result(result) -> None:
