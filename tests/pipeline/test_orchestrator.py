@@ -13,6 +13,7 @@ sys.path.insert(0, str(project_root))
 import pytest
 import zipfile
 import json
+from datetime import datetime, timedelta
 from src.pipeline.orchestrator import ArtifactPipeline
 
 
@@ -325,6 +326,53 @@ class TestEdgeCases:
         # Should find the deeply nested Python file
         assert len(categorized['code']) > 0
         assert any('deep_file.py' in f for f in categorized['code'])
+    
+    def test_zip_with_windows_style_backslash_paths(self, pipeline, tmp_path):
+        """
+        Test ZIP file with Windows-style backslash paths (regression test)
+        
+        This tests the fix for issue where ZIP files created on Windows
+        with backslash separators were not being extracted properly,
+        causing all files to appear as flat file names instead of
+        creating proper directory structures.
+        """
+        # Create a ZIP file with Windows-style paths manually
+        zip_path = tmp_path / "windows_paths.zip"
+        
+        # Create multiple projects with backslash paths
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            # Create a multi-project structure with Windows paths
+            zipf.writestr('project-a\\README.md', '# Project A')
+            zipf.writestr('project-a\\src\\main.py', 'print("A")')
+            zipf.writestr('project-b\\README.md', '# Project B')
+            zipf.writestr('project-b\\src\\app.js', 'console.log("B");')
+            zipf.writestr('README.md', '# Root README')
+        
+        result = pipeline.start(str(zip_path))
+        
+        # Verify that project ranking was generated with multiple projects
+        assert 'project_ranking' in result
+        project_ranking = result['project_ranking']
+        
+        # Should detect 2 separate projects, not treat everything as flat files
+        assert 'ranked_projects' in project_ranking
+        assert len(project_ranking['ranked_projects']) == 2, "Should detect 2 separate projects"
+        
+        # Verify project names from summaries
+        assert 'top_summaries' in project_ranking
+        project_names = {proj['name'] for proj in project_ranking['top_summaries']}
+        assert 'project-a' in project_names
+        assert 'project-b' in project_names
+        
+        # Verify the projects have proper directory structure (not flat files)
+        code_files = result['categorized_contents']['code']
+        doc_files = result['categorized_contents']['documentation']
+        
+        # Files should have proper paths with forward slashes (normalized)
+        assert any('project-a/src/main.py' in f for f in code_files)
+        assert any('project-b/src/app.js' in f for f in code_files)
+        assert any('project-a/README.md' in f for f in doc_files)
+        assert any('project-b/README.md' in f for f in doc_files)
 
 
 class TestIntegration:
@@ -352,3 +400,250 @@ class TestIntegration:
         # Should be able to parse back
         parsed = json.loads(json_str)
         assert parsed['zip_metadata'] == result['zip_metadata']
+
+
+class TestGitContributorCanonicalization:
+    """Tests for canonical email + noreply merge logic in _analyze_git_project."""
+
+    @staticmethod
+    def _commit(
+        name,
+        email,
+        msg,
+        when,
+        insertions=1,
+        deletions=0,
+        files=None,
+    ):
+        return {
+            "author_name": name,
+            "author_email": email,
+            "msg": msg,
+            "date": when,
+            "insertions": insertions,
+            "deletions": deletions,
+            "files": files or [],
+        }
+
+    def test_normalize_email_handles_case_whitespace_and_none(self, pipeline):
+        assert pipeline._normalize_email("  Alice@Example.COM  ") == "alice@example.com"
+        assert pipeline._normalize_email("") == ""
+        assert pipeline._normalize_email(None) == ""
+
+    def test_normalized_token_strips_non_alnum(self, pipeline):
+        assert pipeline._normalized_token("Abi-jeet.Dhillon_99") == "abijeetdhillon99"
+        assert pipeline._normalized_token("___") == ""
+
+    def test_tokenize_identity_splits_and_filters_tokens(self, pipeline):
+        tokens = pipeline._tokenize_identity("Evan Jager_42---Dev")
+        assert tokens == {"evan", "jager", "42", "dev"}
+        assert pipeline._tokenize_identity("___") == set()
+
+    def test_low_confidence_username_filter(self, pipeline):
+        assert pipeline._is_low_confidence_username("dev") is True
+        assert pipeline._is_low_confidence_username("12345") is True
+        assert pipeline._is_low_confidence_username("ab") is True
+        assert pipeline._is_low_confidence_username("abijeet") is False
+
+    def test_infer_noreply_map_happy_path_exact_local_part(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Carson Drobe", "carsondrobe@gmail.com", "feat: A", t0),
+            self._commit("carsondrobe", "91719000+carsondrobe@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert mapped["91719000+carsondrobe@users.noreply.github.com"] == "carsondrobe@gmail.com"
+
+    def test_infer_noreply_map_happy_path_near_local_part_with_name_signal(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Evanjager", "evantyjager@gmail.com", "feat: A", t0),
+            self._commit("Evan Jager", "77311002+evanjager@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert mapped["77311002+evanjager@users.noreply.github.com"] == "evantyjager@gmail.com"
+
+    def test_infer_noreply_map_does_not_use_near_match_without_name_signal(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Evan", "evantyjager@gmail.com", "feat: A", t0),
+            self._commit("Evan", "77311002+evanjager@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert "77311002+evanjager@users.noreply.github.com" not in mapped
+
+    def test_infer_noreply_map_skips_low_confidence_username(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Dev Team", "dev@example.com", "feat: A", t0),
+            self._commit("dev", "12345+dev@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert "12345+dev@users.noreply.github.com" not in mapped
+
+    def test_infer_noreply_map_skips_ambiguous_candidates(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Alex One", "alex@company.com", "feat: A", t0),
+            self._commit("Alex Two", "alex@personal.com", "feat: B", t0 + timedelta(minutes=1)),
+            self._commit("alex", "123+alex@users.noreply.github.com", "fix: C", t0 + timedelta(minutes=2)),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert "123+alex@users.noreply.github.com" not in mapped
+
+    def test_infer_noreply_map_skips_without_strong_signal(self, pipeline):
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Carsondrobe", "carson.team@example.com", "feat: A", t0),
+            self._commit("carsondrobe", "111+carsondrobe@users.noreply.github.com", "fix: B", t0),
+        ]
+
+        mapped = pipeline._infer_noreply_email_map(commits)
+        assert "111+carsondrobe@users.noreply.github.com" not in mapped
+
+    def test_analyze_git_project_dedupes_same_email_variants(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Alice Dev", " ALICE@EXAMPLE.COM ", "feat: add service", t0, 10, 1, ["a.py"]),
+            self._commit("Alice", "alice@example.com", "fix: patch service", t0 + timedelta(days=1), 3, 1, ["a.py"]),
+            self._commit("Alice Dev", "alice@example.com", "docs: update readme", t0 + timedelta(days=8), 4, 0, ["README.md"]),
+            self._commit("Bob", "bob@example.com", "test: add tests", t0 + timedelta(days=2), 5, 0, ["test_a.py"]),
+        ]
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
+
+        result = pipeline._analyze_git_project(Path("."))
+        assert result["total_commits"] == 4
+        assert result["total_contributors"] == 2
+
+        top = result["contributors"][0]
+        assert top["author"]["email"] == "alice@example.com"
+        assert top["author"]["name"] == "Alice Dev"
+        assert top["commits"] == 3
+        assert top["files_touched"] == 2
+        assert abs(top["share_of_commits_pct"] - 75.0) < 0.0001
+        assert top["activity_mix"]["feature"] == 1
+        assert top["activity_mix"]["bugfix"] == 1
+        assert top["activity_mix"]["docs"] == 1
+
+    def test_analyze_git_project_merges_confident_noreply(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("carsondrobe", "carsondrobe@gmail.com", "feat: api", t0, 8, 2, ["api.py"]),
+            self._commit(
+                "carsondrobe",
+                "91719000+carsondrobe@users.noreply.github.com",
+                "fix: api",
+                t0 + timedelta(days=1),
+                4,
+                1,
+                ["api.py"],
+            ),
+            self._commit("Evan", "evan@example.com", "feat: ui", t0 + timedelta(days=2), 3, 0, ["ui.ts"]),
+        ]
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
+
+        result = pipeline._analyze_git_project(Path("."))
+        assert result["total_contributors"] == 2
+        emails = {c["author"]["email"]: c for c in result["contributors"]}
+        assert "carsondrobe@gmail.com" in emails
+        assert "91719000+carsondrobe@users.noreply.github.com" not in emails
+        assert emails["carsondrobe@gmail.com"]["commits"] == 2
+
+    def test_analyze_git_project_does_not_merge_ambiguous_noreply(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Alex One", "alex@company.com", "feat: one", t0, files=["one.py"]),
+            self._commit("Alex Two", "alex@personal.com", "feat: two", t0 + timedelta(hours=1), files=["two.py"]),
+            self._commit("alex", "123+alex@users.noreply.github.com", "fix: three", t0 + timedelta(hours=2), files=["three.py"]),
+        ]
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
+
+        result = pipeline._analyze_git_project(Path("."))
+        assert result["total_contributors"] == 3
+        emails = {c["author"]["email"] for c in result["contributors"]}
+        assert "123+alex@users.noreply.github.com" in emails
+
+    def test_analyze_git_project_uses_unknown_for_missing_email(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Mystery", "", "feat: one", t0, files=["m1.py"]),
+            self._commit("Mystery Alt", None, "fix: two", t0 + timedelta(days=1), files=["m2.py"]),
+        ]
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
+
+        result = pipeline._analyze_git_project(Path("."))
+        assert result["total_contributors"] == 1
+        contributor = result["contributors"][0]
+        assert contributor["author"]["email"] == "unknown"
+        assert contributor["commits"] == 2
+
+    def test_analyze_git_project_activity_range_and_top_files(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("Dana", "dana@example.com", "feat: one", t0, files=["a.py"]),
+            self._commit("Dana", "dana@example.com", "fix: two", t0 + timedelta(days=1), files=["a.py"]),
+            self._commit("Dana", "dana@example.com", "test: three", t0 + timedelta(days=8), files=["b.py"]),
+        ]
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
+
+        result = pipeline._analyze_git_project(Path("."))
+        contrib = result["contributors"][0]
+        assert contrib["first_commit_at"] == "2025-01-01"
+        assert contrib["last_commit_at"] == "2025-01-09"
+        assert contrib["active_weeks"] == 2
+        assert contrib["top_files"][0]["path"] == "a.py"
+        assert contrib["top_files"][0]["touches"] == 2
+        assert contrib["top_files"][1]["path"] == "b.py"
+        assert contrib["top_files"][1]["touches"] == 1
+
+    def test_analyze_git_project_sorts_ties_by_name_then_email(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        t0 = datetime(2025, 1, 1, 10, 0, 0)
+        commits = [
+            self._commit("zoe", "zoe@example.com", "feat: z", t0, files=["z.py"]),
+            self._commit("amy", "amy@example.com", "feat: a", t0 + timedelta(minutes=1), files=["a.py"]),
+        ]
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
+
+        result = pipeline._analyze_git_project(Path("."))
+        assert result["contributors"][0]["author"]["name"] == "amy"
+        assert result["contributors"][1]["author"]["name"] == "zoe"
+
+    def test_analyze_git_project_returns_error_on_iter_failure(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        def _boom(_):
+            raise RuntimeError("git history read failed")
+
+        monkeypatch.setattr(git_utils, "iter_commits", _boom)
+        result = pipeline._analyze_git_project(Path("."))
+
+        assert result["total_commits"] == 0
+        assert result["contributors"] == []
+        assert "Unable to read Git history" in result["message"]
+
+    def test_analyze_git_project_handles_empty_commit_history(self, pipeline, monkeypatch):
+        import src.git._git_utils as git_utils
+
+        monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter([]))
+        result = pipeline._analyze_git_project(Path("."))
+
+        assert result["total_commits"] == 0
+        assert result["contributors"] == []
+        assert "no commits yet" in result["message"].lower()

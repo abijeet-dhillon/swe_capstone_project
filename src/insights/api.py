@@ -5,13 +5,37 @@ from __future__ import annotations
 
 from typing import Optional, List, Dict, Any
 import os
+import threading
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field, validator
 
 from .storage import ProjectInsightsStore, DEFAULT_DB_PATH
 
 router = APIRouter(prefix="/insights", tags=["insights"])
+
+
+# Global registry for active pipeline trackers
+_active_trackers: Dict[str, Any] = {}
+_tracker_lock = threading.Lock()
+
+
+def register_tracker(zip_hash: str, tracker: Any) -> None:
+    """Register a tracker for a running analysis."""
+    with _tracker_lock:
+        _active_trackers[zip_hash] = tracker
+
+
+def unregister_tracker(zip_hash: str) -> None:
+    """Unregister a tracker when analysis completes."""
+    with _tracker_lock:
+        _active_trackers.pop(zip_hash, None)
+
+
+def get_tracker(zip_hash: str) -> Optional[Any]:
+    """Get tracker for a running analysis."""
+    with _tracker_lock:
+        return _active_trackers.get(zip_hash)
 
 
 def get_store(db_url: Optional[str] = None) -> ProjectInsightsStore:
@@ -42,6 +66,53 @@ def delete_project_insight(zip_hash: str, project_name: str, store: ProjectInsig
     if counts["deleted_projects"] == 0:
         raise HTTPException(status_code=404, detail="project not found")
     return {"status": "ok", **counts}
+
+
+@router.post("/cancel/{zip_hash}")
+def cancel_analysis(
+    zip_hash: str,
+    background_tasks: BackgroundTasks,
+    store: ProjectInsightsStore = Depends(get_store)
+):
+    """
+    Cancel a running analysis and clean up database records.
+    
+    Signals the pipeline to stop processing and schedules cleanup
+    of any partial results in the background.
+    """
+    tracker = get_tracker(zip_hash)
+    
+    if tracker:
+        # Signal cancellation
+        tracker.request_cancel()
+        tracker.update(stage='cancelled')
+        
+        # Schedule cleanup in background
+        background_tasks.add_task(_cleanup_cancelled, zip_hash, store)
+        
+        return {
+            "status": "cancelled",
+            "zip_hash": zip_hash,
+            "message": "Analysis cancelled. Cleaning up partial results."
+        }
+    
+    # No active analysis found - still try to clean up any orphaned records
+    background_tasks.add_task(_cleanup_cancelled, zip_hash, store)
+    return {
+        "status": "not_found",
+        "zip_hash": zip_hash,
+        "message": "No active analysis found. Cleaning up any existing records."
+    }
+
+
+def _cleanup_cancelled(zip_hash: str, store: ProjectInsightsStore) -> None:
+    """Background task to clean up cancelled analysis."""
+    try:
+        counts = store.delete_zip(zip_hash)
+        unregister_tracker(zip_hash)
+        print(f"✓ Cleaned up cancelled analysis: {zip_hash}, deleted {counts}")
+    except Exception as e:
+        print(f"⚠️  Cleanup error for {zip_hash}: {e}")
 
 
 class PortfolioCustomizationPayload(BaseModel):
