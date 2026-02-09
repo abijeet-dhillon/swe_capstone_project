@@ -8,10 +8,12 @@ import os
 import zipfile
 import tempfile
 import shutil
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import getpass
 from datetime import datetime
+from collections import Counter
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
@@ -21,17 +23,8 @@ from src.analyze.video_analyzer import VideoAnalyzer
 from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
 from src.analyze.success_metrics import SuccessMetricsAnalyzer
 from src.image_processor import ImageProcessor
-from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
 from src.pipeline.progress_tracker import ProgressTracker
-
-# Dummy progress tracker to avoid threading issues in Docker
-class DummyProgressTracker:
-    def reset(self): pass
-    def update(self, **kwargs): pass
-    def should_cancel(self): return False
-    def increment_processed(self, **kwargs): pass
-    def register_callback(self, callback): pass
 from src.project.presentation import (
     extract_project_metrics,
     generate_portfolio_item,
@@ -52,6 +45,7 @@ class ArtifactPipeline:
     
     # Video file extensions to detect in "other" category
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.wmv'}
+
     PROJECT_MARKER_FILES = {
         "README.md",
         "README.rst",
@@ -136,6 +130,7 @@ class ArtifactPipeline:
         ".kt",
         ".m",
     }
+
     
     def __init__(
         self,
@@ -159,7 +154,7 @@ class ArtifactPipeline:
         self.temp_dir = None
         self.insights_store = insights_store
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
-        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
+        self.progress_tracker = ProgressTracker()
 
         if self.insights_store is None and enable_insights:
             try:
@@ -229,9 +224,16 @@ class ArtifactPipeline:
         print(f"📦 ZIP File: {zip_path.name}", flush=True)
         print(f"", flush=True)  # Empty line for spacing
         
-        # Initialize progress tracking (disabled for now due to threading issues in Docker)
-        # self.progress_tracker.reset()
-        # self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
+        # Calculate zip hash for tracking
+        zip_hash = self._get_zip_hash(zip_path)
+        
+        # Register tracker for cancellation support
+        from src.insights.api import register_tracker, unregister_tracker
+        register_tracker(zip_hash, self.progress_tracker)
+        
+        # Initialize progress tracking
+        self.progress_tracker.reset()
+        self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
         
         try:
             # Step 1: Parse ZIP metadata
@@ -242,7 +244,7 @@ class ArtifactPipeline:
             # Check for cancellation
             if self.progress_tracker.should_cancel():
                 print("\n⚠️  Analysis cancelled by user")
-                self.progress_tracker.update(stage='cancelled')
+                self._cleanup_on_cancel(zip_hash)
                 return {"status": "cancelled", "message": "Analysis cancelled by user"}
             
             self.progress_tracker.update(total_files=zip_index.file_count, stage='extracting')
@@ -279,7 +281,7 @@ class ArtifactPipeline:
             # Check for cancellation
             if self.progress_tracker.should_cancel():
                 print("\n⚠️  Analysis cancelled by user")
-                self.progress_tracker.update(stage='cancelled')
+                self._cleanup_on_cancel(zip_hash)
                 return {"status": "cancelled", "message": "Analysis cancelled by user"}
 
             # Capture file-level metadata for the entire archive
@@ -315,7 +317,7 @@ class ArtifactPipeline:
                 # Check for cancellation before processing each project
                 if self.progress_tracker.should_cancel():
                     print("\n⚠️  Analysis cancelled by user", flush=True)
-                    self.progress_tracker.update(stage='cancelled')
+                    self._cleanup_on_cancel(zip_hash)
                     return {"status": "cancelled", "message": "Analysis cancelled by user"}
                 
                 print(f"\n  📁 Processing project: {project_name}", flush=True)
@@ -400,10 +402,31 @@ class ArtifactPipeline:
             return result
             
         finally:
+            # Unregister tracker
+            unregister_tracker(zip_hash)
+            
             # Always clean up temp directory
             if self.temp_dir and self.temp_dir.exists():
                 print(f"\n🧹 Cleaning up temporary directory...")
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def _get_zip_hash(self, zip_path: Path) -> str:
+        """Calculate SHA256 hash of zip file for tracking."""
+        import hashlib
+        hasher = hashlib.sha256()
+        with open(zip_path, 'rb') as f:
+            while chunk := f.read(8192):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    
+    def _cleanup_on_cancel(self, zip_hash: str) -> None:
+        """Clean up database records when cancelled."""
+        if self.insights_store:
+            try:
+                counts = self.insights_store.delete_zip(zip_hash)
+                print(f"     ✓ Deleted {counts.get('deleted_projects', 0)} partial records")
+            except Exception as e:
+                print(f"     ⚠️  Cleanup error: {e}")
     
     def _identify_projects(self) -> tuple[Dict[str, Path], List[Path]]:
         """
@@ -762,7 +785,7 @@ class ArtifactPipeline:
         Returns:
             Dictionary with Git analysis results
         """
-        from src.git._git_utils import iter_commits
+        from src.git._git_utils import iter_commits, classify_intent, iso_week_start
         
         # Get all commits to identify contributors
         try:
@@ -781,35 +804,210 @@ class ArtifactPipeline:
                 "message": "Git repository is empty (no commits yet)"
             }
         
-        # Identify unique contributors
-        contributors_set = set()
+        noreply_map = self._infer_noreply_email_map(all_commits)
+        total_repo_commits = len(all_commits)
+
+        contributor_buckets: Dict[str, Dict[str, Any]] = {}
         for commit in all_commits:
-            contributors_set.add((commit["author_name"], commit["author_email"]))
-        
-        # Analyze each contributor
+            raw_email = self._normalize_email(commit.get("author_email", ""))
+            canonical_email = noreply_map.get(raw_email, raw_email) or "unknown"
+            author_name = (commit.get("author_name", "") or "").strip() or "Unknown"
+
+            if canonical_email not in contributor_buckets:
+                contributor_buckets[canonical_email] = {
+                    "name_counts": Counter(),
+                    "commits": 0,
+                    "insertions": 0,
+                    "deletions": 0,
+                    "files_counter": Counter(),
+                    "activity_mix": Counter(),
+                    "active_weeks": set(),
+                    "first_commit_date": None,
+                    "last_commit_date": None,
+                }
+
+            bucket = contributor_buckets[canonical_email]
+            bucket["name_counts"][author_name] += 1
+            bucket["commits"] += 1
+            bucket["insertions"] += int(commit.get("insertions", 0) or 0)
+            bucket["deletions"] += int(commit.get("deletions", 0) or 0)
+
+            for file_path in commit.get("files", []):
+                bucket["files_counter"][file_path] += 1
+
+            commit_date = commit.get("date")
+            if commit_date is not None:
+                first = bucket["first_commit_date"]
+                last = bucket["last_commit_date"]
+                if first is None or commit_date < first:
+                    bucket["first_commit_date"] = commit_date
+                if last is None or commit_date > last:
+                    bucket["last_commit_date"] = commit_date
+                bucket["active_weeks"].add(iso_week_start(commit_date))
+
+            intent = classify_intent(commit.get("msg", ""))
+            bucket["activity_mix"][intent] += 1
+
         contributor_analyses = []
-        for name, email in contributors_set:
-            try:
-                # Use email as identifier (preferred)
-                contrib_summary = summarize_author_contrib(
-                    project_path,
-                    email,
-                    prefer_email=True,
-                    fuzzy=False
-                )
-                contributor_analyses.append(contrib_summary)
-            except Exception as e:
-                print(f"        ⚠️  Could not analyze contributor {name}: {e}")
-                continue
-        
-        # Sort contributors by commit count
-        contributor_analyses.sort(key=lambda x: x["commits"], reverse=True)
+        for canonical_email, bucket in contributor_buckets.items():
+            display_name = sorted(
+                bucket["name_counts"].items(),
+                key=lambda item: (-item[1], item[0].lower())
+            )[0][0]
+            first = bucket["first_commit_date"]
+            last = bucket["last_commit_date"]
+
+            contributor_analyses.append({
+                "author": {"name": display_name, "email": canonical_email},
+                "commits": bucket["commits"],
+                "insertions": bucket["insertions"],
+                "deletions": bucket["deletions"],
+                "files_touched": len(bucket["files_counter"]),
+                "active_weeks": len(bucket["active_weeks"]),
+                "first_commit_at": first.date().isoformat() if first else "",
+                "last_commit_at": last.date().isoformat() if last else "",
+                "activity_mix": {
+                    "feature": bucket["activity_mix"].get("feature", 0),
+                    "bugfix": bucket["activity_mix"].get("bugfix", 0),
+                    "refactor": bucket["activity_mix"].get("refactor", 0),
+                    "docs": bucket["activity_mix"].get("docs", 0),
+                    "test": bucket["activity_mix"].get("test", 0),
+                    "other": bucket["activity_mix"].get("other", 0),
+                },
+                "share_of_commits_pct": (
+                    bucket["commits"] / total_repo_commits * 100.0
+                    if total_repo_commits > 0 else 0.0
+                ),
+                "top_files": [
+                    {"path": path, "touches": touches}
+                    for path, touches in bucket["files_counter"].most_common(10)
+                ],
+            })
+
+        contributor_analyses.sort(
+            key=lambda item: (
+                -item["commits"],
+                item["author"]["name"].lower(),
+                item["author"]["email"],
+            )
+        )
         
         return {
             "total_commits": len(all_commits),
             "total_contributors": len(contributor_analyses),
             "contributors": contributor_analyses
         }
+
+    def _normalize_email(self, email: str) -> str:
+        return (email or "").strip().lower()
+
+    def _normalized_token(self, value: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", (value or "").lower())
+
+    def _tokenize_identity(self, value: str) -> set:
+        return {t for t in re.split(r"[^a-z0-9]+", (value or "").lower()) if t}
+
+    def _is_low_confidence_username(self, username: str) -> bool:
+        return len(username) < 4 or username.isdigit() or username in {
+            "user", "users", "dev", "admin", "test", "github", "noreply"
+        }
+
+    def _edit_distance_leq(self, a: str, b: str, max_dist: int) -> bool:
+        """
+        Bounded Levenshtein distance check with early exit.
+        """
+        if a == b:
+            return True
+        if not a or not b:
+            return max(len(a), len(b)) <= max_dist
+        if abs(len(a) - len(b)) > max_dist:
+            return False
+
+        # DP with pruning, O(len(a)*len(b)) worst-case but short strings and small max_dist.
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            row_min = cur[0]
+            for j, cb in enumerate(b, 1):
+                cost = 0 if ca == cb else 1
+                cur_val = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                cur.append(cur_val)
+                if cur_val < row_min:
+                    row_min = cur_val
+            if row_min > max_dist:
+                return False
+            prev = cur
+        return prev[-1] <= max_dist
+
+    def _infer_noreply_email_map(self, commits: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Heuristically map GitHub noreply emails to a likely real email in this repo.
+        """
+        real_email_profiles: Dict[str, Dict[str, Any]] = {}
+        noreply_emails = set()
+
+        for commit in commits:
+            email = self._normalize_email(commit.get("author_email", ""))
+            if not email:
+                continue
+
+            noreply_match = self.GITHUB_NOREPLY_RE.match(email)
+            if noreply_match:
+                noreply_emails.add(email)
+                continue
+
+            if email not in real_email_profiles:
+                local_part = email.split("@", 1)[0]
+                real_email_profiles[email] = {
+                    "local_part": self._normalized_token(local_part),
+                    "local_tokens": self._tokenize_identity(local_part),
+                    "name_tokens": set(),
+                    "commits": 0,
+                }
+            real_email_profiles[email]["commits"] += 1
+            real_email_profiles[email]["name_tokens"].update(
+                self._tokenize_identity(commit.get("author_name", ""))
+            )
+
+        resolved: Dict[str, str] = {}
+        for noreply_email in noreply_emails:
+            username_match = self.GITHUB_NOREPLY_RE.match(noreply_email)
+            if not username_match:
+                continue
+
+            username = self._normalized_token(username_match.group(1))
+            if self._is_low_confidence_username(username):
+                continue
+            best_candidate, second_candidate = None, None
+
+            for real_email, profile in real_email_profiles.items():
+                score, strong = 0, False
+                local_part = profile["local_part"]
+                if username == local_part:
+                    score, strong = 10, True
+                elif username in profile["local_tokens"]:
+                    score, strong = 6, True
+                # Allow small local-part variations (e.g. added middle initial) only with strong name evidence.
+                if (not strong and username in profile["name_tokens"] and self._edit_distance_leq(username, local_part, 2)):
+                    score, strong = 6, True
+                if username in profile["name_tokens"]:
+                    score += 2
+                if not strong:
+                    continue
+
+                candidate = (score, profile["commits"], real_email)
+                if best_candidate is None or candidate > best_candidate:
+                    second_candidate = best_candidate
+                    best_candidate = candidate
+                elif second_candidate is None or candidate > second_candidate:
+                    second_candidate = candidate
+
+            if best_candidate:
+                if second_candidate and best_candidate[0] == second_candidate[0] and abs(best_candidate[1] - second_candidate[1]) <= 2:
+                    continue
+                resolved[noreply_email] = best_candidate[2]
+
+        return resolved
     
     def _analyze_categorized_files(self, categorized_contents: Dict[str, Any]) -> Dict[str, Any]:
         """
