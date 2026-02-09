@@ -35,6 +35,7 @@ class UserConfig:
     data_access_consent: bool
     created_at: str
     updated_at: Optional[str] = None
+    git_identifier: Optional[str] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -45,6 +46,7 @@ class UserConfig:
             "data_access_consent": self.data_access_consent,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "git_identifier": self.git_identifier,
         }
 
 
@@ -86,6 +88,10 @@ class UserConfigManager:
                 conn.execute(
                     f"ALTER TABLE {TABLE_NAME} ADD COLUMN llm_consent_asked INTEGER NOT NULL DEFAULT 0;"
                 )
+            if "git_identifier" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN git_identifier TEXT;"
+                )
             conn.commit()
 
     def _persist_config(self, config: UserConfig) -> bool:
@@ -94,14 +100,15 @@ class UserConfigManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     f"""
-                    INSERT INTO {TABLE_NAME} (user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO {TABLE_NAME} (user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at, git_identifier)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET
                         zip_file = excluded.zip_file,
                         llm_consent = excluded.llm_consent,
                         llm_consent_asked = excluded.llm_consent_asked,
                         data_access_consent = excluded.data_access_consent,
-                        updated_at = excluded.updated_at;
+                        updated_at = excluded.updated_at,
+                        git_identifier = excluded.git_identifier;
                     """,
                     (
                         config.user_id,
@@ -111,11 +118,12 @@ class UserConfigManager:
                         int(config.data_access_consent),
                         config.created_at,
                         config.updated_at,
+                        config.git_identifier,
                     ),
                 )
                 conn.commit()
             return True
-        except Exception as exc:  # pragma: no cover - defensive logging only
+        except Exception as exc:
             print(f"Error writing config to DB: {exc}")
             return False
 
@@ -151,6 +159,7 @@ class UserConfigManager:
         llm_consent: Optional[bool] = None,
         llm_consent_asked: Optional[bool] = None,
         data_access_consent: Optional[bool] = None,
+        git_identifier: Optional[str] = None,
     ) -> bool:
         """Update an existing config row."""
         existing = self.load_config(user_id, silent=True)
@@ -162,6 +171,8 @@ class UserConfigManager:
             existing.zip_file = zip_file
         if llm_consent is not None:
             existing.llm_consent = llm_consent
+        if git_identifier is not None:
+            existing.git_identifier = git_identifier
         if llm_consent_asked is not None:
             existing.llm_consent_asked = llm_consent_asked
         if data_access_consent is not None:
@@ -177,13 +188,13 @@ class UserConfigManager:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
                     f"""
-                    SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at
+                    SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at, git_identifier
                     FROM {TABLE_NAME}
                     WHERE user_id = ?
                     """,
                     (user_id,),
                 ).fetchone()
-        except Exception as exc:  # pragma: no cover - defensive logging only
+        except Exception as exc:
             print(f"Error loading config from DB: {exc}")
             return None
 
@@ -200,6 +211,7 @@ class UserConfigManager:
             data_access_consent=bool(row[4]),
             created_at=row[5],
             updated_at=row[6],
+            git_identifier=row[7],
         )
 
 

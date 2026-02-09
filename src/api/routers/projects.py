@@ -70,6 +70,7 @@ def upload_projects(
             use_llm=use_llm,
             data_access_consent=True,
             prompt_project_names=False,
+            git_identifier=config.git_identifier,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

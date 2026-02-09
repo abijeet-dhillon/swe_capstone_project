@@ -89,6 +89,7 @@ class ArtifactPipeline:
         use_llm: bool = False,
         data_access_consent: bool = True,
         prompt_project_names: bool = False,
+        git_identifier: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
@@ -226,7 +227,7 @@ class ArtifactPipeline:
                 
                 print(f"\n  📁 Processing project: {project_name}", flush=True)
                 self.progress_tracker.update(current_project=project_name)
-                project_results[project_name] = self._process_project(project_name, project_path)
+                project_results[project_name] = self._process_project(project_name, project_path, git_identifier)
             
             # Step 4b: Process loose files if any exist
             if loose_files:
@@ -640,7 +641,7 @@ class ArtifactPipeline:
         
         return result
     
-    def _process_project(self, project_name: str, project_path: Path) -> Dict[str, Any]:
+    def _process_project(self, project_name: str, project_path: Path, git_identifier: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a single project: check Git status, categorize, and analyze
         
@@ -669,8 +670,7 @@ class ArtifactPipeline:
             print(f"     🔍 Git repository detected", flush=True)
             print(f"     📊 Running Git analysis...", flush=True)
             try:
-                # Run git analysis - we'll analyze all contributors
-                git_analysis = self._analyze_git_project(project_path)
+                git_analysis = self._analyze_git_project(project_path, git_identifier)
                 result["git_analysis"] = git_analysis
                 
                 # Print appropriate message based on results
@@ -739,7 +739,7 @@ class ArtifactPipeline:
         
         return result
     
-    def _analyze_git_project(self, project_path: Path) -> Dict[str, Any]:
+    def _analyze_git_project(self, project_path: Path, git_identifier: Optional[str] = None) -> Dict[str, Any]:
         """
         Analyze Git repository to extract contribution metrics
         
@@ -856,11 +856,31 @@ class ArtifactPipeline:
             )
         )
         
-        return {
+        # Extract user-specific contribution if git_identifier provided
+        user_contribution = None
+        if git_identifier:
+            user_contribution = self._extract_user_contribution(
+                contributor_analyses, git_identifier
+            )
+        
+        result = {
             "total_commits": len(all_commits),
             "total_contributors": len(contributor_analyses),
-            "contributors": contributor_analyses
+            "contributors": contributor_analyses,
+            "user_contribution": user_contribution
         }
+        return result
+    
+    def _extract_user_contribution(self, contributors: List[Dict[str, Any]], git_identifier: str) -> Optional[Dict[str, Any]]:
+        """Extract specific user's contribution from contributors list"""
+        identifier_lower = git_identifier.lower()
+        for contrib in contributors:
+            author = contrib.get("author", {})
+            email = author.get("email", "").lower()
+            name = author.get("name", "").lower()
+            if identifier_lower in email or identifier_lower in name:
+                return contrib
+        return None
 
     def _normalize_email(self, email: str) -> str:
         return (email or "").strip().lower()
