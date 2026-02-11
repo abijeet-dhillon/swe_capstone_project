@@ -72,6 +72,8 @@ class ArtifactPipeline:
         ".gitignore",
         ".editorconfig",
     }
+
+    GITHUB_NOREPLY_RE = re.compile(r"^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$")
     COMMON_TOP_LEVEL_DIRS = {
         "src",
         "tests",
@@ -156,8 +158,6 @@ class ArtifactPipeline:
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
 
         self.file_info: List[Dict[str, Any]] = []
-        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
-
         self.progress_tracker = ProgressTracker()
 
 
@@ -541,10 +541,6 @@ class ArtifactPipeline:
                 loose_files = top_level_files
         
         return projects, loose_files
-            for item in top_level_dirs:
-                projects[item.name] = item
-            # Top-level files become loose files
-            loose_files = top_level_files
 
         # Expand non-git "projects" into nested git repos when present.
         expanded: Dict[str, Path] = {}

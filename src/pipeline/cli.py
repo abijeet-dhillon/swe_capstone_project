@@ -161,6 +161,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     list_parser.add_argument(
         "--zip-hash",
         help="Filter projects by ZIP hash"
+    )
 
     delete_parser = subparsers.add_parser(
         "delete",
