@@ -960,18 +960,30 @@ class ArtifactPipeline:
                 item["author"]["email"],
             )
         )
+
+        # Drop noreply contributors entirely (no duplicates in output).
+        filtered = [
+            c for c in contributor_analyses
+            if not self.GITHUB_NOREPLY_RE.match(self._normalize_email(c.get("author", {}).get("email", "")))
+        ]
+
+        # Recompute totals and shares based on remaining contributors only.
+        filtered_total_commits = sum(c.get("commits", 0) for c in filtered)
+        if filtered_total_commits > 0:
+            for c in filtered:
+                c["share_of_commits_pct"] = (c.get("commits", 0) / filtered_total_commits) * 100.0
         
         # Extract user-specific contribution if git_identifier provided
         user_contribution = None
         if git_identifier:
             user_contribution = self._extract_user_contribution(
-                contributor_analyses, git_identifier
+                filtered, git_identifier
             )
         
         result = {
-            "total_commits": len(all_commits),
-            "total_contributors": len(contributor_analyses),
-            "contributors": contributor_analyses,
+            "total_commits": filtered_total_commits,
+            "total_contributors": len(filtered),
+            "contributors": filtered,
             "user_contribution": user_contribution
         }
         return result
