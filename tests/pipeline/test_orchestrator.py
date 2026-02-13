@@ -570,9 +570,9 @@ class TestGitContributorCanonicalization:
         monkeypatch.setattr(git_utils, "iter_commits", lambda _: iter(commits))
 
         result = pipeline._analyze_git_project(Path("."))
-        assert result["total_contributors"] == 3
+        assert result["total_contributors"] == 2
         emails = {c["author"]["email"] for c in result["contributors"]}
-        assert "123+alex@users.noreply.github.com" in emails
+        assert "123+alex@users.noreply.github.com" not in emails
 
     def test_analyze_git_project_uses_unknown_for_missing_email(self, pipeline, monkeypatch):
         import src.git._git_utils as git_utils
