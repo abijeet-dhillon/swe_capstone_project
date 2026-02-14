@@ -156,8 +156,6 @@ class ArtifactPipeline:
         self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
 
         self.file_info: List[Dict[str, Any]] = []
-        self.progress_tracker = DummyProgressTracker()  # Using dummy to avoid threading issues
-
         self.progress_tracker = ProgressTracker()
 
 
