@@ -1,13 +1,9 @@
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
 from collections import defaultdict
 import re
 
 
 class ProjectComparison:
-    def __init__(self):
-        self.insights = []
-    
     def compare_projects(self, projects: List[Dict[str, Any]], user_id: Optional[str] = None) -> Dict[str, Any]:
         if len(projects) < 2:
             return {"error": "Need at least 2 projects to compare"}
@@ -15,362 +11,191 @@ class ProjectComparison:
         sorted_projects = sorted(projects, key=lambda p: p.get('created_at', p.get('first_commit', '2000-01-01')))
         
         return {
-            "summary": self._generate_summary(sorted_projects),
-            "skill_evolution": self._analyze_skill_evolution(sorted_projects),
-            "quality_progression": self._analyze_quality_progression(sorted_projects),
-            "testing_maturity": self._analyze_testing_maturity(sorted_projects),
-            "collaboration_growth": self._analyze_collaboration(sorted_projects),
-            "recommendations": self._generate_recommendations(sorted_projects),
-            "growth_score": self._calculate_growth_score(sorted_projects),
+            "summary": self._summary(sorted_projects),
+            "skill_evolution": self._skill_evolution(sorted_projects),
+            "quality_progression": self._quality(sorted_projects),
+            "testing_maturity": self._testing(sorted_projects),
+            "collaboration_growth": self._collaboration(sorted_projects),
+            "recommendations": self._recommendations(sorted_projects),
+            "growth_score": self._growth_score(sorted_projects),
         }
     
-    def compare_two(self, project1: Dict[str, Any], project2: Dict[str, Any]) -> Dict[str, Any]:
+    def compare_two(self, p1: Dict[str, Any], p2: Dict[str, Any]) -> Dict[str, Any]:
+        skills1, skills2 = set(p1.get('key_skills', [])), set(p2.get('key_skills', []))
+        score1, score2 = self._score(p1), self._score(p2)
+        
         return {
-            "project_1": project1.get('project_name'),
-            "project_2": project2.get('project_name'),
-            "skill_diff": self._skill_difference(project1, project2),
-            "size_diff": {
-                "lines": project2.get('total_lines', 0) - project1.get('total_lines', 0),
-                "files": project2.get('total_files', 0) - project1.get('total_files', 0),
-            },
-            "quality_diff": {
-                "tests": project2.get('test_files', 0) - project1.get('test_files', 0),
-                "docs": project2.get('documentation_files', 0) - project1.get('documentation_files', 0),
-            },
-            "winner": self._determine_winner(project1, project2),
+            "project_1": p1.get('project_name'),
+            "project_2": p2.get('project_name'),
+            "skill_diff": {"added": list(skills2 - skills1), "removed": list(skills1 - skills2), "common": list(skills1 & skills2)},
+            "size_diff": {"lines": p2.get('total_lines', 0) - p1.get('total_lines', 0), "files": p2.get('total_files', 0) - p1.get('total_files', 0)},
+            "quality_diff": {"tests": p2.get('test_files', 0) - p1.get('test_files', 0), "docs": p2.get('documentation_files', 0) - p1.get('documentation_files', 0)},
+            "winner": "tie" if abs(score1 - score2) < 5 else (p1.get('project_name') if score1 > score2 else p2.get('project_name')),
         }
     
-    def _skill_difference(self, p1: Dict[str, Any], p2: Dict[str, Any]) -> Dict[str, List[str]]:
-        skills1 = set(p1.get('key_skills', []))
-        skills2 = set(p2.get('key_skills', []))
-        return {
-            "added": list(skills2 - skills1),
-            "removed": list(skills1 - skills2),
-            "common": list(skills1 & skills2),
-        }
+    def _score(self, p: Dict[str, Any]) -> float:
+        return len(p.get('key_skills', [])) * 5 + p.get('test_files', 0) * 3 + p.get('total_commits', 0) * 0.1
     
-    def _determine_winner(self, p1: Dict[str, Any], p2: Dict[str, Any]) -> str:
-        score1 = self._project_score(p1)
-        score2 = self._project_score(p2)
-        if abs(score1 - score2) < 5:
-            return "tie"
-        return p1.get('project_name') if score1 > score2 else p2.get('project_name')
-    
-    def _project_score(self, project: Dict[str, Any]) -> float:
-        return (
-            len(project.get('key_skills', [])) * 5 +
-            project.get('test_files', 0) * 3 +
-            project.get('total_commits', 0) * 0.1
-        )
-    
-    def _generate_summary(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
-        all_langs = self._extract_all_languages(projects)
-        all_frameworks = self._extract_all_frameworks(projects)
+    def _summary(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+        langs = self._extract_langs(projects)
+        frameworks = self._extract_frameworks(projects)
+        first, last = projects[0], projects[-1]
         
         return {
             "total_projects": len(projects),
-            "time_span": self._calculate_time_span(projects),
-            "languages": all_langs,
-            "languages_count": len(all_langs),
-            "frameworks": all_frameworks,
+            "time_span": f"{first.get('created_at', '')} to {last.get('created_at', '')}",
+            "languages": langs,
+            "frameworks": frameworks,
             "total_commits": sum(p.get('total_commits', 0) for p in projects),
             "total_lines": sum(p.get('total_lines', 0) for p in projects),
             "avg_project_size": sum(p.get('total_lines', 0) for p in projects) // len(projects),
-            "earliest_project": projects[0].get('project_name'),
-            "latest_project": projects[-1].get('project_name'),
+            "earliest_project": first.get('project_name'),
+            "latest_project": last.get('project_name'),
         }
     
-    def _calculate_time_span(self, projects: List[Dict[str, Any]]) -> str:
-        if len(projects) < 2:
-            return "N/A"
-        first_date = projects[0].get('created_at', projects[0].get('first_commit'))
-        last_date = projects[-1].get('created_at', projects[-1].get('last_commit'))
-        if first_date and last_date:
-            return f"{first_date} to {last_date}"
-        return "Unknown"
-    
-    def _analyze_skill_evolution(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
-        skill_timeline = defaultdict(list)
+    def _skill_evolution(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+        timeline = defaultdict(list)
         
-        for idx, project in enumerate(projects):
-            skills = project.get('key_skills', []) or project.get('skills', [])
-            timestamp = project.get('created_at', project.get('first_commit'))
-            for skill in skills:
-                skill_timeline[skill].append({
-                    'project': project.get('project_name'),
-                    'index': idx,
-                    'timestamp': timestamp,
-                })
+        for idx, p in enumerate(projects):
+            for skill in p.get('key_skills', []):
+                timeline[skill].append({'project': p.get('project_name'), 'index': idx})
         
-        new_skills = [s for s, occ in skill_timeline.items() if len(occ) == 1 and occ[0]['index'] == len(projects) - 1]
-        consistent_skills = [s for s, occ in skill_timeline.items() if len(occ) >= len(projects) * 0.6]
-        abandoned_skills = [s for s, occ in skill_timeline.items() if len(occ) >= 2 and occ[-1]['index'] < len(projects) - 2]
+        new_skills = [s for s, occ in timeline.items() if len(occ) == 1 and occ[0]['index'] == len(projects) - 1]
+        consistent = [s for s, occ in timeline.items() if len(occ) >= len(projects) * 0.6]
         
         insights = []
         if new_skills:
             insights.append(f"Recently learned: {', '.join(new_skills[:3])}")
-        if consistent_skills:
-            insights.append(f"Core skills: {', '.join(consistent_skills[:3])}")
+        if consistent:
+            insights.append(f"Core skills: {', '.join(consistent[:3])}")
         
-        return {
-            "skill_timeline": {k: len(v) for k, v in skill_timeline.items()},
-            "new_skills": new_skills,
-            "consistent_skills": consistent_skills,
-            "abandoned_skills": abandoned_skills,
-            "insights": insights,
-        }
+        return {"skill_timeline": {k: len(v) for k, v in timeline.items()}, "new_skills": new_skills, "consistent_skills": consistent, "insights": insights}
     
-    def _analyze_quality_progression(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
-        quality_metrics = []
+    def _quality(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+        metrics = []
         
-        for project in projects:
-            doc_ratio = self._calculate_doc_ratio(project)
-            test_ratio = self._calculate_test_ratio(project)
-            complexity = project.get('complexity_score', 50)
-            quality_score = (doc_ratio * 0.3 + test_ratio * 0.4 + (100 - complexity) * 0.3)
+        for p in projects:
+            doc_ratio = (p.get('documentation_files', 0) / max(p.get('total_files', 1), 1)) * 100
+            test_ratio = (p.get('test_files', 0) / max(p.get('code_files', 1), 1)) * 100
+            complexity = p.get('complexity_score', 50)
+            score = doc_ratio * 0.3 + test_ratio * 0.4 + (100 - complexity) * 0.3
             
-            quality_metrics.append({
-                'project': project.get('project_name'),
-                'quality_score': quality_score,
-                'documentation_ratio': doc_ratio,
-                'test_ratio': test_ratio,
-                'complexity': complexity,
-            })
+            metrics.append({'project': p.get('project_name'), 'quality_score': score, 'test_ratio': test_ratio})
         
-        if len(quality_metrics) >= 2:
-            first_score = quality_metrics[0]['quality_score']
-            last_score = quality_metrics[-1]['quality_score']
-            improvement = ((last_score - first_score) / first_score) * 100 if first_score > 0 else 0
+        improvement = 0
+        trend = "insufficient_data"
+        if len(metrics) >= 2:
+            first, last = metrics[0]['quality_score'], metrics[-1]['quality_score']
+            improvement = ((last - first) / first) * 100 if first > 0 else 0
             trend = "improving" if improvement > 10 else "declining" if improvement < -10 else "stable"
-        else:
-            improvement = 0
-            trend = "insufficient_data"
         
-        insights = []
-        if improvement > 20:
-            insights.append(f"Code quality improved {improvement:.1f}% over time")
-        if quality_metrics[-1]['test_ratio'] > 30:
-            insights.append("Strong testing practices in recent projects")
-        if quality_metrics[-1]['documentation_ratio'] > 20:
-            insights.append("Well-documented recent projects")
-        
-        return {
-            "metrics": quality_metrics,
-            "improvement_percentage": improvement,
-            "trend": trend,
-            "insights": insights,
-        }
+        return {"metrics": metrics, "improvement_percentage": improvement, "trend": trend}
     
-    def _analyze_testing_maturity(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
-        test_progression = []
+    def _testing(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+        progression = []
         
-        for project in projects:
-            test_files = project.get('test_files', 0)
-            total_files = project.get('total_files', 1)
-            test_ratio = (test_files / total_files * 100) if total_files > 0 else 0
-            
-            if test_ratio == 0:
-                maturity = "none"
-            elif test_ratio < 10:
-                maturity = "basic"
-            elif test_ratio < 30:
-                maturity = "moderate"
-            else:
-                maturity = "comprehensive"
-            
-            test_progression.append({
-                'project': project.get('project_name'),
-                'test_ratio': test_ratio,
-                'test_files': test_files,
-                'maturity': maturity,
-            })
+        for p in projects:
+            ratio = (p.get('test_files', 0) / max(p.get('total_files', 1), 1)) * 100
+            maturity = "none" if ratio == 0 else "basic" if ratio < 10 else "moderate" if ratio < 30 else "comprehensive"
+            progression.append({'project': p.get('project_name'), 'test_ratio': ratio, 'maturity': maturity})
         
-        maturity_levels = [p['maturity'] for p in test_progression]
-        if 'none' in maturity_levels[:2] and 'comprehensive' in maturity_levels[-2:]:
-            insight = "Testing practices evolved from none to comprehensive"
-        elif maturity_levels[-1] in ['comprehensive', 'moderate']:
-            insight = "Maintains strong testing practices"
-        else:
-            insight = "Testing practices could be improved"
+        levels = [p['maturity'] for p in progression]
+        insight = "Testing evolved significantly" if 'none' in levels[:2] and 'comprehensive' in levels[-2:] else "Strong testing practices" if levels[-1] in ['comprehensive', 'moderate'] else "Testing needs improvement"
         
-        return {
-            "progression": test_progression,
-            "current_maturity": maturity_levels[-1] if maturity_levels else "unknown",
-            "insight": insight,
-        }
+        return {"progression": progression, "current_maturity": levels[-1] if levels else "unknown", "insight": insight}
     
-    def _analyze_collaboration(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
-        collab_data = []
+    def _collaboration(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+        solo = sum(1 for p in projects if not p.get('is_collaborative', len(p.get('contributors', [])) > 1))
+        team = len(projects) - solo
         
-        for project in projects:
-            contributors = project.get('contributors', [])
-            is_collaborative = project.get('is_collaborative', len(contributors) > 1)
-            
-            collab_data.append({
-                'project': project.get('project_name'),
-                'contributors': len(contributors),
-                'is_collaborative': is_collaborative,
-            })
+        insight = "Primarily independent work" if solo > team else "Strong collaborative experience" if team > solo * 2 else "Balanced solo and team experience"
         
-        solo_count = sum(1 for p in collab_data if not p['is_collaborative'])
-        team_count = len(collab_data) - solo_count
-        
-        insight = ""
-        if solo_count > team_count:
-            insight = "Primarily independent work"
-        elif team_count > solo_count * 2:
-            insight = "Strong collaborative experience"
-        else:
-            insight = "Balanced solo and team experience"
-        
-        return {
-            "solo_projects": solo_count,
-            "collaborative_projects": team_count,
-            "collaboration_ratio": team_count / len(collab_data) if collab_data else 0,
-            "insight": insight,
-        }
+        return {"solo_projects": solo, "collaborative_projects": team, "collaboration_ratio": team / len(projects), "insight": insight}
     
-    def _generate_recommendations(self, projects: List[Dict[str, Any]]) -> List[str]:
-        recommendations = []
+    def _recommendations(self, projects: List[Dict[str, Any]]) -> List[str]:
+        recs = []
         
-        languages = self._extract_all_languages(projects)
-        if len(languages) < 3:
-            recommendations.append("💡 Add projects in different languages to show versatility")
+        if len(self._extract_langs(projects)) < 3:
+            recs.append("💡 Add projects in different languages")
         
-        has_backend = any('backend' in str(p.get('description', '')).lower() or 
-                         p.get('language') in ['Python', 'Java', 'Go', 'Node.js']
-                         for p in projects)
-        has_frontend = any('frontend' in str(p.get('description', '')).lower() or
-                          p.get('framework') in ['React', 'Vue', 'Angular']
-                          for p in projects)
-        
+        has_backend = any(p.get('language') in ['Python', 'Java', 'Go'] for p in projects)
+        has_frontend = any(p.get('framework') in ['React', 'Vue', 'Angular'] for p in projects)
         if not (has_backend and has_frontend):
-            recommendations.append("💡 Add full-stack project to demonstrate end-to-end skills")
+            recs.append("💡 Add full-stack project")
         
-        avg_test_ratio = sum(self._calculate_test_ratio(p) for p in projects) / len(projects)
-        if avg_test_ratio < 20:
-            recommendations.append("💡 Increase test coverage to demonstrate quality focus")
+        avg_tests = sum((p.get('test_files', 0) / max(p.get('code_files', 1), 1)) * 100 for p in projects) / len(projects)
+        if avg_tests < 20:
+            recs.append("💡 Increase test coverage")
         
-        avg_doc_ratio = sum(self._calculate_doc_ratio(p) for p in projects) / len(projects)
-        if avg_doc_ratio < 15:
-            recommendations.append("💡 Add more documentation to showcase communication skills")
+        if projects[-1].get('created_at', '') < '2024-01-01':
+            recs.append("💡 Add recent projects")
         
-        if projects:
-            latest_date = projects[-1].get('created_at', projects[-1].get('last_commit', ''))
-            if latest_date and latest_date < '2024-01-01':
-                recommendations.append("💡 Add recent projects to show current activity")
-        
-        return recommendations or ["✨ Strong portfolio across all metrics!"]
+        return recs or ["✨ Strong portfolio!"]
     
-    def _calculate_growth_score(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _growth_score(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
         if len(projects) < 2:
             return {"score": 0, "rating": "insufficient_data"}
         
-        first = projects[0]
-        last = projects[-1]
-        
+        first, last = projects[0], projects[-1]
         size_growth = (last.get('total_lines', 0) / max(first.get('total_lines', 1), 1)) - 1
         test_growth = last.get('test_files', 0) - first.get('test_files', 0)
         skill_growth = len(last.get('key_skills', [])) - len(first.get('key_skills', []))
         
-        score = min(100, max(0, (size_growth * 20) + (test_growth * 5) + (skill_growth * 10) + 30))
-        
-        if score >= 80:
-            rating = "exceptional"
-            message = "Portfolio shows exceptional growth trajectory"
-        elif score >= 60:
-            rating = "strong"
-            message = "Portfolio shows strong growth trajectory"
-        elif score >= 40:
-            rating = "moderate"
-            message = "Portfolio shows moderate growth trajectory"
-        else:
-            rating = "needs_focus"
-            message = "Portfolio growth could be stronger"
+        score = min(100, max(0, size_growth * 20 + test_growth * 5 + skill_growth * 10 + 30))
+        rating = "exceptional" if score >= 80 else "strong" if score >= 60 else "moderate" if score >= 40 else "needs_focus"
         
         return {
             "score": round(score, 1),
             "rating": rating,
-            "message": message,
-            "factors": {
-                "size_growth": round(size_growth * 100, 1),
-                "test_growth": test_growth,
-                "skill_growth": skill_growth,
-            }
+            "message": f"Portfolio shows {rating} growth",
+            "factors": {"size_growth": round(size_growth * 100, 1), "test_growth": test_growth, "skill_growth": skill_growth}
         }
     
-    def _extract_all_languages(self, projects: List[Dict[str, Any]]) -> List[str]:
-        languages = set()
-        for project in projects:
-            lang = project.get('language')
-            if lang:
-                languages.add(lang)
-            skills = project.get('key_skills', [])
-            for skill in skills:
-                if skill in ['Python', 'JavaScript', 'Java', 'C++', 'Go', 'Rust', 'TypeScript', 'C#', 'Ruby', 'PHP', 'Swift', 'Kotlin']:
-                    languages.add(skill)
-        return sorted(list(languages))
+    def _extract_langs(self, projects: List[Dict[str, Any]]) -> List[str]:
+        langs = set()
+        lang_keywords = ['Python', 'JavaScript', 'Java', 'C++', 'Go', 'Rust', 'TypeScript', 'C#', 'Ruby', 'PHP', 'Swift', 'Kotlin']
+        for p in projects:
+            if p.get('language'):
+                langs.add(p['language'])
+            langs.update(s for s in p.get('key_skills', []) if s in lang_keywords)
+        return sorted(list(langs))
     
-    def _extract_all_frameworks(self, projects: List[Dict[str, Any]]) -> List[str]:
+    def _extract_frameworks(self, projects: List[Dict[str, Any]]) -> List[str]:
         frameworks = set()
-        for project in projects:
-            fw = project.get('framework')
-            if fw:
-                frameworks.add(fw)
-            skills = project.get('key_skills', [])
-            for skill in skills:
-                if skill in ['Django', 'Flask', 'React', 'Vue', 'Angular', 'Express', 'Spring', 'Rails', 'Laravel']:
-                    frameworks.add(skill)
+        fw_keywords = ['Django', 'Flask', 'React', 'Vue', 'Angular', 'Express', 'Spring', 'Rails', 'Laravel']
+        for p in projects:
+            if p.get('framework'):
+                frameworks.add(p['framework'])
+            frameworks.update(s for s in p.get('key_skills', []) if s in fw_keywords)
         return sorted(list(frameworks))
-    
-    def _calculate_doc_ratio(self, project: Dict[str, Any]) -> float:
-        doc_files = project.get('documentation_files', 0)
-        total_files = project.get('total_files', 1)
-        return (doc_files / total_files * 100) if total_files > 0 else 0
-    
-    def _calculate_test_ratio(self, project: Dict[str, Any]) -> float:
-        test_files = project.get('test_files', 0)
-        code_files = project.get('code_files', 1)
-        return (test_files / code_files * 100) if code_files > 0 else 0
 
 
 def match_to_job_description(projects: List[Dict[str, Any]], job_desc: str) -> List[Tuple[str, float, str]]:
-    job_desc_lower = job_desc.lower()
-    keywords = set(re.findall(r'\b\w{4,}\b', job_desc_lower))
+    job_lower = job_desc.lower()
+    keywords = set(re.findall(r'\b\w{4,}\b', job_lower))
+    tech = {'python', 'java', 'javascript', 'react', 'django', 'flask', 'api', 'rest', 'sql', 'docker', 'kubernetes', 'testing', 'git', 'vue', 'angular'}
     
-    tech_keywords = {
-        'python', 'java', 'javascript', 'react', 'node', 'django', 'flask',
-        'api', 'rest', 'database', 'sql', 'mongodb', 'aws', 'docker',
-        'kubernetes', 'testing', 'ci/cd', 'agile', 'git', 'vue', 'angular'
-    }
-    
-    scored_projects = []
-    
-    for project in projects:
+    scored = []
+    for p in projects:
         score = 0
-        matched_skills = []
+        matched = []
         
-        skills = [s.lower() for s in project.get('key_skills', [])]
-        for skill in skills:
-            if skill in job_desc_lower:
+        for skill in [s.lower() for s in p.get('key_skills', [])]:
+            if skill in job_lower:
                 score += 10
-                matched_skills.append(skill)
-            if skill in tech_keywords and skill in keywords:
+                matched.append(skill)
+            if skill in tech and skill in keywords:
                 score += 5
         
-        desc = (project.get('description', '') + ' ' + project.get('project_name', '')).lower()
-        for keyword in keywords:
-            if keyword in desc:
-                score += 2
+        desc = (p.get('description', '') + ' ' + p.get('project_name', '')).lower()
+        score += sum(2 for kw in keywords if kw in desc)
         
-        if project.get('created_at', '') > '2023-01-01':
+        if p.get('created_at', '') > '2023-01-01':
             score += 5
+        if p.get('is_collaborative') and any(kw in job_lower for kw in ['team', 'collaborate', 'agile']):
+            score += 3
         
-        if project.get('is_collaborative', False):
-            if any(kw in job_desc_lower for kw in ['team', 'collaborate', 'agile']):
-                score += 3
-        
-        reason = f"Matches: {', '.join(matched_skills[:3])}" if matched_skills else "General fit"
-        scored_projects.append((project.get('project_name', 'Unknown'), score, reason))
+        reason = f"Matches: {', '.join(matched[:3])}" if matched else "General fit"
+        scored.append((p.get('project_name', 'Unknown'), score, reason))
     
-    return sorted(scored_projects, key=lambda x: x[1], reverse=True)
+    return sorted(scored, key=lambda x: x[1], reverse=True)
