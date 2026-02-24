@@ -889,6 +889,36 @@ class ProjectInsightsStore:
                 return None
             return self._build_project_payload(conn, project_id)
 
+    def update_project_skills(self, project_id: int, skills: List[str]) -> None:
+        """Persist a project's normalized skills list by project_info.id."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute(
+                    f"""
+                    UPDATE {PROJECT_INFO_TABLE}
+                    SET skills_json = ?, updated_at = ?
+                    WHERE id = ?;
+                    """,
+                    (json.dumps(skills or []), _utcnow(), project_id),
+                )
+                conn.commit()
+
+    def load_latest_global_insights(self) -> Optional[Dict[str, Any]]:
+        """Load global insights for the latest ingest run."""
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT id
+                FROM {INGEST_TABLE}
+                ORDER BY id DESC
+                LIMIT 1;
+                """
+            ).fetchone()
+            if not row:
+                return None
+            global_insights = self._load_global_insights(conn, row[0])
+            return global_insights or None
+
 
     def _normalize_resume_bullets(
         self,
