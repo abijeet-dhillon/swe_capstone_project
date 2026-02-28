@@ -77,8 +77,9 @@ class ProgressTracker:
         )
         self._lock = threading.Lock()
         self._callbacks: list[Callable[[ProgressState], None]] = []
+        self._pending_callback_state: Optional[ProgressState] = None
     
-    def update(self, **kwargs) -> None:
+    def update(self, _flush_pending_callbacks: bool = True, **kwargs) -> None:
         """
         Update progress state with new values.
         
@@ -90,6 +91,7 @@ class ProgressTracker:
         """
         # Create state copy outside the lock
         with self._lock:
+            previous_state = self._state
             # Create new state with updated values
             state_dict = {
                 "total_files": self._state.total_files,
@@ -112,8 +114,24 @@ class ProgressTracker:
             
             # Get callbacks copy
             callbacks_copy = self._callbacks.copy()
+
+            should_defer_initial_total = (
+                set(kwargs.keys()) == {"total_files"}
+                and previous_state.total_files == 0
+                and previous_state.processed_files == 0
+                and previous_state.current_file == ""
+                and previous_state.stage == "initializing"
+            )
+            pending_state = self._pending_callback_state if _flush_pending_callbacks else None
+            if should_defer_initial_total:
+                self._pending_callback_state = state_copy
+                return
+            if _flush_pending_callbacks:
+                self._pending_callback_state = None
         
         # Call callbacks outside of lock to avoid deadlock
+        if pending_state is not None:
+            self._notify_callbacks_direct(pending_state, callbacks_copy)
         self._notify_callbacks_direct(state_copy, callbacks_copy)
     
     def increment_processed(self, current_file: str = "") -> None:
@@ -131,7 +149,7 @@ class ProgressTracker:
             if current_file:
                 kwargs["current_file"] = current_file
         
-        self.update(**kwargs)
+        self.update(_flush_pending_callbacks=False, **kwargs)
     
     def register_callback(self, callback: Callable[[ProgressState], None]) -> None:
         """
@@ -215,6 +233,7 @@ class ProgressTracker:
                 current_file="",
                 stage="initializing"
             )
+            self._pending_callback_state = None
     
     def _notify_callbacks(self, state: ProgressState) -> None:
         """

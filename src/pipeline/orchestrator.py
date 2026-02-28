@@ -31,6 +31,7 @@ from src.project.presentation import (
     generate_resume_item,
 )
 from src.config.config_manager import UserConfigManager
+from src.git.individual_contrib_analyzer import summarize_author_contrib
 
 
 class ArtifactPipeline:
@@ -329,7 +330,10 @@ class ArtifactPipeline:
                 
                 print(f"\n  📁 Processing project: {project_name}", flush=True)
                 self.progress_tracker.update(current_project=project_name)
-                project_results[project_name] = self._process_project(project_name, project_path, git_identifier)
+                if git_identifier is None:
+                    project_results[project_name] = self._process_project(project_name, project_path)
+                else:
+                    project_results[project_name] = self._process_project(project_name, project_path, git_identifier)
             
             # Step 4b: Process loose files if any exist
             if loose_files:
@@ -775,7 +779,10 @@ class ArtifactPipeline:
             print(f"     🔍 Git repository detected", flush=True)
             print(f"     📊 Running Git analysis...", flush=True)
             try:
-                git_analysis = self._analyze_git_project(project_path, git_identifier)
+                if git_identifier is None:
+                    git_analysis = self._analyze_git_project(project_path)
+                else:
+                    git_analysis = self._analyze_git_project(project_path, git_identifier)
                 result["git_analysis"] = git_analysis
                 
                 # Print appropriate message based on results
