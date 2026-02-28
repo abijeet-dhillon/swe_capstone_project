@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from src.api.deps import get_store
 from src.insights.storage import ProjectInsightsStore
 from src.insights.comparison import ProjectComparison, match_to_job_description
+from src.pipeline.presentation_pipeline import PresentationPipeline
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
 
@@ -16,8 +17,23 @@ class JobMatchRequest(BaseModel):
 
 @router.get("/projects")
 def compare_all_projects(user_id: Optional[str] = Query(None), store: ProjectInsightsStore = Depends(get_store)):
-    projects = store.list_projects()
-    if not projects or len(projects) < 2:
+    # Get list of all available projects
+    pipeline = PresentationPipeline(insights_store=store)
+    available_projects = pipeline.list_available_projects()
+    
+    if not available_projects or len(available_projects) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 projects for comparison")
+    
+    # Load full project data for each project
+    projects = []
+    for item in available_projects:
+        project_id = item.get("project_id")
+        if project_id:
+            payload = store.load_project_insight_by_id(project_id)
+            if payload:
+                projects.append(payload)
+    
+    if len(projects) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 projects for comparison")
     
     comparator = ProjectComparison()
@@ -27,8 +43,8 @@ def compare_all_projects(user_id: Optional[str] = Query(None), store: ProjectIns
 
 @router.post("/projects/{project_id_1}/vs/{project_id_2}")
 def compare_two_projects(project_id_1: int, project_id_2: int, store: ProjectInsightsStore = Depends(get_store)):
-    project1 = store.load_project_insight(project_id_1)
-    project2 = store.load_project_insight(project_id_2)
+    project1 = store.load_project_insight_by_id(project_id_1)
+    project2 = store.load_project_insight_by_id(project_id_2)
     
     if not project1 or not project2:
         raise HTTPException(status_code=404, detail="One or both projects not found")
@@ -41,7 +57,22 @@ def compare_two_projects(project_id_1: int, project_id_2: int, store: ProjectIns
 
 @router.post("/match-job")
 def match_projects_to_job(request: JobMatchRequest, store: ProjectInsightsStore = Depends(get_store)):
-    projects = store.list_projects()
+    # Get list of all available projects
+    pipeline = PresentationPipeline(insights_store=store)
+    available_projects = pipeline.list_available_projects()
+    
+    if not available_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+    
+    # Load full project data for each project
+    projects = []
+    for item in available_projects:
+        project_id = item.get("project_id")
+        if project_id:
+            payload = store.load_project_insight_by_id(project_id)
+            if payload:
+                projects.append(payload)
+    
     if not projects:
         raise HTTPException(status_code=404, detail="No projects found")
     
@@ -68,7 +99,22 @@ def match_projects_to_job(request: JobMatchRequest, store: ProjectInsightsStore 
 
 @router.get("/growth")
 def get_growth_trajectory(store: ProjectInsightsStore = Depends(get_store)):
-    projects = store.list_projects()
+    # Get list of all available projects
+    pipeline = PresentationPipeline(insights_store=store)
+    available_projects = pipeline.list_available_projects()
+    
+    if not available_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+    
+    # Load full project data for each project
+    projects = []
+    for item in available_projects:
+        project_id = item.get("project_id")
+        if project_id:
+            payload = store.load_project_insight_by_id(project_id)
+            if payload:
+                projects.append(payload)
+    
     if not projects:
         raise HTTPException(status_code=404, detail="No projects found")
     
@@ -87,20 +133,35 @@ def get_growth_trajectory(store: ProjectInsightsStore = Depends(get_store)):
         })
     
     comparator = ProjectComparison()
-    growth_score = comparator._calculate_growth_score(sorted_projects)
+    growth_score = comparator._growth_score(sorted_projects)
     
     return {"status": "success", "timeline": timeline, "growth_score": growth_score, "chart_ready": True}
 
 
 @router.get("/recommendations")
 def get_recommendations(store: ProjectInsightsStore = Depends(get_store)):
-    projects = store.list_projects()
+    # Get list of all available projects
+    pipeline = PresentationPipeline(insights_store=store)
+    available_projects = pipeline.list_available_projects()
+    
+    if not available_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+    
+    # Load full project data for each project
+    projects = []
+    for item in available_projects:
+        project_id = item.get("project_id")
+        if project_id:
+            payload = store.load_project_insight_by_id(project_id)
+            if payload:
+                projects.append(payload)
+    
     if not projects:
         raise HTTPException(status_code=404, detail="No projects found")
     
     sorted_projects = sorted(projects, key=lambda p: p.get('created_at', p.get('first_commit', '2000-01-01')))
     
     comparator = ProjectComparison()
-    recommendations = comparator._generate_recommendations(sorted_projects)
+    recommendations = comparator._recommendations(sorted_projects)
     
     return {"status": "success", "recommendations": recommendations}
