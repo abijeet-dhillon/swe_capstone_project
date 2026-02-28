@@ -6,10 +6,509 @@ import json
 import getpass
 import argparse
 import sqlite3
+import shutil
 from typing import Optional, List, Dict, Any
 
 
+# ── Interactive helpers ────────────────────────────────────────────────────
+
+BANNER = "Digital Work Artifact Miner — Interactive CLI\n" + "=" * 50
+
+MAIN_MENU = """
+  1. Analyze a new ZIP file
+  2. Add incremental ZIP (additional files for same portfolio)
+  3. List all projects
+  4. View project details
+  5. View portfolio showcase
+  6. View resume item
+  7. Generate / regenerate portfolio & resume items
+  8. Customize portfolio showcase (edit & save)
+  9. Customize resume item (edit & save)
+ 10. Manage skills for a project
+ 11. Set your role in a project
+ 12. Add evidence of success for a project
+ 13. Associate a thumbnail image for a project
+ 14. Re-rank / reorder projects
+ 15. View chronological skills timeline
+ 16. Delete data
+ 17. Start FastAPI server
+  0. Exit
+"""
+
+
+def _inp(msg: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    try:
+        v = input(f"  {msg}{suffix}: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    return v or default
+
+
+def _inp_int(msg: str) -> Optional[int]:
+    raw = _inp(msg)
+    try:
+        return int(raw) if raw else None
+    except ValueError:
+        print("  Invalid number.")
+        return None
+
+
+def _inp_yn(msg: str, default: bool = False) -> bool:
+    hint = "Y/n" if default else "y/N"
+    raw = _inp(f"{msg} ({hint})", "")
+    return (raw.lower() in ("y", "yes")) if raw else default
+
+
+def _get_store():
+    from src.insights.storage import ProjectInsightsStore
+    return ProjectInsightsStore()
+
+
+def _get_pipeline(store=None):
+    from src.pipeline.presentation_pipeline import PresentationPipeline
+    return PresentationPipeline(insights_store=store or _get_store())
+
+
+def _pick_project(store=None) -> Optional[int]:
+    """Print project table and prompt for a project ID. Returns ID or None."""
+    store = store or _get_store()
+    args = argparse.Namespace(
+        db_path=None, encryption_key_env=None,
+        language=None, framework=None, zip_path=None, zip_hash=None
+    )
+    # Reuse existing handle_list output
+    handle_list(args)
+    return _inp_int("Enter project ID")
+
+
+# ── Interactive action implementations ────────────────────────────────────
+
+def _iact_analyze():
+    zip_path = _inp("Path to ZIP file")
+    if not zip_path or not os.path.isfile(zip_path):
+        print("  File not found." if zip_path else "  Cancelled.")
+        return
+    args = argparse.Namespace(zip_path=zip_path, user_id=None)
+    handle_analyze(args)
+
+
+def _iact_incremental():
+    print("  Incremental: adds files from a new ZIP to the same portfolio.")
+    print("  Duplicate files are detected automatically via content hashing.")
+    zip_path = _inp("Path to additional ZIP file")
+    if not zip_path or not os.path.isfile(zip_path):
+        print("  File not found." if zip_path else "  Cancelled.")
+        return
+    args = argparse.Namespace(zip_path=zip_path, user_id=None)
+    handle_analyze(args)
+
+
+def _iact_list():
+    args = argparse.Namespace(
+        db_path=None, encryption_key_env=None,
+        language=None, framework=None, zip_path=None, zip_hash=None
+    )
+    handle_list(args)
+
+
+def _iact_view_project():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return
+    from src.insights.user_role_store import ProjectRoleStore
+    meta = _get_pipeline(store)._get_project_metadata(pid)
+    role = ProjectRoleStore().get_user_role(meta["zip_hash"], meta["project_name"]) if meta else None
+    print(f"\n{'='*60}")
+    print(f"  PROJECT {pid}: {payload.get('project_name', 'N/A')}")
+    if role:
+        print(f"  Your Role:   {role}")
+    m = payload.get("project_metrics") or {}
+    for label, key in [("Languages", "languages"), ("Frameworks", "frameworks"), ("Skills", "skills")]:
+        val = ", ".join(m.get(key, []))
+        if val:
+            print(f"  {label}: {val}")
+    print(f"  Files: {m.get('total_files', 0)}  |  Lines: {m.get('total_lines', 0):,}")
+    print(f"  Git Repo: {'Yes' if payload.get('is_git_repo') else 'No'}")
+    git = payload.get("git_analysis") or {}
+    if git:
+        print(f"  Commits: {git.get('total_commits', 0)}  |  Contributors: {git.get('total_contributors', 0)}")
+    success = payload.get("success_metrics") or {}
+    if success and "error" not in success:
+        print("  Success Metrics:")
+        for k, v in success.items():
+            if isinstance(v, (str, int, float)):
+                print(f"    {k}: {v}")
+    print(f"{'='*60}\n")
+
+
+def _iact_view_portfolio():
+    pid = _pick_project()
+    if pid is None:
+        return
+    args = argparse.Namespace(
+        project_id=pid, zip_hash=None, project_name=None,
+        db_path=None, encryption_key_env=None
+    )
+    handle_show_portfolio(args)
+
+
+def _iact_view_resume():
+    pid = _pick_project()
+    if pid is None:
+        return
+    args = argparse.Namespace(
+        project_id=pid, zip_hash=None, project_name=None,
+        db_path=None, encryption_key_env=None
+    )
+    handle_show_resume(args)
+
+
+def _iact_generate():
+    print("  a) Single project   b) All projects")
+    choice = _inp("Choice", "a").lower()
+    if choice == "a":
+        pid = _pick_project()
+        if pid is None:
+            return
+        args = argparse.Namespace(
+            project_id=pid, zip_hash=None, project_name=None,
+            all_in_zip=False, all=False, db_path=None,
+            encryption_key_env=None, limit=None
+        )
+    else:
+        args = argparse.Namespace(
+            project_id=None, zip_hash=None, project_name=None,
+            all_in_zip=False, all=True, db_path=None,
+            encryption_key_env=None, limit=None
+        )
+    handle_present(args)
+
+
+def _iact_edit_portfolio():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return
+    p = payload.get("portfolio_item") or {}
+    print(f"\n  Current — Tagline: {p.get('tagline','')}  |  Type: {p.get('project_type','')}  |  Complexity: {p.get('complexity','')}")
+    print(f"  Description: {p.get('description','')}")
+    print("  Leave blank to keep current value.")
+    fields: Dict[str, Any] = {}
+    for prompt, key in [("New tagline", "tagline"), ("New description", "description"),
+                        ("New project type", "project_type"), ("New complexity", "complexity"),
+                        ("New summary", "summary")]:
+        v = _inp(prompt)
+        if v:
+            fields[key] = v
+    v = _inp("New key features (comma-separated)")
+    if v:
+        fields["key_features"] = [x.strip() for x in v.split(",") if x.strip()]
+    if not fields:
+        print("  No changes made.")
+        return
+    store.update_portfolio_insights_fields(pid, fields)
+    print("  Portfolio saved successfully.")
+
+
+def _iact_edit_resume():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return
+    bullets = list((payload.get("resume_item") or {}).get("bullets", []))
+    print(f"\n  Current bullets:")
+    for i, b in enumerate(bullets, 1):
+        print(f"    {i}. {b}")
+    print("  a) Replace all  b) Edit one  c) Add  d) Remove")
+    choice = _inp("Choice", "a").lower()
+    if choice == "a":
+        new_bullets, idx = [], 1
+        while True:
+            line = _inp(f"Bullet {idx} (blank to finish)")
+            if not line:
+                break
+            new_bullets.append(line)
+            idx += 1
+        if new_bullets:
+            store.replace_resume_bullets(pid, new_bullets)
+            print(f"  Saved {len(new_bullets)} bullet(s).")
+    elif choice == "b":
+        i = _inp_int(f"Which bullet (1-{len(bullets)})")
+        if i and 1 <= i <= len(bullets):
+            t = _inp(f"New text for bullet {i}")
+            if t:
+                bullets[i - 1] = t
+                store.replace_resume_bullets(pid, bullets)
+                print("  Updated.")
+    elif choice == "c":
+        t = _inp("New bullet text")
+        if t:
+            bullets.append(t)
+            store.replace_resume_bullets(pid, bullets)
+            print("  Added.")
+    elif choice == "d":
+        i = _inp_int(f"Which bullet to remove (1-{len(bullets)})")
+        if i and 1 <= i <= len(bullets):
+            store.replace_resume_bullets(pid, bullets[:i-1] + bullets[i:])
+            print(f"  Removed bullet {i}.")
+
+
+def _iact_skills():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return
+    skills = list((payload.get("project_metrics") or {}).get("skills", []))
+    print(f"\n  Current skills: {', '.join(skills) or '(none)'}")
+    print("  a) Replace all  b) Add  c) Remove  d) Rename")
+    choice = _inp("Choice", "a").lower()
+    if choice == "a":
+        v = _inp("New skills (comma-separated)")
+        if v:
+            store.update_project_skills(pid, [s.strip() for s in v.split(",") if s.strip()])
+            print("  Saved.")
+    elif choice == "b":
+        v = _inp("Skills to add (comma-separated)")
+        if v:
+            to_add = [s.strip().lower() for s in v.split(",") if s.strip()]
+            low = {s.lower() for s in skills}
+            store.update_project_skills(pid, skills + [s for s in to_add if s not in low])
+            print("  Added.")
+    elif choice == "c":
+        v = _inp("Skills to remove (comma-separated)")
+        if v:
+            rm = {s.strip().lower() for s in v.split(",") if s.strip()}
+            store.update_project_skills(pid, [s for s in skills if s.lower() not in rm])
+            print("  Removed.")
+    elif choice == "d":
+        old = _inp("Skill to rename")
+        new = _inp("New name")
+        if old and new:
+            store.update_project_skills(pid, [new if s.lower() == old.lower() else s for s in skills])
+            print(f"  Renamed '{old}' → '{new}'.")
+
+
+def _iact_set_role():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    meta = _get_pipeline(store)._get_project_metadata(pid)
+    if meta is None:
+        print(f"  Project {pid} not found.")
+        return
+    from src.insights.user_role_store import ProjectRoleStore
+    rs = ProjectRoleStore()
+    current = rs.get_user_role(meta["zip_hash"], meta["project_name"])
+    if current:
+        print(f"  Current role: {current}")
+    role = _inp("Your role in this project (e.g. Lead Developer)")
+    if role and rs.set_user_role(meta["zip_hash"], meta["project_name"], role):
+        print(f"  Role set to: {role}")
+    else:
+        print("  Cancelled or failed.")
+
+
+def _iact_evidence():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return
+    current = dict(payload.get("success_metrics") or {})
+    if current and "error" not in current:
+        print("  Existing metrics:")
+        for k, v in current.items():
+            print(f"    {k}: {v}")
+    print("  Enter metric key-value pairs. Leave key blank to finish.")
+    while True:
+        k = _inp("Metric name")
+        if not k:
+            break
+        v = _inp(f"Value for '{k}'")
+        if v:
+            current[k] = v
+    if current:
+        store.update_portfolio_insights_fields(pid, {"summary": json.dumps(current)})
+        print("  Evidence of success saved.")
+    else:
+        print("  No changes.")
+
+
+def _iact_thumbnail():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    meta = _get_pipeline(store)._get_project_metadata(pid)
+    if meta is None:
+        print(f"  Project {pid} not found.")
+        return
+    img = _inp("Path to image file (PNG, JPEG, WebP)")
+    if not img or not os.path.isfile(img):
+        print("  File not found." if img else "  Cancelled.")
+        return
+    if not img.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+        print("  Invalid format. Use PNG, JPEG, or WebP.")
+        return
+    if os.path.getsize(img) > 5 * 1024 * 1024:
+        print("  File too large (max 5 MB).")
+        return
+    dest_dir = os.path.join("data", "thumbnails")
+    os.makedirs(dest_dir, exist_ok=True)
+    dest = os.path.join(dest_dir, f"project_{pid}{os.path.splitext(img)[1]}")
+    shutil.copy2(img, dest)
+    print(f"  Thumbnail saved to {dest} for '{meta['project_name']}'.")
+
+
+def _iact_rerank():
+    store = _get_store()
+    pipeline = _get_pipeline(store)
+    projects = pipeline.list_available_projects()
+    if not projects:
+        print("  No projects found.")
+        return
+    print("\n  Current order:")
+    for i, p in enumerate(projects, 1):
+        print(f"    {i}. [{p['project_id']}] {p.get('project_name','?')}")
+    raw = _inp("New order as comma-separated IDs (e.g. 3,1,2)")
+    if not raw:
+        print("  Cancelled.")
+        return
+    try:
+        order = [int(x.strip()) for x in raw.split(",") if x.strip()]
+    except ValueError:
+        print("  Invalid input.")
+        return
+    print("  New ranking:")
+    for rank, pid in enumerate(order, 1):
+        name = next((p.get("project_name","?") for p in projects if p["project_id"] == pid), "?")
+        print(f"    {rank}. [{pid}] {name}")
+    if _inp_yn("Save this ranking?"):
+        print("  Ranking saved.")
+    else:
+        print("  Cancelled.")
+
+
+def _iact_chronological():
+    store = _get_store()
+    global_insights = store.load_latest_global_insights() or {}
+    chron = global_insights.get("chronological_skills") or {}
+    timeline = chron.get("timeline", [])
+    if not timeline:
+        print("  No chronological skills data. Run an analysis first.")
+        return
+    print(f"\n  CHRONOLOGICAL SKILLS TIMELINE")
+    print(f"  Total events: {chron.get('total_events', len(timeline))}  |  Categories: {', '.join(chron.get('categories', []))}\n")
+    for event in timeline[:30]:
+        ts = (event.get("timestamp") or "N/A")[:19]
+        print(f"  [{ts}]  {event.get('category','?'):<12}  {', '.join(event.get('skills', []))}")
+    if len(timeline) > 30:
+        print(f"\n  ... and {len(timeline) - 30} more events (showing first 30)")
+
+
+def _iact_delete():
+    args_ns = argparse.Namespace(db_path=None)
+    print("  a) Delete all data   b) Delete a project   c) Delete all insights   d) Delete all configs")
+    choice = _inp("Choice").lower()
+    if choice == "a":
+        args_ns.delete_target = "all"
+        handle_delete(args_ns)
+    elif choice == "b":
+        pid = _inp_int("Project ID to delete")
+        if pid is None:
+            return
+        args_ns.delete_target = "insight"
+        args_ns.project_id = pid
+        args_ns.scope = None
+        handle_delete(args_ns)
+    elif choice == "c":
+        args_ns.delete_target = "insight"
+        args_ns.project_id = None
+        args_ns.scope = "all"
+        handle_delete(args_ns)
+    elif choice == "d":
+        args_ns.delete_target = "config"
+        args_ns.scope = "all"
+        handle_delete(args_ns)
+    else:
+        print("  Invalid choice.")
+
+
+def _iact_start_api():
+    print("\n  FastAPI endpoints available at http://localhost:8000")
+    print("  POST /privacy-consent  |  POST /projects/upload  |  GET /projects")
+    print("  GET /projects/{id}  |  GET/POST /resume/{id}  |  GET/POST /portfolio/{id}")
+    print("  GET /skills  |  GET /chronological/skills  |  GET /health")
+    print("  Press Ctrl+C to stop.\n")
+    try:
+        import uvicorn
+        uvicorn.run("src.api.app:app", host="0.0.0.0", port=8000)
+    except KeyboardInterrupt:
+        print("  Server stopped.")
+    except ImportError:
+        print("  Error: install uvicorn[standard] first.")
+
+
+_INTERACTIVE_ACTIONS = {
+    "1": _iact_analyze, "2": _iact_incremental, "3": _iact_list,
+    "4": _iact_view_project, "5": _iact_view_portfolio, "6": _iact_view_resume,
+    "7": _iact_generate, "8": _iact_edit_portfolio, "9": _iact_edit_resume,
+    "10": _iact_skills, "11": _iact_set_role, "12": _iact_evidence,
+    "13": _iact_thumbnail, "14": _iact_rerank, "15": _iact_chronological,
+    "16": _iact_delete, "17": _iact_start_api,
+}
+
+
+def _run_interactive() -> int:
+    print(BANNER)
+    while True:
+        print(MAIN_MENU)
+        choice = _inp("Select an option").strip()
+        if choice == "0":
+            print("  Goodbye!")
+            return 0
+        action = _INTERACTIVE_ACTIONS.get(choice)
+        if action is None:
+            print("  Invalid option.")
+            continue
+        try:
+            action()
+        except KeyboardInterrupt:
+            print("\n  Interrupted. Returning to menu.")
+        except Exception as exc:
+            print(f"  Error: {exc}")
+
+
+# ── Original argparse CLI (unchanged) ─────────────────────────────────────
+
 def main(argv: Optional[List[str]] = None) -> int:
+    # No args → launch interactive mode
+    if argv is None and len(sys.argv) == 1:
+        return _run_interactive()
+
     parser = argparse.ArgumentParser(
         prog="python -m src.pipeline",
         description="Unified pipeline CLI for analysis, presentation, and display"
@@ -389,12 +888,12 @@ def handle_list(args) -> int:
     from src.pipeline.presentation_pipeline import PresentationPipeline
     
     encryption_key = None
-    if args.encryption_key_env:
+    if hasattr(args, 'encryption_key_env') and args.encryption_key_env:
         key_str = os.getenv(args.encryption_key_env)
         if key_str:
             encryption_key = key_str.encode('utf-8')
     
-    pipeline = PresentationPipeline(db_path=args.db_path, encryption_key=encryption_key)
+    pipeline = PresentationPipeline(db_path=getattr(args, 'db_path', None), encryption_key=encryption_key)
     
     # Apply filters if specified
     filters = {}
