@@ -1633,6 +1633,13 @@ class ProjectInsightsStore:
         timestamp: str,
     ) -> int:
         project_name_value = project_payload.get("project_name") or project_name
+        if project_name_value != project_name:
+            portfolio_name = (project_payload.get("portfolio_item") or {}).get("project_name")
+            resume_name = (project_payload.get("resume_item") or {}).get("project_name")
+            # Prefer the outer project key unless the payload name was explicitly customized
+            # after the presentation items were generated.
+            if project_name_value in {portfolio_name, resume_name}:
+                project_name_value = project_name
         project_path = project_payload.get("project_path")
         is_git_repo = 1 if project_payload.get("is_git_repo") else 0
         conn.execute(

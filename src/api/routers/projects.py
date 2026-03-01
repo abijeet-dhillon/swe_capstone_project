@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import inspect
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -135,12 +137,19 @@ def upload_projects(
         from src.pipeline.orchestrator import ArtifactPipeline  # type: ignore
 
         pipeline = ArtifactPipeline(insights_store=store)
+        start_kwargs = {
+            "use_llm": use_llm,
+            "data_access_consent": True,
+            "prompt_project_names": False,
+        }
+        if (
+            config.git_identifier is not None
+            and "git_identifier" in inspect.signature(pipeline.start).parameters
+        ):
+            start_kwargs["git_identifier"] = config.git_identifier
         result = pipeline.start(
             zip_path,
-            use_llm=use_llm,
-            data_access_consent=True,
-            prompt_project_names=False,
-            git_identifier=config.git_identifier,
+            **start_kwargs,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
