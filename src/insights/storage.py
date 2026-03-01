@@ -26,7 +26,7 @@ DEFAULT_DB_URL = "sqlite:///data/app.db"
 DEFAULT_DB_PATH = DEFAULT_DB_URL.replace("sqlite:///", "")
 # Fixed local encryption key (overridable via INSIGHTS_ENCRYPTION_KEY env var)
 DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "local-insights-key")
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Legacy tables (no longer written)
 LEGACY_ZIP_TABLE = "zipfile"
@@ -48,6 +48,7 @@ CHRONOLOGY_TABLE = "chronology"
 THUMBNAILS_TABLE = "thumbnails"
 PRESENTATION_TABLE = "presentation"
 PROFILE_TABLE = "profile"
+RUN_REPRESENTATION_TABLE = "run_representation"
 
 
 def _utcnow() -> str:
@@ -190,6 +191,13 @@ class ProjectInsightsStore:
                     conn.execute(
                         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
                         (6, _utcnow()),
+                    )
+                    current_version = 6
+                if current_version < 7:
+                    self._apply_run_representation_schema(conn)
+                    conn.execute(
+                        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
+                        (7, _utcnow()),
                     )
                 conn.commit()
 
@@ -618,6 +626,21 @@ class ProjectInsightsStore:
             """
         )
 
+    def _apply_run_representation_schema(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {RUN_REPRESENTATION_TABLE} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ingest_id INTEGER NOT NULL,
+                representation_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(ingest_id) REFERENCES {INGEST_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(ingest_id)
+            );
+            """
+        )
+
     # Public API
     def record_pipeline_run(
         self,
@@ -919,6 +942,51 @@ class ProjectInsightsStore:
             global_insights = self._load_global_insights(conn, row[0])
             return global_insights or None
 
+    def save_run_representation(self, ingest_id: int, representation: Dict[str, Any]) -> None:
+        now = _utcnow()
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute(
+                    f"""
+                    INSERT INTO {RUN_REPRESENTATION_TABLE}
+                        (ingest_id, representation_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(ingest_id) DO UPDATE SET
+                        representation_json = excluded.representation_json,
+                        updated_at = excluded.updated_at;
+                    """,
+                    (ingest_id, json.dumps(representation), now, now),
+                )
+                conn.commit()
+
+    def load_run_representation(self, ingest_id: int) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT representation_json
+                FROM {RUN_REPRESENTATION_TABLE}
+                WHERE ingest_id = ?;
+                """,
+                (ingest_id,),
+            ).fetchone()
+            if not row or not row[0]:
+                return None
+            try:
+                return json.loads(row[0])
+            except Exception:
+                return None
+
+    def load_latest_run_representation(self, zip_hash: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            ingest_id = self._latest_ingest_id(conn, zip_hash)
+            if not ingest_id:
+                return None
+        return self.load_run_representation(ingest_id)
+
+    def load_latest_ingest_id(self, zip_hash: str) -> Optional[int]:
+        with self._connect() as conn:
+            return self._latest_ingest_id(conn, zip_hash)
+
 
     def _normalize_resume_bullets(
         self,
@@ -1085,6 +1153,7 @@ class ProjectInsightsStore:
                 )
 
             report = {
+                "ingest_id": ingest_id,
                 "zip_hash": zip_hash,
                 "zip_metadata": {
                     "root_name": source_name,
@@ -1125,6 +1194,7 @@ class ProjectInsightsStore:
                 ).fetchone()[0]
                 results.append(
                     {
+                        "ingest_id": ingest_id,
                         "zip_hash": source_hash,
                         "zip_path": source_path,
                         "total_projects": project_count,

@@ -1,11 +1,23 @@
 """Tests for LinkedIn API endpoints"""
 from __future__ import annotations
 
+import inspect
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api.app import app
 from src.insights.storage import ProjectInsightsStore
+
+if "app" not in inspect.signature(httpx.Client.__init__).parameters:
+    _orig_httpx_init = httpx.Client.__init__
+
+    def _patched_httpx_init(self, *args, **kwargs):
+        kwargs.pop("app", None)
+        return _orig_httpx_init(self, *args, **kwargs)
+
+    httpx.Client.__init__ = _patched_httpx_init
 
 client = TestClient(app)
 
