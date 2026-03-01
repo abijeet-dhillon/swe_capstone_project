@@ -26,7 +26,7 @@ DEFAULT_DB_URL = "sqlite:///data/app.db"
 DEFAULT_DB_PATH = DEFAULT_DB_URL.replace("sqlite:///", "")
 # Fixed local encryption key (overridable via INSIGHTS_ENCRYPTION_KEY env var)
 DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "local-insights-key")
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Legacy tables (no longer written)
 LEGACY_ZIP_TABLE = "zipfile"
@@ -48,6 +48,7 @@ CHRONOLOGY_TABLE = "chronology"
 THUMBNAILS_TABLE = "thumbnails"
 PRESENTATION_TABLE = "presentation"
 PROFILE_TABLE = "profile"
+RUN_REPRESENTATION_TABLE = "run_representation"
 
 
 def _utcnow() -> str:
@@ -190,6 +191,13 @@ class ProjectInsightsStore:
                     conn.execute(
                         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
                         (6, _utcnow()),
+                    )
+                    current_version = 6
+                if current_version < 7:
+                    self._apply_run_representation_schema(conn)
+                    conn.execute(
+                        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
+                        (7, _utcnow()),
                     )
                 conn.commit()
 
@@ -618,6 +626,21 @@ class ProjectInsightsStore:
             """
         )
 
+    def _apply_run_representation_schema(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {RUN_REPRESENTATION_TABLE} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ingest_id INTEGER NOT NULL,
+                representation_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(ingest_id) REFERENCES {INGEST_TABLE}(id) ON DELETE CASCADE,
+                UNIQUE(ingest_id)
+            );
+            """
+        )
+
     # Public API
     def record_pipeline_run(
         self,
@@ -1010,6 +1033,51 @@ class ProjectInsightsStore:
             global_insights = self._load_global_insights(conn, row[0])
             return global_insights or None
 
+    def save_run_representation(self, ingest_id: int, representation: Dict[str, Any]) -> None:
+        now = _utcnow()
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute(
+                    f"""
+                    INSERT INTO {RUN_REPRESENTATION_TABLE}
+                        (ingest_id, representation_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(ingest_id) DO UPDATE SET
+                        representation_json = excluded.representation_json,
+                        updated_at = excluded.updated_at;
+                    """,
+                    (ingest_id, json.dumps(representation), now, now),
+                )
+                conn.commit()
+
+    def load_run_representation(self, ingest_id: int) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT representation_json
+                FROM {RUN_REPRESENTATION_TABLE}
+                WHERE ingest_id = ?;
+                """,
+                (ingest_id,),
+            ).fetchone()
+            if not row or not row[0]:
+                return None
+            try:
+                return json.loads(row[0])
+            except Exception:
+                return None
+
+    def load_latest_run_representation(self, zip_hash: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            ingest_id = self._latest_ingest_id(conn, zip_hash)
+            if not ingest_id:
+                return None
+        return self.load_run_representation(ingest_id)
+
+    def load_latest_ingest_id(self, zip_hash: str) -> Optional[int]:
+        with self._connect() as conn:
+            return self._latest_ingest_id(conn, zip_hash)
+
 
     def _normalize_resume_bullets(
         self,
@@ -1176,6 +1244,7 @@ class ProjectInsightsStore:
                 )
 
             report = {
+                "ingest_id": ingest_id,
                 "zip_hash": zip_hash,
                 "zip_metadata": {
                     "root_name": source_name,
@@ -1216,6 +1285,7 @@ class ProjectInsightsStore:
                 ).fetchone()[0]
                 results.append(
                     {
+                        "ingest_id": ingest_id,
                         "zip_hash": source_hash,
                         "zip_path": source_path,
                         "total_projects": project_count,
@@ -1266,7 +1336,122 @@ class ProjectInsightsStore:
             ).fetchall()
         return [row[0] for row in rows]
 
-   
+    def list_projects_for_zip_detailed(self, zip_hash: str) -> List[Dict[str, Any]]:
+        """Return project id, name, and source_hash for all projects under a zip hash."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT p.id, p.project_name, p.source_hash
+                FROM {PROJECTS_TABLE} p
+                WHERE p.source_hash = ?
+                ORDER BY p.project_name ASC;
+                """,
+                (zip_hash,),
+            ).fetchall()
+        return [
+            {"project_id": r[0], "project_name": r[1], "zip_hash": r[2]}
+            for r in rows
+        ]
+
+    def reassign_projects_to_zip_hash(
+        self,
+        old_zip_hash: str,
+        new_zip_hash: str,
+        project_names: List[str],
+    ) -> int:
+        """
+        Move specific projects from old_zip_hash to new_zip_hash.
+
+        Updates the ``projects`` table source_hash and copies across ingest
+        references so the carried-forward projects appear under the new hash.
+
+        Returns the number of project rows updated.
+        """
+        if not project_names:
+            return 0
+        placeholders = ",".join("?" for _ in project_names)
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    cursor = conn.execute(
+                        f"""
+                        UPDATE {PROJECTS_TABLE}
+                        SET source_hash = ?, updated_at = ?
+                        WHERE source_hash = ? AND project_name IN ({placeholders});
+                        """,
+                        [new_zip_hash, _utcnow(), old_zip_hash] + list(project_names),
+                    )
+                    count = cursor.rowcount
+                    conn.execute("COMMIT;")
+                    return count
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def delete_projects_by_names(
+        self,
+        zip_hash: str,
+        project_names: List[str],
+    ) -> int:
+        """
+        Delete specific projects (by name) under a given zip_hash.
+
+        Cascades to project_info, file_info, etc. via foreign keys.
+        Returns the number of deleted project rows.
+        """
+        if not project_names:
+            return 0
+        placeholders = ",".join("?" for _ in project_names)
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    cursor = conn.execute(
+                        f"""
+                        DELETE FROM {PROJECTS_TABLE}
+                        WHERE source_hash = ? AND project_name IN ({placeholders});
+                        """,
+                        [zip_hash] + list(project_names),
+                    )
+                    count = cursor.rowcount
+                    self._audit(
+                        conn,
+                        action="delete_projects_by_names",
+                        scope=zip_hash,
+                        details={"project_names": project_names},
+                        deleted_projects=count,
+                        deleted_zips=0,
+                    )
+                    conn.execute("COMMIT;")
+                    return count
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def delete_zip_if_empty(self, zip_hash: str) -> bool:
+        """
+        Delete the ingest records for a zip_hash only if no projects remain.
+
+        Returns True if records were deleted, False if projects still exist.
+        """
+        with self._lock:
+            with self._connect() as conn:
+                count = conn.execute(
+                    f"SELECT COUNT(*) FROM {PROJECTS_TABLE} WHERE source_hash = ?;",
+                    (zip_hash,),
+                ).fetchone()[0]
+                if count > 0:
+                    return False
+                conn.execute(
+                    f"DELETE FROM {INGEST_TABLE} WHERE source_hash = ?;",
+                    (zip_hash,),
+                )
+                conn.commit()
+                return True
+
     # Deletion API
     def _audit(self, conn: sqlite3.Connection, action: str, scope: str, details: Optional[Dict[str, Any]], deleted_projects: int, deleted_zips: int) -> None:
         conn.execute(
