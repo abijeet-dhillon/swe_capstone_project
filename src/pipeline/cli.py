@@ -9,11 +9,7 @@ import sqlite3
 import shutil
 from typing import Optional, List, Dict, Any
 
-
-# ── Interactive helpers ────────────────────────────────────────────────────
-
 BANNER = "Digital Work Artifact Miner — Interactive CLI\n" + "=" * 50
-
 MAIN_MENU = """
   1. Analyze a new ZIP file
   2. Incremental update (merge new ZIP into existing portfolio)
@@ -35,7 +31,6 @@ MAIN_MENU = """
   0. Exit
 """
 
-
 def _inp(msg: str, default: str = "") -> str:
     suffix = f" [{default}]" if default else ""
     try:
@@ -45,7 +40,6 @@ def _inp(msg: str, default: str = "") -> str:
         return default
     return v or default
 
-
 def _inp_int(msg: str) -> Optional[int]:
     raw = _inp(msg)
     try:
@@ -54,33 +48,27 @@ def _inp_int(msg: str) -> Optional[int]:
         print("  Invalid number.")
         return None
 
-
 def _inp_yn(msg: str, default: bool = False) -> bool:
     hint = "Y/n" if default else "y/N"
     raw = _inp(f"{msg} ({hint})", "")
     return (raw.lower() in ("y", "yes")) if raw else default
-
 
 _LIST_ARGS = argparse.Namespace(
     db_path=None, encryption_key_env=None,
     language=None, framework=None, zip_path=None, zip_hash=None,
 )
 
-
 def _get_store():
     from src.insights.storage import ProjectInsightsStore
     return ProjectInsightsStore()
-
 
 def _get_pipeline(store=None):
     from src.pipeline.presentation_pipeline import PresentationPipeline
     return PresentationPipeline(insights_store=store or _get_store())
 
-
 def _split_csv(raw: str) -> List[str]:
     """Split a comma-separated string into a stripped, non-empty list."""
     return [s.strip() for s in raw.split(",") if s.strip()]
-
 
 def _inp_zip_path(prompt: str) -> Optional[str]:
     """Prompt for a ZIP path; print a message and return None if invalid."""
@@ -92,7 +80,6 @@ def _inp_zip_path(prompt: str) -> Optional[str]:
         print("  File not found.")
         return None
     return path
-
 
 def _load_project_payload(store=None):
     """Pick a project interactively and return (pid, store, payload), or None on failure."""
@@ -106,20 +93,15 @@ def _load_project_payload(store=None):
         return None
     return pid, store, payload
 
-
 def _pick_project(store=None) -> Optional[int]:
     """Print project table and prompt for a project ID. Returns ID or None."""
     handle_list(_LIST_ARGS)
     return _inp_int("Enter project ID")
 
-
-# ── Interactive action implementations ────────────────────────────────────
-
 def _iact_analyze():
     zip_path = _inp_zip_path("Path to ZIP file")
     if zip_path:
         handle_analyze(argparse.Namespace(zip_path=zip_path, user_id=None))
-
 
 def _iact_incremental():
     """Incrementally update an existing ZIP analysis with a new ZIP file."""
@@ -153,10 +135,8 @@ def _iact_incremental():
             user_id=None,
         ))
 
-
 def _iact_list():
     handle_list(_LIST_ARGS)
-
 
 def _iact_view_project():
     pid = _pick_project()
@@ -192,7 +172,6 @@ def _iact_view_project():
                 print(f"    {k}: {v}")
     print(f"{'='*60}\n")
 
-
 def _iact_show(handler):
     """Generic: pick a project then call handler(args)."""
     pid = _pick_project()
@@ -202,14 +181,11 @@ def _iact_show(handler):
             db_path=None, encryption_key_env=None,
         ))
 
-
 def _iact_view_portfolio():
     _iact_show(handle_show_portfolio)
 
-
 def _iact_view_resume():
     _iact_show(handle_show_resume)
-
 
 def _iact_generate():
     _COMMON = dict(zip_hash=None, project_name=None, all_in_zip=False,
@@ -222,7 +198,6 @@ def _iact_generate():
         handle_present(argparse.Namespace(project_id=pid, all=False, **_COMMON))
     else:
         handle_present(argparse.Namespace(project_id=None, all=True, **_COMMON))
-
 
 def _iact_edit_portfolio():
     result = _load_project_payload()
@@ -248,7 +223,6 @@ def _iact_edit_portfolio():
         return
     store.update_portfolio_insights_fields(pid, fields)
     print("  Portfolio saved successfully.")
-
 
 def _iact_edit_resume():
     result = _load_project_payload()
@@ -292,7 +266,6 @@ def _iact_edit_resume():
             store.replace_resume_bullets(pid, bullets[:i-1] + bullets[i:])
             print(f"  Removed bullet {i}.")
 
-
 def _iact_skills():
     result = _load_project_payload()
     if result is None:
@@ -327,7 +300,6 @@ def _iact_skills():
             store.update_project_skills(pid, [new if s.lower() == old.lower() else s for s in skills])
             print(f"  Renamed '{old}' → '{new}'.")
 
-
 def _iact_set_role():
     store = _get_store()
     pid = _pick_project(store)
@@ -347,7 +319,6 @@ def _iact_set_role():
         print(f"  Role set to: {role}")
     else:
         print("  Cancelled or failed.")
-
 
 def _iact_evidence():
     result = _load_project_payload()
@@ -373,7 +344,6 @@ def _iact_evidence():
     else:
         print("  No changes.")
 
-
 def _iact_thumbnail():
     store = _get_store()
     pid = _pick_project(store)
@@ -398,7 +368,6 @@ def _iact_thumbnail():
     dest = os.path.join(dest_dir, f"project_{pid}{os.path.splitext(img)[1]}")
     shutil.copy2(img, dest)
     print(f"  Thumbnail saved to {dest} for '{meta['project_name']}'.")
-
 
 def _iact_rerank():
     """Sub-action: manually order projects by ID (used within representation menu)."""
@@ -428,7 +397,6 @@ def _iact_rerank():
         print("  Ranking saved.")
     else:
         print("  Cancelled.")
-
 
 def _iact_representation():
     """Configure and preview a representation view (ranking, chronology, skills, showcase)."""
@@ -552,7 +520,6 @@ def _iact_representation():
 
     print(f"\n{'='*70}\n")
 
-
 def _iact_chronological():
     store = _get_store()
     global_insights = store.load_latest_global_insights() or {}
@@ -568,7 +535,6 @@ def _iact_chronological():
         print(f"  [{ts}]  {event.get('category','?'):<12}  {', '.join(event.get('skills', []))}")
     if len(timeline) > 30:
         print(f"\n  ... and {len(timeline) - 30} more events (showing first 30)")
-
 
 def _iact_delete():
     print("  a) Delete all data   b) Delete a project   c) Delete all insights   d) Delete all configs")
@@ -590,7 +556,6 @@ def _iact_delete():
         return
     handle_delete(ns)
 
-
 def _iact_start_api():
     print("\n  FastAPI endpoints available at http://localhost:8000")
     print("  POST /privacy-consent  |  POST /projects/upload  |  GET /projects")
@@ -605,7 +570,6 @@ def _iact_start_api():
     except ImportError:
         print("  Error: install uvicorn[standard] first.")
 
-
 _INTERACTIVE_ACTIONS = {
     "1": _iact_analyze, "2": _iact_incremental, "3": _iact_list,
     "4": _iact_view_project, "5": _iact_view_portfolio, "6": _iact_view_resume,
@@ -614,7 +578,6 @@ _INTERACTIVE_ACTIONS = {
     "13": _iact_thumbnail, "14": _iact_representation, "15": _iact_chronological,
     "16": _iact_delete, "17": _iact_start_api,
 }
-
 
 def _run_interactive() -> int:
     print(BANNER)
@@ -634,9 +597,6 @@ def _run_interactive() -> int:
             print("\n  Interrupted. Returning to menu.")
         except Exception as exc:
             print(f"  Error: {exc}")
-
-
-# ── Original argparse CLI (unchanged) ─────────────────────────────────────
 
 def main(argv: Optional[List[str]] = None) -> int:
     # No args → launch interactive mode
