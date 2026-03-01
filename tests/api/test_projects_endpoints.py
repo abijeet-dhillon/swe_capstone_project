@@ -1,3 +1,4 @@
+import inspect
 import os
 import shutil
 import sys
@@ -5,6 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+import httpx
 from fastapi.testclient import TestClient
 
 project_root = Path(__file__).resolve().parents[2]
@@ -17,6 +19,15 @@ from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
 from tests.insights.utils import build_pipeline_payload
+
+if "app" not in inspect.signature(httpx.Client.__init__).parameters:
+    _orig_httpx_init = httpx.Client.__init__
+
+    def _patched_httpx_init(self, *args, **kwargs):
+        kwargs.pop("app", None)
+        return _orig_httpx_init(self, *args, **kwargs)
+
+    httpx.Client.__init__ = _patched_httpx_init
 
 
 def _seed_store(db_path: str) -> tuple[ProjectInsightsStore, str, int]:
@@ -88,7 +99,6 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
         app.dependency_overrides[deps.get_store] = lambda: store
         app.dependency_overrides[deps.get_config_manager] = lambda: manager
 
-        # Inject a lightweight dummy ArtifactPipeline to avoid importing heavy deps (pyzbar/zbar)
         import types, sys as _sys
 
         dummy_module = types.ModuleType("src.pipeline.orchestrator")
@@ -100,18 +110,16 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
             def _save_json_report(self, zip_path, result):
                 return Path(zip_path)
 
-            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False):
-                # Minimal shape expected by the API handler
-                return {"projects": {"ProjectAlpha": {}, "ProjectBeta": {}}}
+            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None):
+                result = build_pipeline_payload()
+                self.insights_store.record_pipeline_run(zip_path, result)
+                return result
 
         dummy_module.ArtifactPipeline = _DummyPipeline
         _sys.modules["src.pipeline.orchestrator"] = dummy_module
 
         client = TestClient(app)
-        response = client.post(
-            "/projects/upload",
-            json={"user_id": "uploader", "zip_path": zip_path},
-        )
+        response = client.post("/projects/upload", json={"user_id": "uploader", "zip_path": zip_path})
 
         assert response.status_code == 200
         data = response.json()

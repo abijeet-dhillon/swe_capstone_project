@@ -305,12 +305,15 @@ class ProjectFilterEngine:
         # Apply sorting
         query += self._build_sort_clause(filter_config.sort_by)
         
-        # Apply pagination
+        # Apply pagination (OFFSET requires LIMIT in SQLite)
         if filter_config.limit:
             query += " LIMIT ?"
             params.append(filter_config.limit)
-        if filter_config.offset:
-            query += " OFFSET ?"
+            if filter_config.offset:
+                query += " OFFSET ?"
+                params.append(filter_config.offset)
+        elif filter_config.offset:
+            query += " LIMIT -1 OFFSET ?"
             params.append(filter_config.offset)
         
         return query, params
