@@ -5,8 +5,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_store
+from src.api.deps import get_role_store, get_store
 from src.insights.storage import ProjectInsightsStore
+from src.insights.user_role_store import ProjectRoleStore
+from src.pipeline.presentation_pipeline import PresentationPipeline
 from src.project.presentation import generate_items_from_project_id
 
 
@@ -18,12 +20,23 @@ class ResumeEditPayload(BaseModel):
 
 
 @router.get("/{project_id}")
-def get_resume(project_id: int, store: ProjectInsightsStore = Depends(get_store)):
+def get_resume(
+    project_id: int,
+    store: ProjectInsightsStore = Depends(get_store),
+    role_store: ProjectRoleStore = Depends(get_role_store),
+):
     payload = store.load_project_insight_by_id(project_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="Project not found")
     resume_item = payload.get("resume_item") or {}
-    return {"project_id": project_id, "resume_item": resume_item}
+    user_role: Optional[str] = None
+    metadata = PresentationPipeline(insights_store=store)._get_project_metadata(project_id)
+    if metadata:
+        user_role = role_store.get_user_role(metadata["zip_hash"], metadata["project_name"])
+    if user_role and isinstance(resume_item, dict):
+        resume_item = dict(resume_item)
+        resume_item["user_role"] = user_role
+    return {"project_id": project_id, "user_role": user_role, "resume_item": resume_item}
 
 
 @router.post("/generate")

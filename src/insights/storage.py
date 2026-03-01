@@ -838,6 +838,97 @@ class ProjectInsightsStore:
             changed = self.replace_resume_bullets(project_info_id, resume_bullets) or changed
         return changed
 
+    def upsert_project_thumbnail(
+        self,
+        project_info_id: int,
+        image_path: str,
+        mime_type: Optional[str],
+        *,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        role: str = "portfolio",
+    ) -> bool:
+        """
+        Persist or replace a thumbnail association for a project.
+
+        Returns True when the project exists and the thumbnail row was written.
+        """
+        with self._lock:
+            with self._connect() as conn:
+                row = conn.execute(
+                    f"SELECT id FROM {PROJECT_INFO_TABLE} WHERE id = ?;",
+                    (project_info_id,),
+                ).fetchone()
+                if not row:
+                    return False
+
+                conn.execute(
+                    f"""
+                    DELETE FROM {THUMBNAILS_TABLE}
+                    WHERE project_info_id = ? AND role = ?;
+                    """,
+                    (project_info_id, role),
+                )
+                conn.execute(
+                    f"""
+                    INSERT INTO {THUMBNAILS_TABLE} (
+                        project_info_id, file_info_id, role, image_path, width, height, mime_type, created_at
+                    ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (project_info_id, role, image_path, width, height, mime_type, _utcnow()),
+                )
+                conn.commit()
+                return True
+
+    def get_project_thumbnail(
+        self,
+        project_info_id: int,
+        *,
+        role: str = "portfolio",
+    ) -> Optional[Dict[str, Any]]:
+        """Return thumbnail metadata for a project, if available."""
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT id, image_path, mime_type, width, height, created_at
+                FROM {THUMBNAILS_TABLE}
+                WHERE project_info_id = ? AND role = ?
+                ORDER BY id DESC
+                LIMIT 1;
+                """,
+                (project_info_id, role),
+            ).fetchone()
+            if not row:
+                return None
+            return {
+                "id": row[0],
+                "image_path": row[1],
+                "mime_type": row[2],
+                "width": row[3],
+                "height": row[4],
+                "created_at": row[5],
+                "role": role,
+            }
+
+    def delete_project_thumbnail(
+        self,
+        project_info_id: int,
+        *,
+        role: str = "portfolio",
+    ) -> bool:
+        """Delete thumbnail association for a project and role. Returns True if a row was removed."""
+        with self._lock:
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    f"""
+                    DELETE FROM {THUMBNAILS_TABLE}
+                    WHERE project_info_id = ? AND role = ?;
+                    """,
+                    (project_info_id, role),
+                )
+                conn.commit()
+                return bool(cursor.rowcount and cursor.rowcount > 0)
+
     def load_project_insight(self, zip_hash: str, project_name: str) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
             ingest_id = self._latest_ingest_id(conn, zip_hash)

@@ -23,4 +23,4 @@ def list_runs(store: ProjectInsightsStore = Depends(get_store)):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("src.api.app:app", host="0.0.0.0", port=8000)
+    uvicorn.run("src.api.app:app", host="0.0.0.0", port=8010)

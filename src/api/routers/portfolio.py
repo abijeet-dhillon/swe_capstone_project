@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -55,6 +56,13 @@ def get_portfolio_showcase(
         "key_skills": key_skills,
         "key_metrics": _build_key_metrics(project_metrics),
     }
+
+    thumbnail = store.get_project_thumbnail(project_id)
+    if thumbnail and thumbnail.get("image_path"):
+        thumb_path = Path(thumbnail["image_path"])
+        if thumb_path.exists():
+            response["thumbnail_path"] = str(thumb_path)
+            response["thumbnail_url"] = f"/projects/{project_id}/thumbnail/content"
 
     success_metrics = payload.get("success_metrics")
     if success_metrics and "error" not in success_metrics:
