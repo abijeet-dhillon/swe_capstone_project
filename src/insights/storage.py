@@ -889,6 +889,36 @@ class ProjectInsightsStore:
                 return None
             return self._build_project_payload(conn, project_id)
 
+    def update_project_skills(self, project_id: int, skills: List[str]) -> None:
+        """Persist a project's normalized skills list by project_info.id."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute(
+                    f"""
+                    UPDATE {PROJECT_INFO_TABLE}
+                    SET skills_json = ?, updated_at = ?
+                    WHERE id = ?;
+                    """,
+                    (json.dumps(skills or []), _utcnow(), project_id),
+                )
+                conn.commit()
+
+    def load_latest_global_insights(self) -> Optional[Dict[str, Any]]:
+        """Load global insights for the latest ingest run."""
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT id
+                FROM {INGEST_TABLE}
+                ORDER BY id DESC
+                LIMIT 1;
+                """
+            ).fetchone()
+            if not row:
+                return None
+            global_insights = self._load_global_insights(conn, row[0])
+            return global_insights or None
+
 
     def _normalize_resume_bullets(
         self,
@@ -1145,7 +1175,122 @@ class ProjectInsightsStore:
             ).fetchall()
         return [row[0] for row in rows]
 
-   
+    def list_projects_for_zip_detailed(self, zip_hash: str) -> List[Dict[str, Any]]:
+        """Return project id, name, and source_hash for all projects under a zip hash."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT p.id, p.project_name, p.source_hash
+                FROM {PROJECTS_TABLE} p
+                WHERE p.source_hash = ?
+                ORDER BY p.project_name ASC;
+                """,
+                (zip_hash,),
+            ).fetchall()
+        return [
+            {"project_id": r[0], "project_name": r[1], "zip_hash": r[2]}
+            for r in rows
+        ]
+
+    def reassign_projects_to_zip_hash(
+        self,
+        old_zip_hash: str,
+        new_zip_hash: str,
+        project_names: List[str],
+    ) -> int:
+        """
+        Move specific projects from old_zip_hash to new_zip_hash.
+
+        Updates the ``projects`` table source_hash and copies across ingest
+        references so the carried-forward projects appear under the new hash.
+
+        Returns the number of project rows updated.
+        """
+        if not project_names:
+            return 0
+        placeholders = ",".join("?" for _ in project_names)
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    cursor = conn.execute(
+                        f"""
+                        UPDATE {PROJECTS_TABLE}
+                        SET source_hash = ?, updated_at = ?
+                        WHERE source_hash = ? AND project_name IN ({placeholders});
+                        """,
+                        [new_zip_hash, _utcnow(), old_zip_hash] + list(project_names),
+                    )
+                    count = cursor.rowcount
+                    conn.execute("COMMIT;")
+                    return count
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def delete_projects_by_names(
+        self,
+        zip_hash: str,
+        project_names: List[str],
+    ) -> int:
+        """
+        Delete specific projects (by name) under a given zip_hash.
+
+        Cascades to project_info, file_info, etc. via foreign keys.
+        Returns the number of deleted project rows.
+        """
+        if not project_names:
+            return 0
+        placeholders = ",".join("?" for _ in project_names)
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    cursor = conn.execute(
+                        f"""
+                        DELETE FROM {PROJECTS_TABLE}
+                        WHERE source_hash = ? AND project_name IN ({placeholders});
+                        """,
+                        [zip_hash] + list(project_names),
+                    )
+                    count = cursor.rowcount
+                    self._audit(
+                        conn,
+                        action="delete_projects_by_names",
+                        scope=zip_hash,
+                        details={"project_names": project_names},
+                        deleted_projects=count,
+                        deleted_zips=0,
+                    )
+                    conn.execute("COMMIT;")
+                    return count
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def delete_zip_if_empty(self, zip_hash: str) -> bool:
+        """
+        Delete the ingest records for a zip_hash only if no projects remain.
+
+        Returns True if records were deleted, False if projects still exist.
+        """
+        with self._lock:
+            with self._connect() as conn:
+                count = conn.execute(
+                    f"SELECT COUNT(*) FROM {PROJECTS_TABLE} WHERE source_hash = ?;",
+                    (zip_hash,),
+                ).fetchone()[0]
+                if count > 0:
+                    return False
+                conn.execute(
+                    f"DELETE FROM {INGEST_TABLE} WHERE source_hash = ?;",
+                    (zip_hash,),
+                )
+                conn.commit()
+                return True
+
     # Deletion API
     def _audit(self, conn: sqlite3.Connection, action: str, scope: str, details: Optional[Dict[str, Any]], deleted_projects: int, deleted_zips: int) -> None:
         conn.execute(
@@ -1512,6 +1657,13 @@ class ProjectInsightsStore:
         timestamp: str,
     ) -> int:
         project_name_value = project_payload.get("project_name") or project_name
+        if project_name_value != project_name:
+            portfolio_name = (project_payload.get("portfolio_item") or {}).get("project_name")
+            resume_name = (project_payload.get("resume_item") or {}).get("project_name")
+            # Prefer the outer project key unless the payload name was explicitly customized
+            # after the presentation items were generated.
+            if project_name_value in {portfolio_name, resume_name}:
+                project_name_value = project_name
         project_path = project_payload.get("project_path")
         is_git_repo = 1 if project_payload.get("is_git_repo") else 0
         conn.execute(

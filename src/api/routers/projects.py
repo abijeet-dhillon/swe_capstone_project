@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,13 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 class ProjectUploadRequest(BaseModel):
     user_id: str = Field(..., min_length=1)
     zip_path: str = Field(..., min_length=1)
+
+
+class ProjectUpdateRequest(BaseModel):
+    """Request body for incremental ZIP update."""
+    user_id: str = Field(..., min_length=1)
+    old_zip_hash: str = Field(..., min_length=1, description="Hash of the existing ZIP to update")
+    new_zip_path: str = Field(..., min_length=1, description="Path to the new ZIP file")
 
 
 class ProjectListItem(BaseModel):
@@ -65,12 +73,19 @@ def upload_projects(
         from src.pipeline.orchestrator import ArtifactPipeline  # type: ignore
 
         pipeline = ArtifactPipeline(insights_store=store)
+        start_kwargs = {
+            "use_llm": use_llm,
+            "data_access_consent": True,
+            "prompt_project_names": False,
+        }
+        if (
+            config.git_identifier is not None
+            and "git_identifier" in inspect.signature(pipeline.start).parameters
+        ):
+            start_kwargs["git_identifier"] = config.git_identifier
         result = pipeline.start(
             zip_path,
-            use_llm=use_llm,
-            data_access_consent=True,
-            prompt_project_names=False,
-            git_identifier=config.git_identifier,
+            **start_kwargs,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -142,3 +157,73 @@ def get_project(
                 payload["resume_item"] = resume_item
 
     return {"project_id": project_id, **payload}
+
+
+@router.post("/update/{old_zip_hash}")
+def update_existing_zip(
+    old_zip_hash: str,
+    payload: ProjectUpdateRequest,
+    store: ProjectInsightsStore = Depends(get_store),
+    manager: UserConfigManager = Depends(get_config_manager),
+):
+    """
+    Incrementally update an existing ZIP analysis with a new ZIP.
+
+    - Projects unique to the old ZIP are retained.
+    - Projects unique to the new ZIP are added.
+    - Projects with the same name are replaced by the new ZIP's version.
+    """
+    user_id = payload.user_id.strip()
+    new_zip_path = payload.new_zip_path.strip()
+
+    if not user_id or not new_zip_path:
+        raise HTTPException(status_code=400, detail="user_id and new_zip_path are required")
+
+    # Validate old zip exists in DB
+    old_projects = store.list_projects_for_zip(old_zip_hash)
+    if not old_projects:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No existing analysis found for zip_hash: {old_zip_hash}",
+        )
+
+    # Validate user consent
+    config = manager.load_config(user_id, silent=True)
+    if not config:
+        raise HTTPException(status_code=404, detail="Consent not found for user")
+    if not config.data_access_consent:
+        raise HTTPException(status_code=403, detail="Data access consent not granted")
+
+    # Resolve git_identifier from config
+    git_identifier = getattr(config, "git_identifier", None)
+
+    try:
+        from src.pipeline.orchestrator import ArtifactPipeline  # type: ignore
+
+        pipeline = ArtifactPipeline(insights_store=store)
+        merge_summary = pipeline.incremental_update(
+            new_zip_path=new_zip_path,
+            old_zip_hash=old_zip_hash,
+            git_identifier=git_identifier,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Incremental update failed") from exc
+
+    if merge_summary.get("status") == "cancelled":
+        return {"status": "cancelled", "message": merge_summary.get("message", "Update cancelled")}
+
+    return {
+        "status": "ok",
+        "old_zip_hash": old_zip_hash,
+        "new_zip_hash": merge_summary.get("new_zip_hash"),
+        "new_only_projects": merge_summary.get("new_only_projects", []),
+        "retained_projects": merge_summary.get("retained_projects", []),
+        "updated_projects": merge_summary.get("updated_projects", []),
+        "total_projects": merge_summary.get("total_projects", 0),
+    }
