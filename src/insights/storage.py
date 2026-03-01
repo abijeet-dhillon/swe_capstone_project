@@ -889,6 +889,36 @@ class ProjectInsightsStore:
                 return None
             return self._build_project_payload(conn, project_id)
 
+    def update_project_skills(self, project_id: int, skills: List[str]) -> None:
+        """Persist a project's normalized skills list by project_info.id."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute(
+                    f"""
+                    UPDATE {PROJECT_INFO_TABLE}
+                    SET skills_json = ?, updated_at = ?
+                    WHERE id = ?;
+                    """,
+                    (json.dumps(skills or []), _utcnow(), project_id),
+                )
+                conn.commit()
+
+    def load_latest_global_insights(self) -> Optional[Dict[str, Any]]:
+        """Load global insights for the latest ingest run."""
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT id
+                FROM {INGEST_TABLE}
+                ORDER BY id DESC
+                LIMIT 1;
+                """
+            ).fetchone()
+            if not row:
+                return None
+            global_insights = self._load_global_insights(conn, row[0])
+            return global_insights or None
+
 
     def _normalize_resume_bullets(
         self,
@@ -1512,6 +1542,13 @@ class ProjectInsightsStore:
         timestamp: str,
     ) -> int:
         project_name_value = project_payload.get("project_name") or project_name
+        if project_name_value != project_name:
+            portfolio_name = (project_payload.get("portfolio_item") or {}).get("project_name")
+            resume_name = (project_payload.get("resume_item") or {}).get("project_name")
+            # Prefer the outer project key unless the payload name was explicitly customized
+            # after the presentation items were generated.
+            if project_name_value in {portfolio_name, resume_name}:
+                project_name_value = project_name
         project_path = project_payload.get("project_path")
         is_git_repo = 1 if project_payload.get("is_git_repo") else 0
         conn.execute(
