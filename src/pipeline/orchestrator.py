@@ -1431,6 +1431,105 @@ class ArtifactPipeline:
             )
         except Exception as exc:
             print(f"     ⚠️  Warning: Unable to persist insights: {exc}")
+
+    def incremental_update(
+        self,
+        new_zip_path: str,
+        old_zip_hash: str,
+        git_identifier: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run the pipeline on a new ZIP and merge results with an existing analysis.
+
+        Workflow:
+        1. Snapshot project names from the old zip hash.
+        2. Run the full pipeline on the new ZIP (creates new DB records).
+        3. Determine which old projects overlap with new ones.
+        4. Carry forward old-only projects by re-assigning them to the new hash.
+        5. Delete stale duplicate projects from the old hash.
+        6. Clean up the old zip record if it is now empty.
+
+        Returns a merge summary dict.
+        """
+        store = self.insights_store
+        if store is None:
+            raise RuntimeError("Insights store is required for incremental updates")
+
+        # --- Step 1: snapshot old project names --------------------------------
+        old_project_names = set(store.list_projects_for_zip(old_zip_hash))
+
+        print(f"\n{'='*70}")
+        print(f"🔄 Incremental Update")
+        print(f"{'='*70}")
+        print(f"   Old ZIP hash : {old_zip_hash[:16]}...")
+        print(f"   Old projects : {', '.join(sorted(old_project_names)) or '(none)'}")
+
+        # --- Step 2: run the full pipeline on the new ZIP ----------------------
+        print(f"\n   Running pipeline on new ZIP...")
+        result = self.start(
+            new_zip_path,
+            use_llm=False,
+            data_access_consent=True,
+            prompt_project_names=False,
+            git_identifier=git_identifier,
+        )
+
+        if not result or result.get("status") == "cancelled":
+            return {"status": "cancelled", "message": "Pipeline was cancelled during update"}
+
+        # Derive the new zip hash the same way the store does
+        new_zip_path_obj = Path(new_zip_path)
+        new_zip_hash = self._get_zip_hash(new_zip_path_obj)
+
+        # Collect project names produced by the new pipeline run
+        new_project_names = {
+            name
+            for name in (result.get("projects") or {}).keys()
+            if name != "_misc_files"
+        }
+
+        # --- Step 3: set math ------------------------------------------------
+        duplicates = old_project_names & new_project_names  # replaced by new
+        old_only = old_project_names - new_project_names    # carry forward
+        new_only = new_project_names - old_project_names    # already in DB
+
+        print(f"\n   📊 Merge Analysis:")
+        print(f"      • New-only projects        : {sorted(new_only) or '(none)'}")
+        print(f"      • Retained (old-only)       : {sorted(old_only) or '(none)'}")
+        print(f"      • Updated (duplicates)      : {sorted(duplicates) or '(none)'}")
+
+        # --- Step 4: carry forward old-only projects ---------------------------
+        if old_only:
+            reassigned = store.reassign_projects_to_zip_hash(
+                old_zip_hash, new_zip_hash, list(old_only),
+            )
+            print(f"      ✓ Reassigned {reassigned} old-only project(s) to new hash")
+
+        # --- Step 5: delete stale duplicate projects from old hash -------------
+        if duplicates:
+            deleted = store.delete_projects_by_names(old_zip_hash, list(duplicates))
+            print(f"      ✓ Deleted {deleted} duplicate project(s) from old hash")
+
+        # --- Step 6: clean up empty old zip record -----------------------------
+        cleaned = store.delete_zip_if_empty(old_zip_hash)
+        if cleaned:
+            print(f"      ✓ Cleaned up empty old zip record")
+
+        total = len(new_only) + len(old_only) + len(duplicates)
+        merge_summary: Dict[str, Any] = {
+            "status": "complete",
+            "new_zip_hash": new_zip_hash,
+            "old_zip_hash": old_zip_hash,
+            "new_only_projects": sorted(new_only),
+            "retained_projects": sorted(old_only),
+            "updated_projects": sorted(duplicates),
+            "total_projects": total,
+        }
+
+        print(f"\n   ✅ Incremental update complete!")
+        print(f"      Total projects under new hash: {total}")
+
+        return merge_summary
     
     def _save_json_report(self, zip_path: Path, result: Dict[str, Any]) -> Path:
         """Save analysis results to a JSON file in the reports/ directory.
