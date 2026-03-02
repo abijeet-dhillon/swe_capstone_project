@@ -1,9 +1,16 @@
+"""
+Portfolio API router.
+
+Provides GET /portfolio/{project_id} with optional ?template=industry or ?template=academic
+to tailor the response for professional (impact, deliverables) vs academic (rigor, artifacts)
+contexts. Also supports edit, generate, and template listing endpoints.
+"""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_role_store, get_store
@@ -12,6 +19,20 @@ from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+
+PortfolioTemplate = Literal["industry", "academic"]
+
+INDUSTRY_FOCUS_FIELDS = ("impact_summary", "deliverables", "team_context", "emphasis", "tagline", "project_type")
+ACADEMIC_FOCUS_FIELDS = ("context_summary", "artifacts", "documentation", "test_coverage", "emphasis", "tagline", "complexity")
+
+# Template-specific keys added to the base portfolio response when ?template= is used.
+# Industry: emphasizes deliverables, impact metrics, team size.
+# Academic: emphasizes documentation, test coverage, artifacts, reproducibility.
+
+SECTION_IDS = {
+    "industry": {"impact", "deliverables", "skills", "metrics"},
+    "academic": {"context", "artifacts", "documentation", "technical_skills", "metrics"},
+}
 
 
 def _build_key_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -27,12 +48,250 @@ def _build_key_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _industry_impact_summary(metrics: Dict[str, Any], portfolio_item: Dict[str, Any]) -> str:
+    """Build impact-focused summary for industry template."""
+    parts: List[str] = []
+    commits = metrics.get("total_commits", 0)
+    if commits > 0:
+        parts.append(f"{commits} commits")
+    contributors = metrics.get("total_contributors", 0)
+    if contributors > 1:
+        parts.append(f"{contributors}-person team")
+    lines = metrics.get("total_lines", 0)
+    if lines > 0:
+        parts.append(f"{lines:,} LOC")
+    if parts:
+        return "Delivered " + ", ".join(parts) + "."
+    return portfolio_item.get("description") or portfolio_item.get("summary") or "Professional project deliverable."
+
+
+def _academic_context_summary(metrics: Dict[str, Any], portfolio_item: Dict[str, Any]) -> str:
+    """Build research-focused summary for academic template."""
+    parts: List[str] = []
+    if metrics.get("doc_files", 0) > 0:
+        parts.append("documented")
+    if metrics.get("test_files", 0) > 0:
+        parts.append("test-covered")
+    if metrics.get("total_contributors", 0) > 1:
+        parts.append("collaborative")
+    base = portfolio_item.get("description") or portfolio_item.get("summary") or "Research/technical project."
+    if parts:
+        return f"{base} ({', '.join(parts)})."
+    return base
+
+
+def _industry_deliverables(portfolio_item: Dict[str, Any], metrics: Dict[str, Any]) -> List[str]:
+    """Extract deliverables for industry-facing presentation."""
+    features = portfolio_item.get("key_features") or []
+    deliverables: List[str] = []
+    for f in features[:6]:
+        if isinstance(f, str) and f.strip():
+            deliverables.append(f.strip())
+    langs = portfolio_item.get("languages") or metrics.get("skills") or []
+    if langs and len(deliverables) < 4:
+        tech = ", ".join(str(x) for x in langs[:5])
+        deliverables.append(f"Tech stack: {tech}")
+    return deliverables or ["See description for details."]
+
+
+def _academic_artifacts(portfolio_item: Dict[str, Any], metrics: Dict[str, Any]) -> List[str]:
+    """Extract research artifacts for academic presentation."""
+    artifacts: List[str] = []
+    if metrics.get("doc_files", 0) > 0:
+        artifacts.append("Documentation included")
+    if metrics.get("test_files", 0) > 0:
+        artifacts.append("Test suite present")
+    features = portfolio_item.get("key_features") or []
+    for f in features[:5]:
+        if isinstance(f, str) and f.strip():
+            artifacts.append(f.strip())
+    frameworks = portfolio_item.get("frameworks") or []
+    if frameworks:
+        artifacts.append(f"Frameworks: {', '.join(str(x) for x in frameworks[:5])}")
+    return artifacts or ["Technical implementation details available."]
+
+
+def _apply_industry_template(
+    response: Dict[str, Any],
+    portfolio_item: Dict[str, Any],
+    project_metrics: Dict[str, Any],
+) -> None:
+    """Apply industry-style formatting to the portfolio response."""
+    response["template"] = "industry"
+    response["impact_summary"] = _industry_impact_summary(project_metrics, portfolio_item)
+    response["deliverables"] = _industry_deliverables(portfolio_item, project_metrics)
+    response["emphasis"] = "impact"
+    if portfolio_item.get("is_collaborative") and project_metrics.get("total_contributors", 0) > 1:
+        response["team_context"] = f"{project_metrics.get('total_contributors', 0)} contributors"
+    response["tagline"] = portfolio_item.get("tagline")
+    response["project_type"] = portfolio_item.get("project_type")
+    response["metrics_formatted"] = _format_metrics_for_industry(response.get("key_metrics") or project_metrics)
+
+
+def _apply_academic_template(
+    response: Dict[str, Any],
+    portfolio_item: Dict[str, Any],
+    project_metrics: Dict[str, Any],
+) -> None:
+    """Apply academic-style formatting to the portfolio response."""
+    response["template"] = "academic"
+    response["context_summary"] = _academic_context_summary(project_metrics, portfolio_item)
+    response["artifacts"] = _academic_artifacts(portfolio_item, project_metrics)
+    response["emphasis"] = "rigor"
+    if project_metrics.get("doc_files", 0) > 0:
+        response["documentation"] = {
+            "files": project_metrics.get("doc_files", 0),
+            "available": True,
+        }
+    if project_metrics.get("test_files", 0) > 0:
+        response["test_coverage"] = {"test_files": project_metrics.get("test_files", 0)}
+    response["tagline"] = portfolio_item.get("tagline")
+    response["complexity"] = portfolio_item.get("complexity")
+    response["metrics_formatted"] = _format_metrics_for_academic(response.get("key_metrics") or project_metrics)
+
+
+def _format_metrics_for_industry(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Format key metrics with industry-friendly labels and groupings."""
+    return {
+        "scale": {
+            "lines_of_code": metrics.get("total_lines", 0),
+            "commits": metrics.get("total_commits", 0),
+            "files": metrics.get("total_files", 0),
+        },
+        "collaboration": {
+            "contributors": metrics.get("total_contributors", 0),
+            "is_team_project": metrics.get("total_contributors", 0) > 1,
+        },
+        "quality": {
+            "documentation_files": metrics.get("doc_files", 0),
+            "test_files": metrics.get("test_files", 0),
+        },
+    }
+
+
+def _format_metrics_for_academic(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Format key metrics with academic/research-friendly structure."""
+    return {
+        "implementation": {
+            "total_lines": metrics.get("total_lines", 0),
+            "total_files": metrics.get("total_files", 0),
+            "languages_frameworks": True,
+        },
+        "reproducibility": {
+            "documentation_files": metrics.get("doc_files", 0),
+            "test_files": metrics.get("test_files", 0),
+        },
+        "contribution": {
+            "commits": metrics.get("total_commits", 0),
+            "contributors": metrics.get("total_contributors", 0),
+        },
+    }
+
+
+def _build_industry_sections(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Build ordered section list for industry-style rendering."""
+    sections: List[Dict[str, Any]] = []
+    if response.get("impact_summary"):
+        sections.append({"id": "impact", "title": "Impact", "content": response["impact_summary"]})
+    if response.get("deliverables"):
+        sections.append({"id": "deliverables", "title": "Deliverables", "items": response["deliverables"]})
+    if response.get("key_skills"):
+        sections.append({"id": "skills", "title": "Key Skills", "items": response["key_skills"]})
+    if response.get("key_metrics"):
+        sections.append({"id": "metrics", "title": "Metrics", "data": response["key_metrics"]})
+    return sections
+
+
+def _build_academic_sections(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Build ordered section list for academic-style rendering."""
+    sections: List[Dict[str, Any]] = []
+    if response.get("context_summary"):
+        sections.append({"id": "context", "title": "Context", "content": response["context_summary"]})
+    if response.get("artifacts"):
+        sections.append({"id": "artifacts", "title": "Artifacts", "items": response["artifacts"]})
+    if response.get("documentation"):
+        sections.append({"id": "documentation", "title": "Documentation", "data": response["documentation"]})
+    if response.get("key_skills"):
+        sections.append({"id": "technical_skills", "title": "Technical Skills", "items": response["key_skills"]})
+    if response.get("key_metrics"):
+        sections.append({"id": "metrics", "title": "Project Metrics", "data": response["key_metrics"]})
+    return sections
+
+
+def _resolve_template(template: Optional[str]) -> Optional[PortfolioTemplate]:
+    """
+    Normalize and validate template query value. Returns 'industry' or 'academic',
+    or None if invalid/absent. Used when template may come from non-Query sources.
+    """
+    if not template or not isinstance(template, str):
+        return None
+    t = template.strip().lower()
+    if t in ("industry", "academic"):
+        return t
+    return None
+
+
+def _template_adds_sections(template: Optional[PortfolioTemplate]) -> bool:
+    """True if the template adds a 'sections' array to the response."""
+    return template in ("industry", "academic")
+
+
+def _get_template_config(template_id: PortfolioTemplate) -> Dict[str, Any]:
+    """Return configuration metadata for a template."""
+    configs: Dict[str, Dict[str, Any]] = {
+        "industry": {
+            "id": "industry",
+            "name": "Industry",
+            "description": "Impact-focused: deliverables, metrics, team context, professional tone.",
+            "query": "?template=industry",
+            "focus_fields": list(INDUSTRY_FOCUS_FIELDS),
+            "example_url": "/portfolio/{project_id}?template=industry",
+        },
+        "academic": {
+            "id": "academic",
+            "name": "Academic",
+            "description": "Research-focused: rigor, documentation, artifacts, methodological context.",
+            "query": "?template=academic",
+            "focus_fields": list(ACADEMIC_FOCUS_FIELDS),
+            "example_url": "/portfolio/{project_id}?template=academic",
+        },
+    }
+    return configs.get(template_id, {})
+
+
+@router.get("/templates")
+def list_templates():
+    """List available portfolio templates and their descriptions."""
+    return {
+        "templates": [
+            _get_template_config("industry"),
+            _get_template_config("academic"),
+        ],
+        "default": "Omit ?template for standard portfolio response.",
+        "usage": "GET /portfolio/{project_id}?template=industry or ?template=academic",
+    }
+
+
+@router.get("/templates/{template_id}")
+def get_template_detail(template_id: PortfolioTemplate):
+    """Get detailed configuration for a specific template (industry or academic)."""
+    return _get_template_config(template_id)
+
+
 @router.get("/{project_id}")
 def get_portfolio_showcase(
     project_id: int,
+    template: Optional[PortfolioTemplate] = Query(
+        default=None,
+        description="Presentation style: 'industry' (impact/deliverables) or 'academic' (rigor/artifacts)",
+    ),
     store: ProjectInsightsStore = Depends(get_store),
     role_store: ProjectRoleStore = Depends(get_role_store),
 ):
+    """
+    Get portfolio showcase for a project. Use ?template=industry or ?template=academic
+    to tailor the response for professional vs research contexts.
+    """
     payload = store.load_project_insight_by_id(project_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -68,6 +327,13 @@ def get_portfolio_showcase(
     if success_metrics and "error" not in success_metrics:
         response["success_metrics"] = success_metrics
 
+    if template == "industry":
+        _apply_industry_template(response, portfolio_item, project_metrics)
+        response["sections"] = _build_industry_sections(response)
+    elif template == "academic":
+        _apply_academic_template(response, portfolio_item, project_metrics)
+        response["sections"] = _build_academic_sections(response)
+
     return response
 
 
@@ -101,7 +367,6 @@ def edit_portfolio(
 
 @router.post("/generate")
 def generate_portfolio(project_id: int, store: ProjectInsightsStore = Depends(get_store)):
-   
     from src.project.presentation import generate_items_from_project_id
 
     result = generate_items_from_project_id(project_id, store=store, regenerate=True)
