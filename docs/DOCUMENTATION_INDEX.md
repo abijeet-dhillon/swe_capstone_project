@@ -14,6 +14,7 @@
 - [CHRONOLOGICAL_SKILLS_IMPLEMENTATION.md](./CHRONOLOGICAL_SKILLS_IMPLEMENTATION.md) - Implementation details
 - [LLM_ARCHITECTURE.md](./LLM_ARCHITECTURE.md) - LLM integration
 - [database_process.md](./database_process.md) - Database schema
+- [api/API_REFERENCE.md](./api/API_REFERENCE.md) - Complete API endpoint reference
 
 ## Reports
 - [TEST_RESULTS.md](./TEST_RESULTS.md) - Test results
