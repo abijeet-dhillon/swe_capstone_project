@@ -394,3 +394,33 @@ def get_filter_options(
         ],
         "complexity_levels": ["simple", "moderate", "complex"],
     }
+
+
+@router.get("/skills/trends")
+def get_skill_trends(
+    skill: str = Query(..., description="Skill to analyze trends for"),
+    engine: ProjectFilterEngine = Depends(get_filter_engine),
+):
+    """Get skill usage trends over time."""
+    try:
+        trends = engine.get_skill_trends(skill)
+        return {
+            "skill": skill,
+            "trends": trends
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Trend analysis failed: {str(e)}")
+
+
+@router.get("/skills/progression")
+def get_skill_progression(
+    engine: ProjectFilterEngine = Depends(get_filter_engine),
+):
+    """Get skill progression and usage statistics."""
+    try:
+        progression = engine.get_skill_progression()
+        return {
+            "progression": progression
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Progression analysis failed: {str(e)}")
