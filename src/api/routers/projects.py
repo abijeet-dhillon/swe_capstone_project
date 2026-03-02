@@ -204,8 +204,6 @@ def _build_thumbnail_response(
     }
 
 
-@router.post("/upload")
-def upload_projects(
 def _resolve_representation(
     representation: Optional[ProjectUploadRepresentation],
     forced_sections: Optional[List[RepresentationSection]] = None,
