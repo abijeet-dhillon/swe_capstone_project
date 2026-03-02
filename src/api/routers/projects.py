@@ -1,15 +1,23 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 import inspect
 from typing import List, Optional
 import math
 from datetime import date
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_config_manager, get_role_store, get_store
+from src.api.deps import (
+    get_config_manager,
+    get_role_store,
+    get_store,
+    get_thumbnail_max_bytes,
+    get_thumbnail_root,
+)
 from src.config.config_manager import UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
@@ -78,6 +86,22 @@ class ProjectUploadRepresentation(BaseModel):
     attributes: Optional[AttributesRepresentation] = None
     showcase: Optional[ShowcaseRepresentation] = None
 
+MAX_ROLE_LENGTH = 120
+ALLOWED_THUMBNAIL_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+ALLOWED_THUMBNAIL_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+DEFAULT_THUMBNAIL_EXT_BY_MIME = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/webp": ".webp",
+}
+DEFAULT_THUMBNAIL_MIME_BY_EXT = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
+
 
 class ProjectUploadRequest(BaseModel):
     user_id: str = Field(..., min_length=1)
@@ -103,6 +127,12 @@ class ProjectListItem(BaseModel):
     updated_at: str
 
 
+class ProjectRoleUpdatePayload(BaseModel):
+    role: str
+
+
+def _resolve_zip_hash(store: ProjectInsightsStore, zip_path: str) -> Optional[str]:
+    runs = store.list_recent_zipfiles(limit=5)
 def _model_dump(model: Optional[BaseModel]) -> Dict[str, Any]:
     if model is None:
         return {}
@@ -131,6 +161,51 @@ def _resolve_run(store: ProjectInsightsStore, zip_path: str) -> Optional[Dict[st
     return runs[0] if runs else None
 
 
+def _normalize_role(role_raw: str) -> str:
+    role = (role_raw or "").strip()
+    if not role:
+        raise HTTPException(status_code=422, detail="role must be a non-empty string")
+    if len(role) > MAX_ROLE_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"role cannot exceed {MAX_ROLE_LENGTH} characters",
+        )
+    return role
+
+
+def _resolve_project_metadata_or_404(
+    store: ProjectInsightsStore,
+    project_id: int,
+) -> Dict[str, str]:
+    metadata = PresentationPipeline(insights_store=store)._get_project_metadata(project_id)
+    if not metadata:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return metadata
+
+
+def _build_thumbnail_response(
+    project_id: int,
+    thumbnail: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if not thumbnail:
+        return None
+    image_path = thumbnail.get("image_path")
+    if not image_path:
+        return None
+    path_obj = Path(image_path)
+    if not path_obj.exists():
+        return None
+    return {
+        "thumbnail_path": str(path_obj),
+        "thumbnail_url": f"/projects/{project_id}/thumbnail/content",
+        "mime_type": thumbnail.get("mime_type"),
+        "size_bytes": path_obj.stat().st_size,
+        "created_at": thumbnail.get("created_at"),
+    }
+
+
+@router.post("/upload")
+def upload_projects(
 def _resolve_representation(
     representation: Optional[ProjectUploadRepresentation],
     forced_sections: Optional[List[RepresentationSection]] = None,
@@ -457,7 +532,7 @@ def get_project(
     if payload is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    metadata = PresentationPipeline(insights_store=store)._get_project_metadata(project_id)
+    metadata = _resolve_project_metadata_or_404(store, project_id)
     if metadata:
         user_role = role_store.get_user_role(metadata["zip_hash"], metadata["project_name"])
         if user_role:
@@ -473,10 +548,162 @@ def get_project(
                 resume_item = dict(resume_item)
                 resume_item["user_role"] = user_role
                 payload["resume_item"] = resume_item
+    thumbnail = store.get_project_thumbnail(project_id)
+    thumbnail_ref = _build_thumbnail_response(project_id, thumbnail)
+    if thumbnail_ref:
+        payload = dict(payload)
+        payload.update(thumbnail_ref)
 
     return {"project_id": project_id, **payload}
 
 
+@router.put("/{project_id}/role")
+def set_project_role(
+    project_id: int,
+    payload: ProjectRoleUpdatePayload,
+    store: ProjectInsightsStore = Depends(get_store),
+    role_store: ProjectRoleStore = Depends(get_role_store),
+):
+    metadata = _resolve_project_metadata_or_404(store, project_id)
+    normalized_role = _normalize_role(payload.role)
+    updated = role_store.set_user_role(
+        metadata["zip_hash"],
+        metadata["project_name"],
+        normalized_role,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"project_id": project_id, "user_role": normalized_role}
+
+
+@router.get("/{project_id}/role")
+def get_project_role(
+    project_id: int,
+    store: ProjectInsightsStore = Depends(get_store),
+    role_store: ProjectRoleStore = Depends(get_role_store),
+):
+    metadata = _resolve_project_metadata_or_404(store, project_id)
+    role = role_store.get_user_role(metadata["zip_hash"], metadata["project_name"])
+    return {"project_id": project_id, "user_role": role}
+
+
+@router.post("/{project_id}/thumbnail")
+async def upload_project_thumbnail(
+    project_id: int,
+    file: UploadFile = File(...),
+    store: ProjectInsightsStore = Depends(get_store),
+    thumbnail_root: Path = Depends(get_thumbnail_root),
+    max_bytes: int = Depends(get_thumbnail_max_bytes),
+):
+    _resolve_project_metadata_or_404(store, project_id)
+
+    content_type = (file.content_type or "").lower()
+    filename = (file.filename or "").strip()
+    suffix = Path(filename).suffix.lower() if filename else ""
+    resolved_mime_type = (
+        content_type
+        if content_type in ALLOWED_THUMBNAIL_MIME_TYPES
+        else DEFAULT_THUMBNAIL_MIME_BY_EXT.get(suffix)
+    )
+    if not resolved_mime_type:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Use png, jpg, jpeg, or webp.",
+        )
+
+    data = await file.read()
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Max {max_bytes} bytes.",
+        )
+
+    extension = DEFAULT_THUMBNAIL_EXT_BY_MIME.get(resolved_mime_type, suffix or ".png")
+    if extension not in ALLOWED_THUMBNAIL_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file extension. Use .png, .jpg, .jpeg, or .webp.",
+        )
+
+    existing = store.get_project_thumbnail(project_id)
+    project_dir = thumbnail_root / str(project_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    file_path = project_dir / f"thumbnail{extension}"
+
+    if existing and existing.get("image_path"):
+        old = Path(existing["image_path"])
+        if old != file_path and old.exists():
+            old.unlink()
+
+    file_path.write_bytes(data)
+    persisted = store.upsert_project_thumbnail(
+        project_id,
+        str(file_path),
+        resolved_mime_type,
+    )
+    if not persisted:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return {
+        "status": "ok",
+        "project_id": project_id,
+        "thumbnail_path": str(file_path),
+        "thumbnail_url": f"/projects/{project_id}/thumbnail/content",
+        "mime_type": resolved_mime_type,
+        "size_bytes": len(data),
+    }
+
+
+@router.get("/{project_id}/thumbnail")
+def get_project_thumbnail(
+    project_id: int,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    _resolve_project_metadata_or_404(store, project_id)
+    thumbnail = store.get_project_thumbnail(project_id)
+    thumbnail_ref = _build_thumbnail_response(project_id, thumbnail)
+    if not thumbnail_ref:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return {"project_id": project_id, **thumbnail_ref}
+
+
+@router.get("/{project_id}/thumbnail/content")
+def get_project_thumbnail_content(
+    project_id: int,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    from fastapi.responses import FileResponse
+
+    _resolve_project_metadata_or_404(store, project_id)
+    thumbnail = store.get_project_thumbnail(project_id)
+    thumbnail_ref = _build_thumbnail_response(project_id, thumbnail)
+    if not thumbnail_ref:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return FileResponse(
+        path=thumbnail_ref["thumbnail_path"],
+        media_type=thumbnail_ref.get("mime_type") or "application/octet-stream",
+    )
+
+
+@router.delete("/{project_id}/thumbnail")
+def delete_project_thumbnail(
+    project_id: int,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    _resolve_project_metadata_or_404(store, project_id)
+    thumbnail = store.get_project_thumbnail(project_id)
+    if not thumbnail or not thumbnail.get("image_path"):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    deleted = store.delete_project_thumbnail(project_id)
+    image_path = Path(thumbnail["image_path"])
+    if image_path.exists():
+        image_path.unlink()
+    if image_path.parent.exists() and not any(image_path.parent.iterdir()):
+        image_path.parent.rmdir()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return {"status": "ok", "project_id": project_id}
 @router.post("/update/{old_zip_hash}")
 def update_existing_zip(
     old_zip_hash: str,

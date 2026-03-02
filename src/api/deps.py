@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Optional
 
 from src.config.config_manager import UserConfigManager
@@ -27,3 +28,14 @@ def get_config_manager(db_url: Optional[str] = None) -> UserConfigManager:
 def get_role_store(db_url: Optional[str] = None) -> ProjectRoleStore:
     db_path = resolve_db_path(db_url)
     return ProjectRoleStore(db_path=db_path)
+
+
+def get_thumbnail_root() -> Path:
+    return Path(os.getenv("THUMBNAIL_STORAGE_ROOT", "data/thumbnails"))
+
+
+def get_thumbnail_max_bytes() -> int:
+    try:
+        return int(os.getenv("THUMBNAIL_MAX_BYTES", str(5 * 1024 * 1024)))
+    except ValueError:
+        return 5 * 1024 * 1024

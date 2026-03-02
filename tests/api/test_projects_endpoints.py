@@ -4,7 +4,9 @@ import shutil
 import sys
 import tempfile
 import zipfile
+import inspect
 from pathlib import Path
+import httpx
 
 import httpx
 from fastapi.testclient import TestClient
@@ -20,6 +22,7 @@ from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
 from tests.insights.utils import build_pipeline_payload
 
+# Compatibility shim: older httpx versions don't accept the 'app' kwarg used by Starlette's TestClient
 if "app" not in inspect.signature(httpx.Client.__init__).parameters:
     _orig_httpx_init = httpx.Client.__init__
 
@@ -72,6 +75,10 @@ def test_projects_list_and_detail_and_portfolio():
         assert portfolio["user_role"] == "Lead Developer"
         assert "key_skills" in portfolio
         assert "key_metrics" in portfolio
+
+        response = client.get(f"/resume/{project_id}")
+        assert response.status_code == 200
+        assert response.json()["user_role"] == "Lead Developer"
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(td, ignore_errors=True)
@@ -110,6 +117,16 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
             def _save_json_report(self, zip_path, result):
                 return Path(zip_path)
 
+            def start(
+                self,
+                zip_path,
+                use_llm=False,
+                data_access_consent=True,
+                prompt_project_names=False,
+                git_identifier=None,
+            ):
+                # Minimal shape expected by the API handler
+                return {"projects": {"ProjectAlpha": {}, "ProjectBeta": {}}}
             def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None):
                 result = build_pipeline_payload()
                 self.insights_store.record_pipeline_run(zip_path, result)
@@ -125,6 +142,105 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
         data = response.json()
         assert data["zip_hash"]
         assert data["projects"]
+    finally:
+        app.dependency_overrides.clear()
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_project_role_set_get_and_validation():
+    td = tempfile.mkdtemp()
+    try:
+        db_path = os.path.join(td, "app.db")
+        store, _, project_id = _seed_store(db_path)
+        role_store = ProjectRoleStore(db_path=db_path)
+
+        app.dependency_overrides[deps.get_store] = lambda: store
+        app.dependency_overrides[deps.get_role_store] = lambda: role_store
+        client = TestClient(app)
+
+        response = client.put(f"/projects/{project_id}/role", json={"role": "  Technical Lead  "})
+        assert response.status_code == 200
+        assert response.json()["user_role"] == "Technical Lead"
+
+        response = client.get(f"/projects/{project_id}/role")
+        assert response.status_code == 200
+        assert response.json()["user_role"] == "Technical Lead"
+
+        response = client.get(f"/projects/{project_id}")
+        assert response.status_code == 200
+        assert response.json()["user_role"] == "Technical Lead"
+
+        response = client.get(f"/portfolio/{project_id}")
+        assert response.status_code == 200
+        assert response.json()["user_role"] == "Technical Lead"
+
+        response = client.get(f"/resume/{project_id}")
+        assert response.status_code == 200
+        assert response.json()["user_role"] == "Technical Lead"
+
+        response = client.put(f"/projects/{project_id}/role", json={"role": "   "})
+        assert response.status_code == 422
+
+        response = client.put("/projects/999999/role", json={"role": "Lead"})
+        assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_project_thumbnail_upload_and_errors():
+    td = tempfile.mkdtemp()
+    try:
+        db_path = os.path.join(td, "app.db")
+        store, _, project_id = _seed_store(db_path)
+        thumbnails_root = Path(td) / "thumbnails"
+        max_bytes = 32
+
+        app.dependency_overrides[deps.get_store] = lambda: store
+        app.dependency_overrides[deps.get_thumbnail_root] = lambda: thumbnails_root
+        app.dependency_overrides[deps.get_thumbnail_max_bytes] = lambda: max_bytes
+        client = TestClient(app)
+
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"0" * 12
+        files = {"file": ("thumb.png", png_bytes, "image/png")}
+        response = client.post(f"/projects/{project_id}/thumbnail", files=files)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["project_id"] == project_id
+        assert payload["size_bytes"] == len(png_bytes)
+        assert Path(payload["thumbnail_path"]).exists()
+
+        response = client.get(f"/projects/{project_id}/thumbnail")
+        assert response.status_code == 200
+        thumb = response.json()
+        assert thumb["thumbnail_path"].endswith("thumbnail.png")
+        assert thumb["thumbnail_url"] == f"/projects/{project_id}/thumbnail/content"
+
+        response = client.get(f"/projects/{project_id}/thumbnail/content")
+        assert response.status_code == 200
+        assert response.content == png_bytes
+
+        response = client.get(f"/portfolio/{project_id}")
+        assert response.status_code == 200
+        assert response.json()["thumbnail_url"] == f"/projects/{project_id}/thumbnail/content"
+
+        bad_files = {"file": ("bad.txt", b"hello", "text/plain")}
+        response = client.post(f"/projects/{project_id}/thumbnail", files=bad_files)
+        assert response.status_code == 400
+        assert "Invalid file type" in response.text
+
+        too_big = {"file": ("big.jpg", b"x" * (max_bytes + 1), "image/jpeg")}
+        response = client.post(f"/projects/{project_id}/thumbnail", files=too_big)
+        assert response.status_code == 400
+        assert "File too large" in response.text
+
+        response = client.post("/projects/999999/thumbnail", files=files)
+        assert response.status_code == 404
+
+        response = client.delete(f"/projects/{project_id}/thumbnail")
+        assert response.status_code == 200
+        response = client.get(f"/projects/{project_id}/thumbnail")
+        assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(td, ignore_errors=True)
