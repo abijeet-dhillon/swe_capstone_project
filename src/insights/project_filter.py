@@ -462,3 +462,55 @@ class ProjectFilterEngine:
         )
         return self.apply_filter(filter_config)
 
+    def get_skill_trends(self, skill: str) -> List[Dict[str, Any]]:
+        """Get skill usage trends over time."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT 
+                    strftime('%Y-%m', pi.created_at) as month,
+                    COUNT(*) as project_count,
+                    SUM(pi.total_lines) as total_lines
+                FROM project_info pi
+                WHERE pi.id IN (
+                    SELECT DISTINCT pi.id
+                    FROM project_info pi
+                    JOIN file_info fi ON fi.project_info_id = pi.id
+                    JOIN skill_evidence se ON se.file_info_id = fi.id
+                    JOIN tags t ON t.id = se.tag_id
+                    WHERE t.name = ? COLLATE NOCASE
+                )
+                GROUP BY month
+                ORDER BY month DESC
+                LIMIT 24
+            """, (skill,))
+            
+            return [{"month": row[0], "project_count": row[1], "total_lines": row[2] or 0} for row in cursor.fetchall()]
+
+    def get_skill_progression(self) -> Dict[str, Any]:
+        """Get skill progression and usage statistics."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT 
+                    t.name as skill,
+                    COUNT(DISTINCT pi.id) as projects_count,
+                    MIN(strftime('%Y-%m-%d', pi.created_at)) as first_seen,
+                    MAX(strftime('%Y-%m-%d', pi.created_at)) as last_seen,
+                    SUM(pi.total_lines) as total_lines
+                FROM tags t
+                JOIN skill_evidence se ON se.file_info_id = fi.id
+                JOIN file_info fi ON se.file_info_id = fi.id
+                JOIN project_info pi ON fi.project_info_id = pi.id
+                WHERE t.tag_type = 'skill'
+                GROUP BY t.name
+                ORDER BY projects_count DESC, total_lines DESC
+            """)
+            
+            return {row[0]: {
+                "projects_count": row[1],
+                "first_seen": row[2],
+                "last_seen": row[3],
+                "total_lines": row[4] or 0
+            } for row in cursor.fetchall()}
+
