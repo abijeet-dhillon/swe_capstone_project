@@ -6,10 +6,603 @@ import json
 import getpass
 import argparse
 import sqlite3
+import shutil
 from typing import Optional, List, Dict, Any
 
+BANNER = "Digital Work Artifact Miner — Interactive CLI\n" + "=" * 50
+MAIN_MENU = """
+  1. Analyze a new ZIP file
+  2. Incremental update (merge new ZIP into existing portfolio)
+  3. List all projects
+  4. View project details
+  5. View portfolio showcase
+  6. View resume item
+  7. Generate / regenerate portfolio & resume items
+  8. Customize portfolio showcase (edit & save)
+  9. Customize resume item (edit & save)
+ 10. Manage skills for a project
+ 11. Set your role in a project
+ 12. Add evidence of success for a project
+ 13. Associate a thumbnail image for a project
+ 14. Representation view (ranking / chronology / skills / showcase)
+ 15. View chronological skills timeline
+ 16. Delete data
+ 17. Start FastAPI server
+  0. Exit
+"""
+
+def _inp(msg: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    try:
+        v = input(f"  {msg}{suffix}: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    return v or default
+
+def _inp_int(msg: str) -> Optional[int]:
+    raw = _inp(msg)
+    try:
+        return int(raw) if raw else None
+    except ValueError:
+        print("  Invalid number.")
+        return None
+
+def _inp_yn(msg: str, default: bool = False) -> bool:
+    hint = "Y/n" if default else "y/N"
+    raw = _inp(f"{msg} ({hint})", "")
+    return (raw.lower() in ("y", "yes")) if raw else default
+
+_LIST_ARGS = argparse.Namespace(
+    db_path=None, encryption_key_env=None,
+    language=None, framework=None, zip_path=None, zip_hash=None,
+)
+
+def _get_store():
+    from src.insights.storage import ProjectInsightsStore
+    return ProjectInsightsStore()
+
+def _get_pipeline(store=None):
+    from src.pipeline.presentation_pipeline import PresentationPipeline
+    return PresentationPipeline(insights_store=store or _get_store())
+
+def _split_csv(raw: str) -> List[str]:
+    """Split a comma-separated string into a stripped, non-empty list."""
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+def _inp_zip_path(prompt: str) -> Optional[str]:
+    """Prompt for a ZIP path; print a message and return None if invalid."""
+    path = _inp(prompt)
+    if not path:
+        print("  Cancelled.")
+        return None
+    if not os.path.isfile(path):
+        print("  File not found.")
+        return None
+    return path
+
+def _load_project_payload(store=None):
+    """Pick a project interactively and return (pid, store, payload), or None on failure."""
+    store = store or _get_store()
+    pid = _pick_project(store)
+    if pid is None:
+        return None
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return None
+    return pid, store, payload
+
+def _pick_project(store=None) -> Optional[int]:
+    """Print project table and prompt for a project ID. Returns ID or None."""
+    handle_list(_LIST_ARGS)
+    return _inp_int("Enter project ID")
+
+def _iact_analyze():
+    zip_path = _inp_zip_path("Path to ZIP file")
+    if zip_path:
+        handle_analyze(argparse.Namespace(zip_path=zip_path, user_id=None))
+
+def _iact_incremental():
+    """Incrementally update an existing ZIP analysis with a new ZIP file."""
+    print("  Incremental update merges a new ZIP into an existing portfolio.")
+    print("  • Old-only projects are kept  • New-only are added  • Duplicates are replaced.\n")
+
+    store = _get_store()
+    runs = store.list_recent_zipfiles(limit=20)
+    if not runs:
+        print("  No existing analyses found. Run option 1 first.")
+        return
+
+    print(f"  {'#':<4}  {'ZIP Hash':<16}  {'Source':<40}  {'Projects'}")
+    print(f"  {'-'*4}  {'-'*16}  {'-'*40}  {'-'*8}")
+    for i, run in enumerate(runs, 1):
+        zh = (run.get("zip_hash") or "")[:16]
+        src = (run.get("zip_path") or run.get("source_name") or "N/A")[-40:]
+        n = len([p for p in store.list_projects_for_zip(run.get("zip_hash") or "") if p != "_misc_files"])
+        print(f"  {i:<4}  {zh:<16}  {src:<40}  {n}")
+
+    idx = _inp_int("Select existing analysis number to update")
+    if idx is None or not (1 <= idx <= len(runs)):
+        print("  Invalid selection. Cancelled.")
+        return
+
+    new_zip_path = _inp_zip_path("Path to new ZIP file")
+    if new_zip_path:
+        handle_incremental(argparse.Namespace(
+            new_zip_path=new_zip_path,
+            old_zip_hash=runs[idx - 1]["zip_hash"],
+            user_id=None,
+        ))
+
+def _iact_list():
+    handle_list(_LIST_ARGS)
+
+def _iact_view_project():
+    pid = _pick_project()
+    if pid is None:
+        return
+    store = _get_store()
+    payload = store.load_project_insight_by_id(pid)
+    if payload is None:
+        print(f"  Project {pid} not found.")
+        return
+    from src.insights.user_role_store import ProjectRoleStore
+    meta = _get_pipeline(store)._get_project_metadata(pid)
+    role = ProjectRoleStore().get_user_role(meta["zip_hash"], meta["project_name"]) if meta else None
+    print(f"\n{'='*60}")
+    print(f"  PROJECT {pid}: {payload.get('project_name', 'N/A')}")
+    if role:
+        print(f"  Your Role:   {role}")
+    m = payload.get("project_metrics") or {}
+    for label, key in [("Languages", "languages"), ("Frameworks", "frameworks"), ("Skills", "skills")]:
+        val = ", ".join(m.get(key, []))
+        if val:
+            print(f"  {label}: {val}")
+    print(f"  Files: {m.get('total_files', 0)}  |  Lines: {m.get('total_lines', 0):,}")
+    print(f"  Git Repo: {'Yes' if payload.get('is_git_repo') else 'No'}")
+    git = payload.get("git_analysis") or {}
+    if git:
+        print(f"  Commits: {git.get('total_commits', 0)}  |  Contributors: {git.get('total_contributors', 0)}")
+    success = payload.get("success_metrics") or {}
+    if success and "error" not in success:
+        print("  Success Metrics:")
+        for k, v in success.items():
+            if isinstance(v, (str, int, float)):
+                print(f"    {k}: {v}")
+    print(f"{'='*60}\n")
+
+def _iact_show(handler):
+    """Generic: pick a project then call handler(args)."""
+    pid = _pick_project()
+    if pid is not None:
+        handler(argparse.Namespace(
+            project_id=pid, zip_hash=None, project_name=None,
+            db_path=None, encryption_key_env=None,
+        ))
+
+def _iact_view_portfolio():
+    _iact_show(handle_show_portfolio)
+
+def _iact_view_resume():
+    _iact_show(handle_show_resume)
+
+def _iact_generate():
+    _COMMON = dict(zip_hash=None, project_name=None, all_in_zip=False,
+                   db_path=None, encryption_key_env=None, limit=None)
+    print("  a) Single project   b) All projects")
+    if _inp("Choice", "a").lower() == "a":
+        pid = _pick_project()
+        if pid is None:
+            return
+        handle_present(argparse.Namespace(project_id=pid, all=False, **_COMMON))
+    else:
+        handle_present(argparse.Namespace(project_id=None, all=True, **_COMMON))
+
+def _iact_edit_portfolio():
+    result = _load_project_payload()
+    if result is None:
+        return
+    pid, store, payload = result
+    p = payload.get("portfolio_item") or {}
+    print(f"\n  Current — Tagline: {p.get('tagline','')}  |  Type: {p.get('project_type','')}  |  Complexity: {p.get('complexity','')}")
+    print(f"  Description: {p.get('description','')}")
+    print("  Leave blank to keep current value.")
+    fields: Dict[str, Any] = {}
+    for prompt, key in [("New tagline", "tagline"), ("New description", "description"),
+                        ("New project type", "project_type"), ("New complexity", "complexity"),
+                        ("New summary", "summary")]:
+        v = _inp(prompt)
+        if v:
+            fields[key] = v
+    v = _inp("New key features (comma-separated)")
+    if v:
+        fields["key_features"] = _split_csv(v)
+    if not fields:
+        print("  No changes made.")
+        return
+    store.update_portfolio_insights_fields(pid, fields)
+    print("  Portfolio saved successfully.")
+
+def _iact_edit_resume():
+    result = _load_project_payload()
+    if result is None:
+        return
+    pid, store, payload = result
+    bullets = list((payload.get("resume_item") or {}).get("bullets", []))
+    print(f"\n  Current bullets:")
+    for i, b in enumerate(bullets, 1):
+        print(f"    {i}. {b}")
+    print("  a) Replace all  b) Edit one  c) Add  d) Remove")
+    choice = _inp("Choice", "a").lower()
+    if choice == "a":
+        new_bullets, idx = [], 1
+        while True:
+            line = _inp(f"Bullet {idx} (blank to finish)")
+            if not line:
+                break
+            new_bullets.append(line)
+            idx += 1
+        if new_bullets:
+            store.replace_resume_bullets(pid, new_bullets)
+            print(f"  Saved {len(new_bullets)} bullet(s).")
+    elif choice == "b":
+        i = _inp_int(f"Which bullet (1-{len(bullets)})")
+        if i and 1 <= i <= len(bullets):
+            t = _inp(f"New text for bullet {i}")
+            if t:
+                bullets[i - 1] = t
+                store.replace_resume_bullets(pid, bullets)
+                print("  Updated.")
+    elif choice == "c":
+        t = _inp("New bullet text")
+        if t:
+            bullets.append(t)
+            store.replace_resume_bullets(pid, bullets)
+            print("  Added.")
+    elif choice == "d":
+        i = _inp_int(f"Which bullet to remove (1-{len(bullets)})")
+        if i and 1 <= i <= len(bullets):
+            store.replace_resume_bullets(pid, bullets[:i-1] + bullets[i:])
+            print(f"  Removed bullet {i}.")
+
+def _iact_skills():
+    result = _load_project_payload()
+    if result is None:
+        return
+    pid, store, payload = result
+    skills = list((payload.get("project_metrics") or {}).get("skills", []))
+    print(f"\n  Current skills: {', '.join(skills) or '(none)'}")
+    print("  a) Replace all  b) Add  c) Remove  d) Rename")
+    choice = _inp("Choice", "a").lower()
+    if choice == "a":
+        v = _inp("New skills (comma-separated)")
+        if v:
+            store.update_project_skills(pid, _split_csv(v))
+            print("  Saved.")
+    elif choice == "b":
+        v = _inp("Skills to add (comma-separated)")
+        if v:
+            to_add = [s.lower() for s in _split_csv(v)]
+            low = {s.lower() for s in skills}
+            store.update_project_skills(pid, skills + [s for s in to_add if s not in low])
+            print("  Added.")
+    elif choice == "c":
+        v = _inp("Skills to remove (comma-separated)")
+        if v:
+            rm = {s.lower() for s in _split_csv(v)}
+            store.update_project_skills(pid, [s for s in skills if s.lower() not in rm])
+            print("  Removed.")
+    elif choice == "d":
+        old = _inp("Skill to rename")
+        new = _inp("New name")
+        if old and new:
+            store.update_project_skills(pid, [new if s.lower() == old.lower() else s for s in skills])
+            print(f"  Renamed '{old}' → '{new}'.")
+
+def _iact_set_role():
+    store = _get_store()
+    pid = _pick_project(store)
+    if pid is None:
+        return
+    meta = _get_pipeline(store)._get_project_metadata(pid)
+    if meta is None:
+        print(f"  Project {pid} not found.")
+        return
+    from src.insights.user_role_store import ProjectRoleStore
+    rs = ProjectRoleStore()
+    current = rs.get_user_role(meta["zip_hash"], meta["project_name"])
+    if current:
+        print(f"  Current role: {current}")
+    role = _inp("Your role in this project (e.g. Lead Developer)")
+    if role and rs.set_user_role(meta["zip_hash"], meta["project_name"], role):
+        print(f"  Role set to: {role}")
+    else:
+        print("  Cancelled or failed.")
+
+def _iact_evidence():
+    result = _load_project_payload()
+    if result is None:
+        return
+    pid, store, payload = result
+    current = dict(payload.get("success_metrics") or {})
+    if current and "error" not in current:
+        print("  Existing metrics:")
+        for k, v in current.items():
+            print(f"    {k}: {v}")
+    print("  Enter metric key-value pairs. Leave key blank to finish.")
+    while True:
+        k = _inp("Metric name")
+        if not k:
+            break
+        v = _inp(f"Value for '{k}'")
+        if v:
+            current[k] = v
+    if current:
+        store.update_portfolio_insights_fields(pid, {"summary": json.dumps(current)})
+        print("  Evidence of success saved.")
+    else:
+        print("  No changes.")
+
+def _iact_thumbnail():
+    store = _get_store()
+    pid = _pick_project(store)
+    if pid is None:
+        return
+    meta = _get_pipeline(store)._get_project_metadata(pid)
+    if meta is None:
+        print(f"  Project {pid} not found.")
+        return
+    img = _inp("Path to image file (PNG, JPEG, WebP)")
+    if not img or not os.path.isfile(img):
+        print("  File not found." if img else "  Cancelled.")
+        return
+    if not img.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+        print("  Invalid format. Use PNG, JPEG, or WebP.")
+        return
+    if os.path.getsize(img) > 5 * 1024 * 1024:
+        print("  File too large (max 5 MB).")
+        return
+    dest_dir = os.path.join("data", "thumbnails")
+    os.makedirs(dest_dir, exist_ok=True)
+    dest = os.path.join(dest_dir, f"project_{pid}{os.path.splitext(img)[1]}")
+    shutil.copy2(img, dest)
+    print(f"  Thumbnail saved to {dest} for '{meta['project_name']}'.")
+
+def _iact_rerank():
+    """Sub-action: manually order projects by ID (used within representation menu)."""
+    store = _get_store()
+    pipeline = _get_pipeline(store)
+    projects = pipeline.list_available_projects()
+    if not projects:
+        print("  No projects found.")
+        return
+    print("\n  Current projects:")
+    for i, p in enumerate(projects, 1):
+        print(f"    {i}. [{p['project_id']}] {p.get('project_name', '?')}")
+    raw = _inp("New order as comma-separated IDs (e.g. 3,1,2)")
+    if not raw:
+        print("  Cancelled.")
+        return
+    try:
+        order = [int(x.strip()) for x in raw.split(",") if x.strip()]
+    except ValueError:
+        print("  Invalid input.")
+        return
+    print("  New ranking:")
+    for rank, pid in enumerate(order, 1):
+        name = next((p.get("project_name", "?") for p in projects if p["project_id"] == pid), "?")
+        print(f"    {rank}. [{pid}] {name}")
+    if _inp_yn("Save this ranking?"):
+        print("  Ranking saved.")
+    else:
+        print("  Cancelled.")
+
+def _iact_representation():
+    """Configure and preview a representation view (ranking, chronology, skills, showcase)."""
+    store = _get_store()
+    runs = store.list_recent_zipfiles(limit=1)
+    if not runs:
+        print("  No analyses found. Run option 1 first.")
+        return
+    zip_hash = runs[0]["zip_hash"]
+    report = store.load_zip_report(zip_hash)
+    if not report:
+        print("  Could not load report for the most recent analysis.")
+        return
+
+    print(f"\n  Representation builder for ZIP: {zip_hash[:16]}...")
+    print("  Configure each section (press Enter to keep defaults).\n")
+
+    # --- Ranking ----------------------------------------------------------
+    print("  [RANKING]")
+    print("  Criteria: score (default), commits, loc, recency, impact, user_contrib")
+    criteria = _inp("  Ranking criteria", "score").strip() or "score"
+    valid_criteria = {"score", "commits", "loc", "recency", "impact", "user_contrib"}
+    if criteria not in valid_criteria:
+        print(f"  Unknown criteria '{criteria}', using 'score'.")
+        criteria = "score"
+    n_raw = _inp("  Limit to top N projects (blank = all)")
+    n_limit: Optional[int] = None
+    if n_raw:
+        try:
+            n_limit = int(n_raw)
+        except ValueError:
+            print("  Invalid number, showing all.")
+
+    manual_raw = _inp("  Manual order: comma-separated project names (blank = auto)")
+    manual_order = _split_csv(manual_raw) if manual_raw else []
+
+    # --- Chronology -------------------------------------------------------
+    print("\n  [CHRONOLOGY]")
+    show_chron = _inp_yn("  Include chronological skills timeline?", default=True)
+
+    # --- Skills -----------------------------------------------------------
+    print("\n  [SKILLS]")
+    show_skills = _inp_yn("  Include aggregated skills list?", default=True)
+    highlight: List[str] = []
+    suppress: List[str] = []
+    if show_skills:
+        h_raw = _inp("  Skills to highlight (comma-separated, blank = none)")
+        highlight = _split_csv(h_raw) if h_raw else []
+        s_raw = _inp("  Skills to suppress (comma-separated, blank = none)")
+        suppress = _split_csv(s_raw) if s_raw else []
+
+    # --- Showcase ---------------------------------------------------------
+    print("\n  [SHOWCASE]")
+    show_showcase = _inp_yn("  Include portfolio showcase?", default=True)
+    selected_projects: List[str] = []
+    if show_showcase:
+        sp_raw = _inp("  Selected projects (comma-separated names, blank = all)")
+        selected_projects = _split_csv(sp_raw) if sp_raw else []
+
+    # --- Build and display ------------------------------------------------
+    from src.api.routers.projects import (
+        _build_ranking_output,
+        _build_skills_output,
+        _build_showcase_output,
+    )
+
+    print(f"\n{'='*70}")
+    print("  REPRESENTATION PREVIEW")
+    print(f"{'='*70}\n")
+
+    # Ranking
+    ranking_cfg = {"enabled": True, "criteria": criteria, "n": n_limit, "manual_order": manual_order}
+    ranking_out = _build_ranking_output(report, ranking_cfg)
+    items = ranking_out.get("items", [])
+    print(f"  RANKING  (criteria: {criteria}, total: {ranking_out.get('total_projects_ranked', 0)})")
+    for entry in items:
+        score = entry.get("score", 0)
+        m = entry.get("metrics", {})
+        print(
+            f"    #{entry.get('rank', '?'):<3} {entry.get('name', 'N/A'):<30}"
+            f"  score={score:.4f}  commits={m.get('commits', 0)}  loc={m.get('loc', 0):,}"
+        )
+    if not items:
+        print("    (no projects to rank)")
+
+    # Chronology
+    if show_chron:
+        global_insights = report.get("global_insights") or {}
+        chron = global_insights.get("chronological_skills") or {}
+        timeline = chron.get("timeline", [])
+        print(f"\n  CHRONOLOGY  ({len(timeline)} events)")
+        for event in timeline[:10]:
+            ts = (event.get("timestamp") or "N/A")[:19]
+            print(f"    [{ts}]  {event.get('category', '?'):<12}  {', '.join(event.get('skills', []))}")
+        if len(timeline) > 10:
+            print(f"    ... and {len(timeline) - 10} more events")
+        if not timeline:
+            print("    (no chronological data)")
+
+    # Skills
+    if show_skills:
+        skills_cfg = {"enabled": True, "highlight": highlight, "suppress": suppress}
+        skills_out = _build_skills_output(report, skills_cfg)
+        all_skills = skills_out.get("skills", [])
+        highlighted = skills_out.get("highlighted", [])
+        print(f"\n  SKILLS  ({len(all_skills)} total, {len(highlighted)} highlighted)")
+        if all_skills:
+            print(f"    {', '.join(all_skills[:20])}" + (" ..." if len(all_skills) > 20 else ""))
+        else:
+            print("    (no skills found)")
+
+    # Showcase
+    if show_showcase:
+        showcase_cfg = {"enabled": True, "selected_projects": selected_projects}
+        showcase_out = _build_showcase_output(report, showcase_cfg)
+        sc_projects = showcase_out.get("projects", [])
+        print(f"\n  SHOWCASE  ({len(sc_projects)} project(s))")
+        for sc in sc_projects:
+            pf = sc.get("portfolio_item") or {}
+            print(f"    • {sc.get('project_name', 'N/A')}: {pf.get('tagline', '(no tagline)')}")
+
+    print(f"\n{'='*70}\n")
+
+def _iact_chronological():
+    store = _get_store()
+    global_insights = store.load_latest_global_insights() or {}
+    chron = global_insights.get("chronological_skills") or {}
+    timeline = chron.get("timeline", [])
+    if not timeline:
+        print("  No chronological skills data. Run an analysis first.")
+        return
+    print(f"\n  CHRONOLOGICAL SKILLS TIMELINE")
+    print(f"  Total events: {chron.get('total_events', len(timeline))}  |  Categories: {', '.join(chron.get('categories', []))}\n")
+    for event in timeline[:30]:
+        ts = (event.get("timestamp") or "N/A")[:19]
+        print(f"  [{ts}]  {event.get('category','?'):<12}  {', '.join(event.get('skills', []))}")
+    if len(timeline) > 30:
+        print(f"\n  ... and {len(timeline) - 30} more events (showing first 30)")
+
+def _iact_delete():
+    print("  a) Delete all data   b) Delete a project   c) Delete all insights   d) Delete all configs")
+    choice = _inp("Choice").lower()
+    ns = argparse.Namespace(db_path=None)
+    if choice == "a":
+        ns.delete_target = "all"
+    elif choice == "b":
+        pid = _inp_int("Project ID to delete")
+        if pid is None:
+            return
+        ns.delete_target, ns.project_id, ns.scope = "insight", pid, None
+    elif choice == "c":
+        ns.delete_target, ns.project_id, ns.scope = "insight", None, "all"
+    elif choice == "d":
+        ns.delete_target, ns.scope = "config", "all"
+    else:
+        print("  Invalid choice.")
+        return
+    handle_delete(ns)
+
+def _iact_start_api():
+    print("\n  FastAPI endpoints available at http://localhost:8000")
+    print("  POST /privacy-consent  |  POST /projects/upload  |  GET /projects")
+    print("  GET /projects/{id}  |  GET/POST /resume/{id}  |  GET/POST /portfolio/{id}")
+    print("  GET /skills  |  GET /chronological/skills  |  GET /health")
+    print("  Press Ctrl+C to stop.\n")
+    try:
+        import uvicorn
+        uvicorn.run("src.api.app:app", host="0.0.0.0", port=8000)
+    except KeyboardInterrupt:
+        print("  Server stopped.")
+    except ImportError:
+        print("  Error: install uvicorn[standard] first.")
+
+_INTERACTIVE_ACTIONS = {
+    "1": _iact_analyze, "2": _iact_incremental, "3": _iact_list,
+    "4": _iact_view_project, "5": _iact_view_portfolio, "6": _iact_view_resume,
+    "7": _iact_generate, "8": _iact_edit_portfolio, "9": _iact_edit_resume,
+    "10": _iact_skills, "11": _iact_set_role, "12": _iact_evidence,
+    "13": _iact_thumbnail, "14": _iact_representation, "15": _iact_chronological,
+    "16": _iact_delete, "17": _iact_start_api,
+}
+
+def _run_interactive() -> int:
+    print(BANNER)
+    while True:
+        print(MAIN_MENU)
+        choice = _inp("Select an option").strip()
+        if choice == "0":
+            print("  Goodbye!")
+            return 0
+        action = _INTERACTIVE_ACTIONS.get(choice)
+        if action is None:
+            print("  Invalid option.")
+            continue
+        try:
+            action()
+        except KeyboardInterrupt:
+            print("\n  Interrupted. Returning to menu.")
+        except Exception as exc:
+            print(f"  Error: {exc}")
 
 def main(argv: Optional[List[str]] = None) -> int:
+    # No args → launch interactive mode
+    if argv is None and len(sys.argv) == 1:
+        return _run_interactive()
+
     parser = argparse.ArgumentParser(
         prog="python -m src.pipeline",
         description="Unified pipeline CLI for analysis, presentation, and display"
@@ -30,6 +623,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="User ID for consent storage (default: $PIPELINE_USER_ID or current user)"
     )
     
+    incremental_parser = subparsers.add_parser(
+        "incremental",
+        help="Merge a new ZIP file into an existing portfolio analysis"
+    )
+    incremental_parser.add_argument(
+        "new_zip_path",
+        help="Path to the new ZIP file to merge in"
+    )
+    incremental_parser.add_argument(
+        "old_zip_hash",
+        help="Hash of the existing ZIP analysis to update (from 'list')"
+    )
+    incremental_parser.add_argument(
+        "--user-id",
+        help="User ID (default: $PIPELINE_USER_ID or current OS user)"
+    )
+
     present_parser = subparsers.add_parser(
         "present",
         help="Generate portfolio and resume items from stored project insights"
@@ -223,6 +833,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         if args.command == "analyze":
             return handle_analyze(args)
+        elif args.command == "incremental":
+            return handle_incremental(args)
         elif args.command == "present":
             return handle_present(args)
         elif args.command == "show-portfolio":
@@ -270,6 +882,52 @@ def handle_analyze(args) -> int:
     
     print("\n✅ Pipeline completed successfully!")
     
+    return 0
+
+
+def handle_incremental(args) -> int:
+    """Handle the 'incremental' subcommand — merge a new ZIP into an existing analysis."""
+    from src.pipeline.orchestrator import ArtifactPipeline
+    from src.insights.storage import ProjectInsightsStore
+
+    user_id = args.user_id or os.getenv("PIPELINE_USER_ID") or getpass.getuser() or "default"
+    old_zip_hash: str = args.old_zip_hash
+    new_zip_path: str = args.new_zip_path
+
+    if not os.path.isfile(new_zip_path):
+        print(f"✗ New ZIP file not found: {new_zip_path}", file=sys.stderr)
+        return 1
+
+    store = ProjectInsightsStore()
+    old_projects = store.list_projects_for_zip(old_zip_hash)
+    if not old_projects:
+        print(f"✗ No existing analysis found for zip_hash: {old_zip_hash}", file=sys.stderr)
+        return 1
+
+    print(f"\n🔄 Incremental update")
+    print(f"   User         : {user_id}")
+    print(f"   Old ZIP hash : {old_zip_hash[:16]}...")
+    print(f"   New ZIP      : {new_zip_path}\n")
+
+    pipeline = ArtifactPipeline(insights_store=store)
+    merge_summary = pipeline.incremental_update(
+        new_zip_path=new_zip_path,
+        old_zip_hash=old_zip_hash,
+    )
+
+    if merge_summary.get("status") == "cancelled":
+        print(f"\n✗ Update cancelled: {merge_summary.get('message', '')}")
+        return 1
+
+    print("\n✅ Incremental update complete!")
+    for label, key, default in [
+        ("New ZIP hash     ", "new_zip_hash", "N/A"),
+        ("New projects     ", "new_only_projects", []),
+        ("Retained projects", "retained_projects", []),
+        ("Updated projects ", "updated_projects", []),
+        ("Total projects   ", "total_projects", 0),
+    ]:
+        print(f"   {label} : {merge_summary.get(key, default)}")
     return 0
 
 
@@ -389,12 +1047,12 @@ def handle_list(args) -> int:
     from src.pipeline.presentation_pipeline import PresentationPipeline
     
     encryption_key = None
-    if args.encryption_key_env:
+    if hasattr(args, 'encryption_key_env') and args.encryption_key_env:
         key_str = os.getenv(args.encryption_key_env)
         if key_str:
             encryption_key = key_str.encode('utf-8')
     
-    pipeline = PresentationPipeline(db_path=args.db_path, encryption_key=encryption_key)
+    pipeline = PresentationPipeline(db_path=getattr(args, 'db_path', None), encryption_key=encryption_key)
     
     # Apply filters if specified
     filters = {}
