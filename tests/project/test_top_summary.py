@@ -13,6 +13,7 @@ from src.project import (
     generate_summaries,
     to_format,
 )
+from src.project.top_summary import _get_user_contrib_score
 
 
 def _mk_local(loc=1000, code=50, test=10, doc=5, skills=None, langs=None, duration=None, path="/x/a"):
@@ -92,35 +93,118 @@ def test_generate_summaries_and_formats():
         m = s["metrics"]
         assert set(["commits","loc","recency_days","languages","duration_days"]).issubset(m.keys())
 
-    # JSON
+    
     json_str = to_format(summaries, fmt="json")
     data = json.loads(json_str)
     assert isinstance(data, list)
     assert data[0]["criteria"] == "impact"
 
-    # CSV
+    
     csv_str = to_format(summaries, fmt="csv")
     reader = csv.reader(io.StringIO(csv_str))
     rows = list(reader)
     assert rows[0][:3] == ["rank","id","name"]
     assert len(rows) == len(summaries) + 1
 
-    # TEXT
+    
     text_str = to_format(summaries, fmt="text")
     lines = [l for l in text_str.splitlines() if l.strip()]
     assert lines and lines[0].startswith("#1:")
 
 
 def test_recency_criteria_orders_recent_first():
-    # older project: end 2023-01-01
+    
     old_git = _mk_git(duration={"first_commit_iso":"2022-01-01","last_commit_iso":"2023-01-01","days":365}, path="/x/old")
     old_local = _mk_local(duration={"start":"2022-01-01","end":"2023-01-01","days":365}, path="/x/old")
     old = merge_local_git(old_local, old_git)
 
-    # recent project: end today-ish -> just reuse defaults that end later in 2024
+
     recent = merge_local_git(_mk_local(path="/x/recent"), _mk_git(path="/x/recent"))
 
     ranked = rank_projects([old, recent], n=3, criteria="recency")
-    # recent should have smaller recency_days
+    
     assert ranked[0].rank_inputs["recency_days"] <= ranked[1].rank_inputs["recency_days"]
     assert ranked[0].id == recent.id
+
+
+def test_user_contrib_score_calculation():
+    
+    git_data = {
+        "commits": 10,
+        "by_activity": {"code": 8, "test": 1, "doc": 1},
+        "authors": [
+            {"name": "John Doe", "email": "john@example.com", "commits": 6},
+            {"name": "Jane Smith", "email": "jane@example.com", "commits": 4},
+        ],
+        "files_touched": 5,
+        "languages": [{"ext": ".py", "count": 10}],
+        "duration": {"first_commit_iso": "2024-01-01", "last_commit_iso": "2024-07-01", "days": 182},
+    }
+    pi = from_git("/x/test", git_data)
+    
+   
+    score = _get_user_contrib_score(pi, "john@example.com")
+    assert score == 0.6  # 6/10 commits
+    
+    
+    score = _get_user_contrib_score(pi, "unknown@example.com")
+    assert score == 0.0
+    
+    
+    score = _get_user_contrib_score(pi, "john")
+    assert score == 0.6  
+
+
+def test_user_contrib_ranking():
+
+    high_contrib_git = _mk_git(
+        commits=10,
+        authors=[
+            {"name": "John Doe", "email": "john@example.com", "commits": 8},
+            {"name": "Jane Smith", "email": "jane@example.com", "commits": 2},
+        ],
+        path="/x/high"
+    )
+    high_contrib = merge_local_git(_mk_local(path="/x/high"), high_contrib_git)
+    
+    low_contrib_git = _mk_git(
+        commits=20,
+        authors=[
+            {"name": "John Doe", "email": "john@example.com", "commits": 2},
+            {"name": "Alice Brown", "email": "alice@example.com", "commits": 18},
+        ],
+        path="/x/low"
+    )
+    low_contrib = merge_local_git(_mk_local(path="/x/low"), low_contrib_git)
+    
+    
+    ranked = rank_projects([high_contrib, low_contrib], n=5, criteria="user_contrib", user_email="john@example.com")
+    
+
+    assert ranked[0].id == high_contrib.id
+    assert ranked[1].id == low_contrib.id
+
+
+def test_generate_summaries_with_user_contrib():
+    items = [
+        merge_local_git(_mk_local(loc=1000, path="/x/high"), _mk_git(commits=10, authors=[
+            {"name": "John Doe", "email": "john@example.com", "commits": 8},
+            {"name": "Jane Smith", "email": "jane@example.com", "commits": 2},
+        ], path="/x/high")),
+        merge_local_git(_mk_local(loc=2000, path="/x/low"), _mk_git(commits=5, authors=[
+            {"name": "John Doe", "email": "john@example.com", "commits": 1},
+            {"name": "Bob Wilson", "email": "bob@example.com", "commits": 4},
+        ], path="/x/low")),
+        merge_local_git(_mk_local(loc=500, path="/x/medium"), _mk_git(commits=8, authors=[
+            {"name": "John Doe", "email": "john@example.com", "commits": 3},
+            {"name": "Alice Brown", "email": "alice@example.com", "commits": 5},
+        ], path="/x/medium")),
+    ]
+
+    summaries = generate_summaries(items, n=4, criteria="user_contrib", max_length=160, user_email="john@example.com")
+    assert 3 <= len(summaries) <= 5
+    
+    for s in summaries:
+        assert "user_contrib_score" in s
+        assert s["user_contrib_score"] is not None
+        assert 0 <= s["user_contrib_score"] <= 1

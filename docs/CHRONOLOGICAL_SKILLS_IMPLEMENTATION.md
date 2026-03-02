@@ -1,0 +1,61 @@
+# Chronological Skills - Implementation
+
+## What Was Added
+
+### CLI Tool
+- **File:** `src/insights/chronological_skills_cli.py`
+- **Formats:** Text, JSON, CSV
+- **Usage:** `python -m src.insights.chronological_skills_cli`
+
+### API Endpoints
+- **File:** `src/api/routers/chronological.py`
+- `GET /chronological/skills` - Most recent project
+- `GET /chronological/skills/{id}` - By project ID
+- `GET /chronological/projects` - All projects
+
+### Helper Scripts
+- `./scripts/chronological-skills.sh` - View skills timeline
+- `./scripts/kill-port.sh` - Kill process on port
+- `./scripts/check-ports.sh` - Check port status
+
+## How It Works
+
+1. Pipeline analyzes files and extracts timestamps from ZIP metadata
+2. Detects skills in each file
+3. Creates chronological timeline
+4. Stores in database under `global_insights.chronological_skills`
+
+## Data Structure
+
+```json
+{
+  "file": "src/MainActivity.java",
+  "timestamp": "2024-01-15T10:30:00",
+  "category": "code",
+  "skills": ["Java", "Android"],
+  "metadata": {}
+}
+```
+
+## Timestamp Source
+
+Timeline timestamps use the ZIP-stored file dates when available. If a ZIP entry
+has no timestamp, the pipeline falls back to the extracted file's modified time.
+macOS metadata artifacts are filtered out.
+
+ZIP entries that contain backslashes in their paths are normalized so timestamp
+lookup still works across platforms.
+
+## Testing
+
+```bash
+# Run pipeline
+./scripts/run-pipeline.sh tests/categorize/demo_projects.zip
+
+# Test CLI
+./scripts/chronological-skills.sh
+
+# Test API
+./scripts/start-api.sh
+curl http://localhost:8000/chronological/skills
+```

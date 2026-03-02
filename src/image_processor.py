@@ -15,7 +15,11 @@ from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import cv2
 import pytesseract
-from pyzbar import pyzbar
+try:
+    from pyzbar import pyzbar
+except Exception as exc:  # pragma: no cover - optional dependency / system lib
+    pyzbar = None
+    _PYZBAR_IMPORT_ERROR = exc
 from skimage import feature, filters, measure
 from skimage.color import rgb2gray
 from skimage.feature import graycomatrix, graycoprops
@@ -583,6 +587,8 @@ class ImageProcessor:
             Dictionary with pattern detection information
         """
         try:
+            if pyzbar is None:
+                raise RuntimeError(f"pyzbar unavailable: {_PYZBAR_IMPORT_ERROR}")
             # Detect barcodes and QR codes
             barcodes = pyzbar.decode(image)
             

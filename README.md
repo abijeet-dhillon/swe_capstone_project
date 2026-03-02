@@ -4,9 +4,245 @@ Team 14 — COSC 499 Capstone Project
 
 Privacy-first pipeline that scans approved folders (code, docs, media), normalizes artifacts locally, and produces portfolio-ready insights with optional OpenAI-powered summarization.
 
+## Milestone 2 TA Quick Start
+
+This section is the fastest path for TAs to set up, run, and verify Milestone #2 requirements.
+
+### 1. Setup
+
+From repo root:
+
+```bash
+cp env.template .env
+docker compose build backend
+docker compose up -d backend
+```
+
+Optional: set `OPENAI_API_KEY` in `.env` if you want LLM-backed generation. Milestone features work without it.
+
+### 2. Test ZIP locations (Milestone datasets)
+
+- Same-project snapshots (early/later):
+  - `tests/test-zips/project_snapshot_early.zip`
+  - `tests/test-zips/project_snapshot_later.zip`
+- Multi-project dataset (code + non-code style mix):
+  - `tests/test-zips/test-data.zip`
+
+### 3. Run pipeline on milestone zips
+
+```bash
+# Baseline snapshot
+docker compose run --rm backend python -m src.pipeline.orchestrator tests/test-zips/project_snapshot_early.zip
+
+# Later snapshot
+docker compose run --rm backend python -m src.pipeline.orchestrator tests/test-zips/project_snapshot_later.zip
+
+# Multi-project dataset
+docker compose run --rm backend python -m src.pipeline.orchestrator tests/test-zips/test-data.zip
+```
+
+### 4. Start API service
+
+```bash
+docker compose up -d backend
+```
+
+Then open:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+### 5. Core Milestone 2 endpoints to verify
+
+- `POST /projects/upload`
+- `POST /privacy-consent`
+- `GET /projects`
+- `GET /projects/{id}`
+- `GET /skills`
+- `GET /resume/{id}`
+- `POST /resume/generate`
+- `POST /resume/{id}/edit`
+- `GET /portfolio/{id}`
+- `POST /portfolio/generate`
+- `POST /portfolio/{id}/edit`
+
+Additional milestone-related routes also implemented:
+
+- Incremental update: `POST /projects/update/{old_zip_hash}`
+- Project role: `PUT /projects/{id}/role`, `GET /projects/{id}/role`
+- Thumbnail: `POST|GET|DELETE /projects/{id}/thumbnail`
+- Representation customization: `POST /projects/upload/{skills|ranking|chronology|attributes|showcase}`
+- Filtering/comparison/LinkedIn/insights management endpoints
+
+### 6. Run API tests (HTTP-style, no real external server process)
+
+These tests use FastAPI TestClient/ASGI transport and validate status codes + response data:
+
+```bash
+docker compose run --rm backend pytest -q tests/api tests/insights tests/projects
+```
+
+### 7. Full API reference
+
+For complete endpoint documentation (core + extras), see:
+
+- `docs/api/API_REFERENCE.md`
+
+### 8. Run APIs with copy-paste commands
+
+Use this flow when you want to run and test the API end-to-end.
+
+#### A) Start services
+
+```bash
+docker compose build backend
+docker compose up -d backend
+```
+
+API base URL:
+
+```bash
+export API=http://localhost:8000
+```
+
+#### B) Register consent first (required before `/projects/upload`)
+
+```bash
+curl -X POST "$API/privacy-consent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "ta_user",
+    "zip_path": "tests/test-zips/test-data.zip",
+    "llm_consent": false,
+    "data_access_consent": true
+  }'
+```
+
+#### C) Upload and analyze a zip through API
+
+```bash
+curl -X POST "$API/projects/upload" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "ta_user",
+    "zip_path": "tests/test-zips/test-data.zip"
+  }'
+```
+
+#### D) Get project IDs and run IDs
+
+```bash
+curl "$API/projects"
+curl "$API/runs"
+```
+
+Set your IDs from those responses:
+
+```bash
+export PROJECT_ID=1
+export OLD_ZIP_HASH="<paste-from-runs>"
+```
+
+#### E) Core milestone endpoint commands
+
+```bash
+# GET /projects/{id}
+curl "$API/projects/$PROJECT_ID"
+
+# GET /skills
+curl "$API/skills"
+
+# GET /resume/{id}
+curl "$API/resume/$PROJECT_ID"
+
+# POST /resume/generate
+curl -X POST "$API/resume/generate?project_id=$PROJECT_ID"
+
+# POST /resume/{id}/edit
+curl -X POST "$API/resume/$PROJECT_ID/edit" \
+  -H "Content-Type: application/json" \
+  -d '{"bullets":["Built API endpoints","Improved test reliability"]}'
+
+# GET /portfolio/{id}
+curl "$API/portfolio/$PROJECT_ID"
+
+# POST /portfolio/generate
+curl -X POST "$API/portfolio/generate?project_id=$PROJECT_ID"
+
+# POST /portfolio/{id}/edit
+curl -X POST "$API/portfolio/$PROJECT_ID/edit" \
+  -H "Content-Type: application/json" \
+  -d '{"tagline":"Production-ready portfolio project","is_collaborative":true}'
+```
+
+#### F) Important extra endpoints (Milestone functionality)
+
+```bash
+# Incremental update using later snapshot
+curl -X POST "$API/projects/update/$OLD_ZIP_HASH" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id":"ta_user",
+    "old_zip_hash":"'"$OLD_ZIP_HASH"'",
+    "new_zip_path":"tests/test-zips/project_snapshot_later.zip"
+  }'
+
+# Role set/get
+curl -X PUT "$API/projects/$PROJECT_ID/role" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"Lead Developer"}'
+curl "$API/projects/$PROJECT_ID/role"
+
+# Thumbnail upload/get/delete
+curl -X POST "$API/projects/$PROJECT_ID/thumbnail" \
+  -F "file=@tests/categorize/demo_projects/project-webapp/images/architecture.png"
+curl "$API/projects/$PROJECT_ID/thumbnail"
+curl "$API/projects/$PROJECT_ID/thumbnail/content" --output thumbnail.bin
+curl -X DELETE "$API/projects/$PROJECT_ID/thumbnail"
+```
+
+#### G) Skills/Filter/Comparison/LinkedIn quick commands
+
+```bash
+# Skills edit flow
+curl -X POST "$API/skills/add" -H "Content-Type: application/json" \
+  -d '{"project_id":'"$PROJECT_ID"',"skills":["Python","FastAPI"]}'
+curl -X POST "$API/skills/edit" -H "Content-Type: application/json" \
+  -d '{"project_id":'"$PROJECT_ID"',"old":"fastapi","new":"backend"}'
+curl "$API/skills/$PROJECT_ID"
+curl "$API/skills/year?year=2026"
+
+# Filter
+curl -X POST "$API/filter/" -H "Content-Type: application/json" \
+  -d '{"languages":["python"],"sort_by":"importance","limit":10}'
+curl "$API/filter/search?q=api&limit=10"
+curl "$API/filter/options"
+
+# Comparison
+curl "$API/compare/projects"
+curl "$API/compare/growth"
+curl "$API/compare/recommendations"
+
+# LinkedIn preview
+curl "$API/linkedin/preview/$PROJECT_ID"
+curl -X POST "$API/linkedin/preview/$PROJECT_ID/custom" \
+  -H "Content-Type: application/json" \
+  -d '{"include_hashtags":true,"include_emojis":false}'
+```
+
+#### H) API tests (HTTP-style without running a separate real test server)
+
+```bash
+docker compose run --rm backend pytest -q tests/api tests/insights tests/projects
+```
+
 ## Quick links
 
+- **[📚 Documentation Index](./docs/DOCUMENTATION_INDEX.md)** - Complete documentation overview
+- **[⚡ Quick Commands](./docs/QUICK_COMMANDS.md)** - Ultra-short commands for common operations
+- **[📅 Chronological Skills Guide](./docs/CHRONOLOGICAL_SKILLS_GUIDE.md)** - Complete guide for skills timeline
 - [system demo walkthrough](./docs/system_demo_walkthrough.md)
+- [test results](./docs/TEST_RESULTS.md)
 - [team contract](./docs/plan/team14_team_contract.pdf)
 
 ## Getting started
@@ -39,7 +275,26 @@ docker compose up -d backend
 docker compose run --rm backend python -m src.pipeline.orchestrator tests/categorize/demo_projects.zip
 ```
 
-4. More commands (retrieving runs, deleting data, etc.) are in the [system demo walkthrough](./docs/system_demo_walkthrough.md).
+4. **Short commands**: Use the helper scripts for easier operations:
+
+```bash
+# Make scripts executable (one-time)
+chmod +x scripts/*.sh
+
+# Run pipeline (short version)
+./scripts/run-pipeline.sh tests/categorize/demo_projects.zip
+
+# View chronological skills
+./scripts/chronological-skills.sh
+
+# List all projects
+./scripts/list-projects.sh
+
+# Start API server
+./scripts/start-api.sh
+```
+
+5. More commands (retrieving runs, deleting data, etc.) are in the [system demo walkthrough](./docs/system_demo_walkthrough.md) or [Quick Commands](./docs/QUICK_COMMANDS.md).
 
 ## Usage
 

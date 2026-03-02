@@ -8,26 +8,30 @@ import os
 import zipfile
 import tempfile
 import shutil
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import getpass
 from datetime import datetime
+from collections import Counter
 
 from src.ingest.zip_parser import parse_zip
 from src.categorize.file_categorizer import categorize_folder_structure
-from src.analyze.text_analyzer import TextAnalyzer
+from src.analyze.text_analyzer import TextAnalyzer, TextMetrics
 from src.analyze.code_analyzer import CodeAnalyzer
 from src.analyze.video_analyzer import VideoAnalyzer
 from src.analyze.advanced_skill_extractor import AdvancedSkillExtractor
+from src.analyze.success_metrics import SuccessMetricsAnalyzer
 from src.image_processor import ImageProcessor
-from src.git.individual_contrib_analyzer import summarize_author_contrib
 from src.insights import ProjectInsightsStore
+from src.pipeline.progress_tracker import ProgressTracker
 from src.project.presentation import (
     extract_project_metrics,
     generate_portfolio_item,
     generate_resume_item,
 )
 from src.config.config_manager import UserConfigManager
+from src.git.individual_contrib_analyzer import summarize_author_contrib
 
 
 class ArtifactPipeline:
@@ -42,6 +46,94 @@ class ArtifactPipeline:
     
     # Video file extensions to detect in "other" category
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.wmv'}
+
+    PROJECT_MARKER_FILES = {
+        "README.md",
+        "README.rst",
+        "README.txt",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "requirements.txt",
+        "Pipfile",
+        "Pipfile.lock",
+        "package.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "Cargo.toml",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
+        "Makefile",
+        "CMakeLists.txt",
+        "Dockerfile",
+        "composer.json",
+        "Gemfile",
+        ".gitignore",
+        ".editorconfig",
+    }
+
+    GITHUB_NOREPLY_RE = re.compile(r"^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$")
+    COMMON_TOP_LEVEL_DIRS = {
+        "src",
+        "tests",
+        "test",
+        "docs",
+        "doc",
+        "documentation",
+        "assets",
+        "asset",
+        "images",
+        "img",
+        "static",
+        "public",
+        "scripts",
+        "script",
+        "build",
+        "dist",
+        "lib",
+        "include",
+        "bin",
+        "config",
+        "configs",
+        "examples",
+        "example",
+        "data",
+        "notebooks",
+        "notebook",
+        "models",
+        "media",
+        "templates",
+        "app",
+        "apps",
+        "client",
+        "server",
+        "backend",
+        "frontend",
+        "android",
+        "ios",
+        "shared",
+        "common",
+        "core",
+    }
+    PROJECT_CODE_EXTENSIONS = {
+        ".py",
+        ".js",
+        ".ts",
+        ".java",
+        ".cpp",
+        ".c",
+        ".go",
+        ".rs",
+        ".cs",
+        ".rb",
+        ".php",
+        ".swift",
+        ".kt",
+        ".m",
+    }
+
     
     def __init__(
         self,
@@ -61,8 +153,14 @@ class ArtifactPipeline:
         self.video_analyzer = VideoAnalyzer()
         self.image_processor = ImageProcessor()
         self.skill_extractor = AdvancedSkillExtractor()
+        self.success_metrics_analyzer = SuccessMetricsAnalyzer()
         self.temp_dir = None
         self.insights_store = insights_store
+        self.sha256_lookup = {}  # Maps abs_path -> sha256 hash for caching
+
+        self.file_info: List[Dict[str, Any]] = []
+        self.progress_tracker = ProgressTracker()
+
 
         if self.insights_store is None and enable_insights:
             try:
@@ -70,8 +168,32 @@ class ArtifactPipeline:
             except Exception as exc:  # pragma: no cover - warning path
                 print(f"⚠️  Insights storage disabled: {exc}")
                 self.insights_store = None
+
+    def _has_project_markers(self, path: Path) -> bool:
+        for marker in self.PROJECT_MARKER_FILES:
+            if (path / marker).exists():
+                return True
+        for item in path.iterdir():
+            if item.is_file() and item.suffix.lower() in self.PROJECT_CODE_EXTENSIONS:
+                return True
+        return False
+
+    def _looks_like_single_project_root(self, root: Path, subdirs: List[Path]) -> bool:
+        if subdirs:
+            # Multiple top-level directories that are not common project dirs => treat as multi-project zip.
+            if all(d.name.lower() in self.COMMON_TOP_LEVEL_DIRS for d in subdirs):
+                return True
+            return False
+        return self._has_project_markers(root)
     
-    def start(self, zip_path: str, use_llm: bool = False, data_access_consent: bool = True) -> Dict[str, Any]:
+    def start(
+        self,
+        zip_path: str,
+        use_llm: bool = False,
+        data_access_consent: bool = True,
+        prompt_project_names: bool = False,
+        git_identifier: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
         
@@ -79,6 +201,7 @@ class ArtifactPipeline:
             zip_path: Path to the ZIP file to analyze
             use_llm: When True, also run the optional LLM summarization step
             data_access_consent: When False, exits immediately without processing
+            prompt_project_names: When True, prompt for custom project names after analysis
             
         Returns:
             Dictionary containing:
@@ -102,45 +225,115 @@ class ArtifactPipeline:
             print("\n✗ Data access consent not granted. Exiting without processing.\n")
             return {}
         
-        print(f"\n{'='*70}")
-        print(f"🚀 Starting Artifact Pipeline")
-        print(f"{'='*70}")
-        print(f"📦 ZIP File: {zip_path.name}")
+        print(f"\n{'='*70}", flush=True)
+        print(f"🚀 Starting Artifact Pipeline", flush=True)
+        print(f"{'='*70}", flush=True)
+        print(f"📦 ZIP File: {zip_path.name}", flush=True)
+        print(f"", flush=True)  # Empty line for spacing
+        
+        # Calculate zip hash for tracking
+        zip_hash = self._get_zip_hash(zip_path)
+        
+        # Register tracker for cancellation support
+        from src.insights.api import register_tracker, unregister_tracker
+        register_tracker(zip_hash, self.progress_tracker)
+        
+        # Initialize progress tracking
+        self.progress_tracker.reset()
+        self.progress_tracker.update(stage='parsing', total_files=0, processed_files=0)
         
         try:
             # Step 1: Parse ZIP metadata
-            print(f"\n[1/9] Parsing ZIP file metadata...")
+            print(f"\n[1/9] Parsing ZIP file metadata...", flush=True)
             zip_index = parse_zip(str(zip_path))
-            print(f"✓ Parsed {zip_index.file_count} files")
+            print(f"✓ Parsed {zip_index.file_count} files", flush=True)
+            
+            # Check for cancellation
+            if self.progress_tracker.should_cancel():
+                print("\n⚠️  Analysis cancelled by user")
+                self._cleanup_on_cancel(zip_hash)
+                return {"status": "cancelled", "message": "Analysis cancelled by user"}
+            
+            self.progress_tracker.update(total_files=zip_index.file_count, stage='extracting')
             
             # Step 2: Extract to temporary directory
-            print(f"\n[2/9] Extracting ZIP contents...")
+            print(f"\n[2/9] Extracting ZIP contents...", flush=True)
             self.temp_dir = Path(tempfile.mkdtemp(prefix="unzipped_"))
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(self.temp_dir)
-            print(f"✓ Extracted to: {self.temp_dir}")
+                # Extract with path normalization to handle Windows-style backslashes
+                for member in zf.infolist():
+                    # Normalize path separators (handle Windows ZIP files on Linux)
+                    member_path = member.filename.replace('\\', '/')
+                    
+                    # Skip macOS metadata files
+                    if '__MACOSX' in member_path or member_path.startswith('.'):
+                        continue
+                    
+                    # Skip directory entries (they'll be created automatically)
+                    # Directory entries end with / or are explicitly marked as directories
+                    if member.is_dir() or member_path.endswith('/'):
+                        continue
+                    
+                    # Create the target path
+                    target_path = self.temp_dir / member_path
+                    
+                    # Create parent directories
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Extract the file
+                    with zf.open(member) as source, open(target_path, 'wb') as target:
+                        target.write(source.read())
+            print(f"✓ Extracted to: {self.temp_dir}", flush=True)
+
+            # Check for cancellation
+            if self.progress_tracker.should_cancel():
+                print("\n⚠️  Analysis cancelled by user")
+                self._cleanup_on_cancel(zip_hash)
+                return {"status": "cancelled", "message": "Analysis cancelled by user"}
 
             # Capture file-level metadata for the entire archive
+            print(f"     Building file metadata...", flush=True)
             file_info = self._build_file_info(zip_index)
+            self.file_info = file_info
+            self.sha256_lookup = self._build_sha256_lookup(file_info)
+            print(f"     ✓ Built metadata for {len(file_info)} files", flush=True)
+            
+            self.progress_tracker.update(stage='categorizing')
+            print(f"     Categorizing files...", flush=True)
+            
             try:
                 categorized_contents_full = categorize_folder_structure(str(self.temp_dir))
+                print(f"     ✓ Categorization complete", flush=True)
             except Exception as exc:
                 categorized_contents_full = {"error": str(exc)}
+                print(f"     ⚠️  Categorization error: {exc}", flush=True)
             
             # Step 3: Identify top-level projects and loose files
-            print(f"\n[3/9] Identifying projects (top-level directories)...")
+            print(f"\n[3/9] Identifying projects (top-level directories)...", flush=True)
             projects, loose_files = self._identify_projects()
-            print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}")
+            print(f"✓ Found {len(projects)} project(s): {', '.join(projects.keys())}", flush=True)
             if loose_files:
-                print(f"✓ Found {len(loose_files)} loose file(s) not in any project")
+                print(f"✓ Found {len(loose_files)} loose file(s) not in any project", flush=True)
+            
+            self.progress_tracker.update(stage='analyzing', processed_files=0)
             
             # Step 4: Process each project
-            print(f"\n[4/9] Processing each project...")
+            print(f"\n[4/9] Processing each project...", flush=True)
             project_results = {}
             
             for project_name, project_path in projects.items():
-                print(f"\n  📁 Processing project: {project_name}")
-                project_results[project_name] = self._process_project(project_name, project_path)
+                # Check for cancellation before processing each project
+                if self.progress_tracker.should_cancel():
+                    print("\n⚠️  Analysis cancelled by user", flush=True)
+                    self._cleanup_on_cancel(zip_hash)
+                    return {"status": "cancelled", "message": "Analysis cancelled by user"}
+                
+                print(f"\n  📁 Processing project: {project_name}", flush=True)
+                self.progress_tracker.update(current_project=project_name)
+                if git_identifier is None:
+                    project_results[project_name] = self._process_project(project_name, project_path)
+                else:
+                    project_results[project_name] = self._process_project(project_name, project_path, git_identifier)
             
             # Step 4b: Process loose files if any exist
             if loose_files:
@@ -150,6 +343,7 @@ class ArtifactPipeline:
             
             # Step 5: Build final result
             print(f"\n[5/9] Compiling results...")
+            self.progress_tracker.update(stage='compiling')
             result = {
                 "zip_metadata": {
                     "root_name": zip_index.root_name,
@@ -195,6 +389,9 @@ class ArtifactPipeline:
             else:
                 print(f"     ℹ️  {skills_timeline.get('message', 'No skill timeline generated')}")
             
+            if prompt_project_names:
+                self._prompt_for_project_names(project_results)
+
             # Step 9: Persist to database (after all analysis including ranking and skills)
             if self.insights_store:
                 print(f"\n[9/9] Persisting insights to database...")
@@ -210,13 +407,37 @@ class ArtifactPipeline:
             report_path = self._save_json_report(zip_path, result)
             print(f"     ✓ Report saved to: {report_path}")
             
+            # Mark progress as complete
+            self.progress_tracker.update(stage='complete', processed_files=zip_index.file_count)
+            
             return result
             
         finally:
+            # Unregister tracker
+            unregister_tracker(zip_hash)
+            
             # Always clean up temp directory
             if self.temp_dir and self.temp_dir.exists():
                 print(f"\n🧹 Cleaning up temporary directory...")
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def _get_zip_hash(self, zip_path: Path) -> str:
+        """Calculate SHA256 hash of zip file for tracking."""
+        import hashlib
+        hasher = hashlib.sha256()
+        with open(zip_path, 'rb') as f:
+            while chunk := f.read(8192):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    
+    def _cleanup_on_cancel(self, zip_hash: str) -> None:
+        """Clean up database records when cancelled."""
+        if self.insights_store:
+            try:
+                counts = self.insights_store.delete_zip(zip_hash)
+                print(f"     ✓ Deleted {counts.get('deleted_projects', 0)} partial records")
+            except Exception as e:
+                print(f"     ⚠️  Cleanup error: {e}")
     
     def _identify_projects(self) -> tuple[Dict[str, Path], List[Path]]:
         """
@@ -241,6 +462,29 @@ class ArtifactPipeline:
         
         if not self.temp_dir or not self.temp_dir.exists():
             return projects, loose_files
+
+        def _find_git_repos_under(base: Path) -> List[Path]:
+            """
+            Find git repositories under a base directory (including base itself if it is a repo).
+            A repo is detected by the presence of a `.git/` directory.
+            """
+            if (base / ".git").is_dir():
+                return [base]
+            repos: List[Path] = []
+            for root, dirs, _files in os.walk(base):
+                # Skip macOS metadata folders
+                dirs[:] = [d for d in dirs if d != "__MACOSX"]
+                if ".git" in dirs:
+                    repos.append(Path(root))
+                    # Don't traverse into .git internals
+                    dirs[:] = [d for d in dirs if d != ".git"]
+            return repos
+
+        # Case 0: The extracted root directory itself is a git repo
+        root_repos = _find_git_repos_under(self.temp_dir)
+        if root_repos and root_repos[0] == self.temp_dir:
+            projects["root"] = self.temp_dir
+            return projects, []
         
         # Get all top-level items in the extracted directory
         top_level_dirs = []
@@ -275,26 +519,51 @@ class ArtifactPipeline:
                     subdirs.append(item)
                 elif item.is_file():
                     wrapper_files.append(item)
+
+            # If the wrapper itself is a git repo, treat it as the project (not its children)
+            if (wrapper_dir / ".git").is_dir():
+                projects[wrapper_dir.name] = wrapper_dir
+                return projects, wrapper_files
             
-            # If we found subdirectories, use those as projects
-            if subdirs:
+            # Decide whether wrapper is a single project root or a container for projects
+            if subdirs and not self._looks_like_single_project_root(wrapper_dir, subdirs):
                 for subdir in subdirs:
                     projects[subdir.name] = subdir
-                # Files in wrapper become loose files
                 loose_files = wrapper_files
             else:
-                # No subdirectories, so the wrapper itself is the project
                 projects[wrapper_dir.name] = wrapper_dir
-                # No loose files in this case
+                loose_files = []
         
         # Case 3: Multiple top-level directories - each is a project
         else:
-            for item in top_level_dirs:
-                projects[item.name] = item
-            # Top-level files become loose files
-            loose_files = top_level_files
+            if self._looks_like_single_project_root(self.temp_dir, top_level_dirs):
+                projects['root'] = self.temp_dir
+                loose_files = []
+            else:
+                for item in top_level_dirs:
+                    projects[item.name] = item
+                loose_files = top_level_files
         
         return projects, loose_files
+
+        # Expand non-git "projects" into nested git repos when present.
+        expanded: Dict[str, Path] = {}
+        for project_name, project_path in projects.items():
+            # Keep direct git repos as-is
+            if (project_path / ".git").is_dir():
+                expanded[project_name] = project_path
+                continue
+
+            nested = _find_git_repos_under(project_path)
+            if nested:
+                for repo_path in nested:
+                    rel = repo_path.relative_to(project_path)
+                    key = project_name if str(rel) == "." else f"{project_name}/{rel.as_posix()}"
+                    expanded[key] = repo_path
+            else:
+                expanded[project_name] = project_path
+
+        return expanded, loose_files
 
     def _build_file_info(self, zip_index) -> List[Dict[str, Any]]:
         """
@@ -312,7 +581,22 @@ class ArtifactPipeline:
 
             extracted_path = self.temp_dir / entry.rel_path
             if not extracted_path.exists():
-                continue
+                alt_rel_path = entry.rel_path.replace("/", "\\")
+                alt_path = self.temp_dir / alt_rel_path
+                if alt_path.exists():
+                    extracted_path = alt_path
+                else:
+                    parts = entry.rel_path.split("/", 1)
+                    if len(parts) == 2:
+                        tail = parts[1].replace("/", "\\")
+                        alt_rel_path = f"{parts[0]}/{tail}"
+                        alt_path = self.temp_dir / alt_rel_path
+                        if alt_path.exists():
+                            extracted_path = alt_path
+                        else:
+                            continue
+                    else:
+                        continue
 
             file_info.append({
                 "abs_path": str(extracted_path.resolve()),
@@ -321,12 +605,87 @@ class ArtifactPipeline:
                 "compressed_size": entry.compressed_size,
                 "is_compressed": entry.is_compressed,
                 "sha256": entry.sha256,
+                "zip_timestamp": getattr(entry, "zip_timestamp", ""),
                 "depth": entry.depth,
                 "ext": entry.ext,
                 "is_text_guess": entry.is_text_guess,
             })
 
         return file_info
+    
+    def _build_sha256_lookup(self, file_info: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Build a mapping from absolute file paths to SHA256 hashes.
+        
+        Args:
+            file_info: List of file metadata dictionaries
+            
+        Returns:
+            Dictionary mapping abs_path to sha256 hash
+        """
+        lookup = {}
+        for info in file_info:
+            lookup[info["abs_path"]] = info["sha256"]
+        return lookup
+    
+    def _get_cached_analysis(self, file_path: str, analysis_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Check if a file's analysis is cached and return it.
+        
+        Args:
+            file_path: Absolute path to the file
+            analysis_type: Type of analysis ('code', 'text', 'image', 'video')
+            
+        Returns:
+            Cached analysis result or None if not found
+        """
+        if not self.insights_store:
+            return None
+        
+        # Get SHA256 hash for this file
+        file_hash = self.sha256_lookup.get(file_path)
+        if not file_hash:
+            return None
+        
+        # Query cache
+        try:
+            cached = self.insights_store.get_cached_file_analysis(
+                sha256=file_hash,
+                analysis_type=analysis_type
+            )
+            return cached
+        except Exception:
+            return None
+    
+    def _cache_analysis(self, file_path: str, analysis_type: str, result: Dict[str, Any]) -> None:
+        """
+        Cache a file's analysis result.
+        
+        Args:
+            file_path: Absolute path to the file
+            analysis_type: Type of analysis ('code', 'text', 'image', 'video')
+            result: Analysis result dictionary to cache
+        """
+        if not self.insights_store:
+            return
+        
+        # Get SHA256 hash and file extension
+        file_hash = self.sha256_lookup.get(file_path)
+        if not file_hash:
+            return
+        
+        file_ext = Path(file_path).suffix
+        
+        # Store in cache
+        try:
+            self.insights_store.cache_file_analysis(
+                sha256=file_hash,
+                analysis_type=analysis_type,
+                analysis_result=result,
+                file_ext=file_ext
+            )
+        except Exception:
+            pass
     
     def _process_loose_files(self, loose_files: List[Path]) -> Dict[str, Any]:
         """
@@ -391,7 +750,7 @@ class ArtifactPipeline:
         
         return result
     
-    def _process_project(self, project_name: str, project_path: Path) -> Dict[str, Any]:
+    def _process_project(self, project_name: str, project_path: Path, git_identifier: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a single project: check Git status, categorize, and analyze
         
@@ -417,28 +776,30 @@ class ArtifactPipeline:
         result["is_git_repo"] = is_git
         
         if is_git:
-            print(f"     🔍 Git repository detected")
-            print(f"     📊 Running Git analysis...")
+            print(f"     🔍 Git repository detected", flush=True)
+            print(f"     📊 Running Git analysis...", flush=True)
             try:
-                # Run git analysis - we'll analyze all contributors
-                git_analysis = self._analyze_git_project(project_path)
+                if git_identifier is None:
+                    git_analysis = self._analyze_git_project(project_path)
+                else:
+                    git_analysis = self._analyze_git_project(project_path, git_identifier)
                 result["git_analysis"] = git_analysis
                 
                 # Print appropriate message based on results
                 if git_analysis.get('total_commits', 0) > 0:
                     contributors = git_analysis.get('total_contributors', 0)
-                    print(f"     ✓ Git analysis complete ({git_analysis['total_commits']} commits, {contributors} contributors)")
+                    print(f"     ✓ Git analysis complete ({git_analysis['total_commits']} commits, {contributors} contributors)", flush=True)
                 else:
                     message = git_analysis.get('message', 'No commits found')
-                    print(f"     ℹ️  {message}")
+                    print(f"     ℹ️  {message}", flush=True)
             except Exception as e:
-                print(f"     ⚠️  Warning: Git analysis failed: {e}")
+                print(f"     ⚠️  Warning: Git analysis failed: {e}", flush=True)
                 result["git_analysis"] = {"error": str(e)}
         else:
-            print(f"     ℹ️  Not a Git repository")
+            print(f"     ℹ️  Not a Git repository", flush=True)
         
         # Categorize files in this project
-        print(f"     📁 Categorizing files...")
+        print(f"     📁 Categorizing files...", flush=True)
         try:
             categorized_contents = categorize_folder_structure(str(project_path))
             result["categorized_contents"] = categorized_contents
@@ -447,24 +808,24 @@ class ArtifactPipeline:
             code_count = len(categorized_contents.get('code', []))
             doc_count = len(categorized_contents.get('documentation', []))
             img_count = len(categorized_contents.get('images', []))
-            print(f"     ✓ Categorized: {code_count} code, {doc_count} docs, {img_count} images")
+            print(f"     ✓ Categorized: {code_count} code, {doc_count} docs, {img_count} images", flush=True)
         except Exception as e:
-            print(f"     ✗ Error categorizing files: {e}")
+            print(f"     ✗ Error categorizing files: {e}", flush=True)
             result["categorized_contents"] = {"error": str(e)}
             return result
         
         # Analyze files with appropriate analyzers
-        print(f"     🔬 Running file analyzers...")
+        print(f"     🔬 Running file analyzers...", flush=True)
         try:
             analysis_results = self._analyze_categorized_files(categorized_contents)
             result["analysis_results"] = analysis_results
-            print(f"     ✓ Analysis complete")
+            print(f"     ✓ Analysis complete", flush=True)
         except Exception as e:
-            print(f"     ✗ Error during analysis: {e}")
+            print(f"     ✗ Error during analysis: {e}", flush=True)
             result["analysis_results"] = {"error": str(e)}
         
         # Generate portfolio and resume items
-        print(f"     📝 Generating presentation items...")
+        print(f"     📝 Generating presentation items...", flush=True)
         try:
             metrics = extract_project_metrics(result)
             result["project_metrics"] = metrics.to_dict()
@@ -472,15 +833,25 @@ class ArtifactPipeline:
             resume_item = generate_resume_item(result, metrics=metrics)
             result["portfolio_item"] = portfolio_item
             result["resume_item"] = resume_item
-            print(f"     ✓ Presentation items generated")
+            print(f"     ✓ Presentation items generated", flush=True)
         except Exception as e:
-            print(f"     ⚠️  Warning: Failed to generate presentation items: {e}")
+            print(f"     ⚠️  Warning: Failed to generate presentation items: {e}", flush=True)
             result["portfolio_item"] = {"error": str(e)}
             result["resume_item"] = {"error": str(e)}
         
+        # Generate success metrics
+        print(f"     🎯 Generating success metrics...", flush=True)
+        try:
+            success_metrics = self.success_metrics_analyzer.analyze(result)
+            result["success_metrics"] = success_metrics.to_dict()
+            print(f"     ✓ Success metrics generated (Overall: {success_metrics.overall_score:.1f}/100)", flush=True)
+        except Exception as e:
+            print(f"     ⚠️  Warning: Failed to generate success metrics: {e}", flush=True)
+            result["success_metrics"] = {"error": str(e)}
+        
         return result
     
-    def _analyze_git_project(self, project_path: Path) -> Dict[str, Any]:
+    def _analyze_git_project(self, project_path: Path, git_identifier: Optional[str] = None) -> Dict[str, Any]:
         """
         Analyze Git repository to extract contribution metrics
         
@@ -490,7 +861,7 @@ class ArtifactPipeline:
         Returns:
             Dictionary with Git analysis results
         """
-        from src.git._git_utils import iter_commits
+        from src.git._git_utils import iter_commits, classify_intent, iso_week_start
         
         # Get all commits to identify contributors
         try:
@@ -509,35 +880,242 @@ class ArtifactPipeline:
                 "message": "Git repository is empty (no commits yet)"
             }
         
-        # Identify unique contributors
-        contributors_set = set()
+        noreply_map = self._infer_noreply_email_map(all_commits)
+        total_repo_commits = len(all_commits)
+
+        contributor_buckets: Dict[str, Dict[str, Any]] = {}
         for commit in all_commits:
-            contributors_set.add((commit["author_name"], commit["author_email"]))
-        
-        # Analyze each contributor
+            raw_email = self._normalize_email(commit.get("author_email", ""))
+            canonical_email = noreply_map.get(raw_email, raw_email) or "unknown"
+            author_name = (commit.get("author_name", "") or "").strip() or "Unknown"
+
+            if canonical_email not in contributor_buckets:
+                contributor_buckets[canonical_email] = {
+                    "name_counts": Counter(),
+                    "commits": 0,
+                    "insertions": 0,
+                    "deletions": 0,
+                    "files_counter": Counter(),
+                    "activity_mix": Counter(),
+                    "active_weeks": set(),
+                    "first_commit_date": None,
+                    "last_commit_date": None,
+                }
+
+            bucket = contributor_buckets[canonical_email]
+            bucket["name_counts"][author_name] += 1
+            bucket["commits"] += 1
+            bucket["insertions"] += int(commit.get("insertions", 0) or 0)
+            bucket["deletions"] += int(commit.get("deletions", 0) or 0)
+
+            for file_path in commit.get("files", []):
+                bucket["files_counter"][file_path] += 1
+
+            commit_date = commit.get("date")
+            if commit_date is not None:
+                first = bucket["first_commit_date"]
+                last = bucket["last_commit_date"]
+                if first is None or commit_date < first:
+                    bucket["first_commit_date"] = commit_date
+                if last is None or commit_date > last:
+                    bucket["last_commit_date"] = commit_date
+                bucket["active_weeks"].add(iso_week_start(commit_date))
+
+            intent = classify_intent(commit.get("msg", ""))
+            bucket["activity_mix"][intent] += 1
+
         contributor_analyses = []
-        for name, email in contributors_set:
-            try:
-                # Use email as identifier (preferred)
-                contrib_summary = summarize_author_contrib(
-                    project_path,
-                    email,
-                    prefer_email=True,
-                    fuzzy=False
-                )
-                contributor_analyses.append(contrib_summary)
-            except Exception as e:
-                print(f"        ⚠️  Could not analyze contributor {name}: {e}")
-                continue
+        for canonical_email, bucket in contributor_buckets.items():
+            display_name = sorted(
+                bucket["name_counts"].items(),
+                key=lambda item: (-item[1], item[0].lower())
+            )[0][0]
+            first = bucket["first_commit_date"]
+            last = bucket["last_commit_date"]
+
+            contributor_analyses.append({
+                "author": {"name": display_name, "email": canonical_email},
+                "commits": bucket["commits"],
+                "insertions": bucket["insertions"],
+                "deletions": bucket["deletions"],
+                "files_touched": len(bucket["files_counter"]),
+                "active_weeks": len(bucket["active_weeks"]),
+                "first_commit_at": first.date().isoformat() if first else "",
+                "last_commit_at": last.date().isoformat() if last else "",
+                "activity_mix": {
+                    "feature": bucket["activity_mix"].get("feature", 0),
+                    "bugfix": bucket["activity_mix"].get("bugfix", 0),
+                    "refactor": bucket["activity_mix"].get("refactor", 0),
+                    "docs": bucket["activity_mix"].get("docs", 0),
+                    "test": bucket["activity_mix"].get("test", 0),
+                    "other": bucket["activity_mix"].get("other", 0),
+                },
+                "share_of_commits_pct": (
+                    bucket["commits"] / total_repo_commits * 100.0
+                    if total_repo_commits > 0 else 0.0
+                ),
+                "top_files": [
+                    {"path": path, "touches": touches}
+                    for path, touches in bucket["files_counter"].most_common(10)
+                ],
+            })
+
+        contributor_analyses.sort(
+            key=lambda item: (
+                -item["commits"],
+                item["author"]["name"].lower(),
+                item["author"]["email"],
+            )
+        )
+
+        # Drop noreply contributors entirely (no duplicates in output).
+        filtered = [
+            c for c in contributor_analyses
+            if not self.GITHUB_NOREPLY_RE.match(self._normalize_email(c.get("author", {}).get("email", "")))
+        ]
+
+        # Recompute totals and shares based on remaining contributors only.
+        filtered_total_commits = sum(c.get("commits", 0) for c in filtered)
+        if filtered_total_commits > 0:
+            for c in filtered:
+                c["share_of_commits_pct"] = (c.get("commits", 0) / filtered_total_commits) * 100.0
         
-        # Sort contributors by commit count
-        contributor_analyses.sort(key=lambda x: x["commits"], reverse=True)
+        # Extract user-specific contribution if git_identifier provided
+        user_contribution = None
+        if git_identifier:
+            user_contribution = self._extract_user_contribution(
+                filtered, git_identifier
+            )
         
-        return {
-            "total_commits": len(all_commits),
-            "total_contributors": len(contributor_analyses),
-            "contributors": contributor_analyses
+        result = {
+            "total_commits": filtered_total_commits,
+            "total_contributors": len(filtered),
+            "contributors": filtered,
+            "user_contribution": user_contribution
         }
+        return result
+    
+    def _extract_user_contribution(self, contributors: List[Dict[str, Any]], git_identifier: str) -> Optional[Dict[str, Any]]:
+        """Extract specific user's contribution from contributors list"""
+        identifier_lower = git_identifier.lower()
+        for contrib in contributors:
+            author = contrib.get("author", {})
+            email = author.get("email", "").lower()
+            name = author.get("name", "").lower()
+            if identifier_lower in email or identifier_lower in name:
+                return contrib
+        return None
+
+    def _normalize_email(self, email: str) -> str:
+        return (email or "").strip().lower()
+
+    def _normalized_token(self, value: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", (value or "").lower())
+
+    def _tokenize_identity(self, value: str) -> set:
+        return {t for t in re.split(r"[^a-z0-9]+", (value or "").lower()) if t}
+
+    def _is_low_confidence_username(self, username: str) -> bool:
+        return len(username) < 4 or username.isdigit() or username in {
+            "user", "users", "dev", "admin", "test", "github", "noreply"
+        }
+
+    def _edit_distance_leq(self, a: str, b: str, max_dist: int) -> bool:
+        """
+        Bounded Levenshtein distance check with early exit.
+        """
+        if a == b:
+            return True
+        if not a or not b:
+            return max(len(a), len(b)) <= max_dist
+        if abs(len(a) - len(b)) > max_dist:
+            return False
+
+        # DP with pruning, O(len(a)*len(b)) worst-case but short strings and small max_dist.
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            row_min = cur[0]
+            for j, cb in enumerate(b, 1):
+                cost = 0 if ca == cb else 1
+                cur_val = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                cur.append(cur_val)
+                if cur_val < row_min:
+                    row_min = cur_val
+            if row_min > max_dist:
+                return False
+            prev = cur
+        return prev[-1] <= max_dist
+
+    def _infer_noreply_email_map(self, commits: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Heuristically map GitHub noreply emails to a likely real email in this repo.
+        """
+        real_email_profiles: Dict[str, Dict[str, Any]] = {}
+        noreply_emails = set()
+
+        for commit in commits:
+            email = self._normalize_email(commit.get("author_email", ""))
+            if not email:
+                continue
+
+            noreply_match = self.GITHUB_NOREPLY_RE.match(email)
+            if noreply_match:
+                noreply_emails.add(email)
+                continue
+
+            if email not in real_email_profiles:
+                local_part = email.split("@", 1)[0]
+                real_email_profiles[email] = {
+                    "local_part": self._normalized_token(local_part),
+                    "local_tokens": self._tokenize_identity(local_part),
+                    "name_tokens": set(),
+                    "commits": 0,
+                }
+            real_email_profiles[email]["commits"] += 1
+            real_email_profiles[email]["name_tokens"].update(
+                self._tokenize_identity(commit.get("author_name", ""))
+            )
+
+        resolved: Dict[str, str] = {}
+        for noreply_email in noreply_emails:
+            username_match = self.GITHUB_NOREPLY_RE.match(noreply_email)
+            if not username_match:
+                continue
+
+            username = self._normalized_token(username_match.group(1))
+            if self._is_low_confidence_username(username):
+                continue
+            best_candidate, second_candidate = None, None
+
+            for real_email, profile in real_email_profiles.items():
+                score, strong = 0, False
+                local_part = profile["local_part"]
+                if username == local_part:
+                    score, strong = 10, True
+                elif username in profile["local_tokens"]:
+                    score, strong = 6, True
+                # Allow small local-part variations (e.g. added middle initial) only with strong name evidence.
+                if (not strong and username in profile["name_tokens"] and self._edit_distance_leq(username, local_part, 2)):
+                    score, strong = 6, True
+                if username in profile["name_tokens"]:
+                    score += 2
+                if not strong:
+                    continue
+
+                candidate = (score, profile["commits"], real_email)
+                if best_candidate is None or candidate > best_candidate:
+                    second_candidate = best_candidate
+                    best_candidate = candidate
+                elif second_candidate is None or candidate > second_candidate:
+                    second_candidate = candidate
+
+            if best_candidate:
+                if second_candidate and best_candidate[0] == second_candidate[0] and abs(best_candidate[1] - second_candidate[1]) <= 2:
+                    continue
+                resolved[noreply_email] = best_candidate[2]
+
+        return resolved
     
     def _analyze_categorized_files(self, categorized_contents: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -554,49 +1132,145 @@ class ArtifactPipeline:
         # Analyze documentation files (PDF, DOCX, TXT, MD)
         doc_files = categorized_contents.get('documentation', [])
         if doc_files:
-            print(f"  📄 Analyzing {len(doc_files)} documentation file(s)...")
+            print(f"  📄 Analyzing {len(doc_files)} documentation file(s)...", flush=True)
             try:
-                results['documentation'] = self.text_analyzer.analyze_batch(doc_files)
-                print(f"     ✓ Documentation analysis complete")
+                doc_results = []
+                cache_hits = 0
+                
+                for doc_file in doc_files:
+                    # Check for cancellation
+                    if self.progress_tracker.should_cancel():
+                        break
+                    
+                    # Check cache first
+                    cached_result = self._get_cached_analysis(doc_file, 'text')
+                    
+                    if cached_result:
+                        doc_results.append(cached_result)
+                        cache_hits += 1
+                    else:
+                        # Not in cache - analyze it
+                        try:
+                            metrics = self.text_analyzer.analyze_file(doc_file)
+                            result_dict = metrics.to_dict()
+                            doc_results.append(result_dict)
+                            # Cache for future use
+                            self._cache_analysis(doc_file, 'text', result_dict)
+                        except Exception as e:
+                            print(f"     ⚠️  Warning: Could not analyze {Path(doc_file).name}: {e}")
+                            continue
+                    
+                    # Update progress after each file
+                    self.progress_tracker.increment_processed(current_file=Path(doc_file).name)
+                
+                # Calculate totals
+                totals = self.text_analyzer._calculate_totals(
+                    [TextMetrics(**r) for r in doc_results]
+                )
+                
+                results['documentation'] = {
+                    'files': doc_results,
+                    'totals': totals
+                }
+                
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(doc_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(doc_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Documentation analysis complete", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing documentation: {e}")
+                print(f"     ✗ Error analyzing documentation: {e}", flush=True)
                 results['documentation'] = {"error": str(e)}
         else:
-            print(f"  📄 No documentation files to analyze")
+            print(f"  📄 No documentation files to analyze", flush=True)
             results['documentation'] = None
         
         # Analyze image files (PNG, JPG, JPEG, etc.)
         image_files = categorized_contents.get('images', [])
         if image_files:
-            print(f"  🖼️  Analyzing {len(image_files)} image file(s)...")
+            print(f"  🖼️  Analyzing {len(image_files)} image file(s)...", flush=True)
             try:
-                results['images'] = self.image_processor.batch_analyze(image_files)
-                print(f"     ✓ Image analysis complete")
+                image_results = []
+                cache_hits = 0
+                
+                for image_file in image_files:
+                    # Check for cancellation
+                    if self.progress_tracker.should_cancel():
+                        break
+                    
+                    # Check cache first
+                    cached_result = self._get_cached_analysis(image_file, 'image')
+                    
+                    if cached_result:
+                        image_results.append(cached_result)
+                        cache_hits += 1
+                    else:
+                        # Not in cache - analyze it
+                        try:
+                            result = self.image_processor.analyze_image(image_file)
+                            image_results.append(result)
+                            # Cache for future use
+                            self._cache_analysis(image_file, 'image', result)
+                        except Exception as e:
+                            print(f"     ⚠️  Warning: Could not analyze {Path(image_file).name}: {e}")
+                            image_results.append({
+                                "file_path": image_file,
+                                "error": str(e)
+                            })
+                            continue
+                    
+                    # Update progress after each file
+                    self.progress_tracker.increment_processed(current_file=Path(image_file).name)
+                
+                results['images'] = image_results
+                
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(image_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(image_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Image analysis complete", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing images: {e}")
+                print(f"     ✗ Error analyzing images: {e}", flush=True)
                 results['images'] = {"error": str(e)}
         else:
-            print(f"  🖼️  No image files to analyze")
+            print(f"  🖼️  No image files to analyze", flush=True)
             results['images'] = None
         
         # Analyze code files
         code_files = categorized_contents.get('code', [])
         if code_files:
-            print(f"  💻 Analyzing {len(code_files)} code file(s)...")
+            print(f"  💻 Analyzing {len(code_files)} code file(s)...", flush=True)
             try:
                 # CodeAnalyzer needs to be called per file
                 code_results = []
                 skill_analyses = []
+                cache_hits = 0
                 
                 for code_file in code_files:
                     try:
-                        # Run standard code analysis
-                        analysis = self.code_analyzer.analyze_file(code_file)
-                        code_results.append(analysis.to_dict())
+                        # Check cache first
+                        cached_result = self._get_cached_analysis(code_file, 'code')
                         
-                        # Run advanced skill extraction
-                        skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
-                        skill_analyses.append(skill_analysis)
+                        if cached_result:
+                            # Use cached result
+                            code_results.append(cached_result)
+                            cache_hits += 1
+                            # Still run skill extraction (not cached separately yet)
+                            try:
+                                skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
+                                skill_analyses.append(skill_analysis)
+                            except Exception:
+                                pass
+                        else:
+                            # Not in cache - analyze it
+                            analysis = self.code_analyzer.analyze_file(code_file)
+                            result_dict = analysis.to_dict()
+                            code_results.append(result_dict)
+                            
+                            # Cache for future use
+                            self._cache_analysis(code_file, 'code', result_dict)
+                            
+                            # Run advanced skill extraction
+                            skill_analysis = self.skill_extractor.analyze_file(Path(code_file))
+                            skill_analyses.append(skill_analysis)
                     except Exception as e:
                         print(f"     ⚠️  Warning: Could not analyze {Path(code_file).name}: {e}")
                         continue
@@ -622,13 +1296,16 @@ class ArtifactPipeline:
                         'aggregate': skill_aggregate
                     }
                 }
-                print(f"     ✓ Code analysis complete ({len(code_results)} files)")
-                print(f"     ✓ Skill extraction complete ({skill_aggregate['total_files_analyzed']} files, {len(skill_aggregate['advanced_skills'])} advanced skills)")
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(code_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(code_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Code analysis complete ({len(code_results)} files)", flush=True)
+                print(f"     ✓ Skill extraction complete ({skill_aggregate['total_files_analyzed']} files, {len(skill_aggregate['advanced_skills'])} advanced skills)", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing code: {e}")
+                print(f"     ✗ Error analyzing code: {e}", flush=True)
                 results['code'] = {"error": str(e)}
         else:
-            print(f"  💻 No code files to analyze")
+            print(f"  💻 No code files to analyze", flush=True)
             results['code'] = None
         
         # Analyze video files (check "other" category for video extensions)
@@ -636,15 +1313,28 @@ class ArtifactPipeline:
         video_files = [f for f in other_files if Path(f).suffix.lower() in self.VIDEO_EXTENSIONS]
         
         if video_files:
-            print(f"  🎥 Analyzing {len(video_files)} video file(s)...")
+            print(f"  🎥 Analyzing {len(video_files)} video file(s)...", flush=True)
             try:
                 # VideoAnalyzer needs to be called per file
                 video_results = []
+                cache_hits = 0
+                
                 for video_file in video_files:
                     try:
-                        analysis = self.video_analyzer.analyze_file(video_file, transcribe=False)
-                        if analysis:
-                            video_results.append(analysis.to_dict())
+                        # Check cache first
+                        cached_result = self._get_cached_analysis(video_file, 'video')
+                        
+                        if cached_result:
+                            video_results.append(cached_result)
+                            cache_hits += 1
+                        else:
+                            # Not in cache - analyze it
+                            analysis = self.video_analyzer.analyze_file(video_file, transcribe=False)
+                            if analysis:
+                                result_dict = analysis.to_dict()
+                                video_results.append(result_dict)
+                                # Cache for future use
+                                self._cache_analysis(video_file, 'video', result_dict)
                     except Exception as e:
                         print(f"     ⚠️  Warning: Could not analyze {Path(video_file).name}: {e}")
                         continue
@@ -661,12 +1351,15 @@ class ArtifactPipeline:
                     'files': video_results,
                     'metrics': metrics.to_dict()
                 }
-                print(f"     ✓ Video analysis complete ({len(video_results)} files)")
+                if cache_hits > 0:
+                    cache_rate = (cache_hits / len(video_files)) * 100
+                    print(f"     ♻️  Cache hits: {cache_hits}/{len(video_files)} ({cache_rate:.1f}%)", flush=True)
+                print(f"     ✓ Video analysis complete ({len(video_results)} files)", flush=True)
             except Exception as e:
-                print(f"     ✗ Error analyzing videos: {e}")
+                print(f"     ✗ Error analyzing videos: {e}", flush=True)
                 results['videos'] = {"error": str(e)}
         else:
-            print(f"  🎥 No video files to analyze")
+            print(f"  🎥 No video files to analyze", flush=True)
             results['videos'] = None
         
         return results
@@ -738,6 +1431,105 @@ class ArtifactPipeline:
             )
         except Exception as exc:
             print(f"     ⚠️  Warning: Unable to persist insights: {exc}")
+
+    def incremental_update(
+        self,
+        new_zip_path: str,
+        old_zip_hash: str,
+        git_identifier: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run the pipeline on a new ZIP and merge results with an existing analysis.
+
+        Workflow:
+        1. Snapshot project names from the old zip hash.
+        2. Run the full pipeline on the new ZIP (creates new DB records).
+        3. Determine which old projects overlap with new ones.
+        4. Carry forward old-only projects by re-assigning them to the new hash.
+        5. Delete stale duplicate projects from the old hash.
+        6. Clean up the old zip record if it is now empty.
+
+        Returns a merge summary dict.
+        """
+        store = self.insights_store
+        if store is None:
+            raise RuntimeError("Insights store is required for incremental updates")
+
+        # --- Step 1: snapshot old project names --------------------------------
+        old_project_names = set(store.list_projects_for_zip(old_zip_hash))
+
+        print(f"\n{'='*70}")
+        print(f"🔄 Incremental Update")
+        print(f"{'='*70}")
+        print(f"   Old ZIP hash : {old_zip_hash[:16]}...")
+        print(f"   Old projects : {', '.join(sorted(old_project_names)) or '(none)'}")
+
+        # --- Step 2: run the full pipeline on the new ZIP ----------------------
+        print(f"\n   Running pipeline on new ZIP...")
+        result = self.start(
+            new_zip_path,
+            use_llm=False,
+            data_access_consent=True,
+            prompt_project_names=False,
+            git_identifier=git_identifier,
+        )
+
+        if not result or result.get("status") == "cancelled":
+            return {"status": "cancelled", "message": "Pipeline was cancelled during update"}
+
+        # Derive the new zip hash the same way the store does
+        new_zip_path_obj = Path(new_zip_path)
+        new_zip_hash = self._get_zip_hash(new_zip_path_obj)
+
+        # Collect project names produced by the new pipeline run
+        new_project_names = {
+            name
+            for name in (result.get("projects") or {}).keys()
+            if name != "_misc_files"
+        }
+
+        # --- Step 3: set math ------------------------------------------------
+        duplicates = old_project_names & new_project_names  # replaced by new
+        old_only = old_project_names - new_project_names    # carry forward
+        new_only = new_project_names - old_project_names    # already in DB
+
+        print(f"\n   📊 Merge Analysis:")
+        print(f"      • New-only projects        : {sorted(new_only) or '(none)'}")
+        print(f"      • Retained (old-only)       : {sorted(old_only) or '(none)'}")
+        print(f"      • Updated (duplicates)      : {sorted(duplicates) or '(none)'}")
+
+        # --- Step 4: carry forward old-only projects ---------------------------
+        if old_only:
+            reassigned = store.reassign_projects_to_zip_hash(
+                old_zip_hash, new_zip_hash, list(old_only),
+            )
+            print(f"      ✓ Reassigned {reassigned} old-only project(s) to new hash")
+
+        # --- Step 5: delete stale duplicate projects from old hash -------------
+        if duplicates:
+            deleted = store.delete_projects_by_names(old_zip_hash, list(duplicates))
+            print(f"      ✓ Deleted {deleted} duplicate project(s) from old hash")
+
+        # --- Step 6: clean up empty old zip record -----------------------------
+        cleaned = store.delete_zip_if_empty(old_zip_hash)
+        if cleaned:
+            print(f"      ✓ Cleaned up empty old zip record")
+
+        total = len(new_only) + len(old_only) + len(duplicates)
+        merge_summary: Dict[str, Any] = {
+            "status": "complete",
+            "new_zip_hash": new_zip_hash,
+            "old_zip_hash": old_zip_hash,
+            "new_only_projects": sorted(new_only),
+            "retained_projects": sorted(old_only),
+            "updated_projects": sorted(duplicates),
+            "total_projects": total,
+        }
+
+        print(f"\n   ✅ Incremental update complete!")
+        print(f"      Total projects under new hash: {total}")
+
+        return merge_summary
     
     def _save_json_report(self, zip_path: Path, result: Dict[str, Any]) -> Path:
         """Save analysis results to a JSON file in the reports/ directory.
@@ -898,6 +1690,31 @@ class ArtifactPipeline:
                     # Truncate long bullets for display
                     display_bullet = bullet[:120] + '...' if len(bullet) > 120 else bullet
                     print(f"      {i}. {display_bullet}")
+            
+            # Success Metrics
+            success_metrics = project_data.get('success_metrics')
+            if success_metrics and 'error' not in success_metrics:
+                print(f"\n   🎯 Evidence of Success:")
+                print(f"      • Overall Score: {success_metrics.get('overall_score', 0):.1f}/100")
+                print(f"      • Code Quality: {success_metrics.get('code_quality_score', 0):.1f}/100")
+                print(f"      • Documentation: {success_metrics.get('documentation_score', 0):.1f}/100")
+                print(f"      • Activity: {success_metrics.get('activity_score', 0):.1f}/100")
+                print(f"      • Collaboration: {success_metrics.get('collaboration_score', 0):.1f}/100")
+                
+                # Show test coverage if available
+                test_cov = success_metrics.get('test_coverage_indicator')
+                if test_cov is not None:
+                    print(f"      • Estimated Test Coverage: {test_cov:.1f}%")
+                
+                # Show badges if found
+                badges = success_metrics.get('badges', [])
+                if badges:
+                    print(f"      • Badges Found: {len(badges)} ({', '.join(set(b['type'] for b in badges))})")
+                
+                # Show feedback items if found
+                feedback = success_metrics.get('feedback_items', [])
+                if feedback:
+                    print(f"      • Positive Feedback Indicators: {len(feedback)} found")
         
         # Miscellaneous files summary
         if misc_files:
@@ -1307,8 +2124,19 @@ class ArtifactPipeline:
                     "message": "No temporary directory available for skill timeline"
                 }
             
+            timestamp_overrides = {}
+            for info in self.file_info or []:
+                rel_path = info.get("rel_path")
+                zip_timestamp = info.get("zip_timestamp")
+                if rel_path and zip_timestamp:
+                    normalized = rel_path.replace("\\", "/")
+                    timestamp_overrides[normalized] = zip_timestamp
+
             skill_tracker = ChronologicalSkillList()
-            timeline = skill_tracker.build_skill_timeline(str(self.temp_dir))
+            timeline = skill_tracker.build_skill_timeline(
+                str(self.temp_dir),
+                timestamp_overrides=timestamp_overrides or None,
+            )
             
             # Convert timeline to serializable format
             serializable_timeline = []
@@ -1334,6 +2162,22 @@ class ArtifactPipeline:
                 "timeline": [],
                 "error": str(e)
             }
+
+    def _prompt_for_project_names(self, project_results: Dict[str, Any]) -> None:
+        if not project_results:
+            return
+        print("\nOptional: customize project names for presentation outputs.")
+        for project_name, project_data in project_results.items():
+            if project_name == "_misc_files":
+                continue
+            if not _prompt_yes_no(
+                f"\nAdd a custom project name for '{project_name}'?",
+                default=False,
+            ):
+                continue
+            custom_name = input("  Enter project name (leave blank to keep default): ").strip()
+            if custom_name:
+                project_data["project_name"] = custom_name
 
 
 def _prompt_for_llm_consent() -> bool:
@@ -1433,9 +2277,22 @@ def resolve_data_access_consent(zip_path: str, user_id: str) -> bool:
     if existing:
         if existing.zip_file != zip_str:
             manager.update_config(user_id, zip_file=zip_str)
-        status = "granted" if existing.data_access_consent else "denied"
-        print(f"\n🔐 Using stored data access consent for user '{user_id}': {status}")
-        return existing.data_access_consent
+            existing.zip_file = zip_str
+        if existing.data_access_consent:
+            print(f"\n🔐 Using stored data access consent for user '{user_id}': granted")
+            return True
+        print(f"\n🔐 Data access consent for user '{user_id}' was not previously provided.")
+        consent = _prompt_for_data_access_consent()
+        stored = manager.update_config(
+            user_id,
+            zip_file=existing.zip_file,
+            data_access_consent=consent,
+        )
+        if not stored:
+            print("⚠️  Unable to persist consent choice; proceeding with this selection for the current run.")
+        else:
+            print(f"✅ Saved data access consent for user '{user_id}' to local configuration.")
+        return consent
 
     consent = _prompt_for_data_access_consent()
     stored = manager.create_config(
@@ -1513,7 +2370,12 @@ def main():  # pragma: no cover - CLI entry point
     try:
         # Create pipeline and run
         pipeline = ArtifactPipeline()
-        result = pipeline.start(args.zip_path, use_llm=llm_consent, data_access_consent=data_access_consent)
+        result = pipeline.start(
+            args.zip_path,
+            use_llm=llm_consent,
+            data_access_consent=data_access_consent,
+            prompt_project_names=True,
+        )
 
         # If user declined data access or nothing to report, exit quietly
         if not result:
@@ -1549,7 +2411,7 @@ def main():  # pragma: no cover - CLI entry point
                         print(json.dumps(git_analysis, indent=2))
                 else:
                     print("No Git analysis data available")
-            
+
             # File Analysis Results
             analysis = project_data.get('analysis_results', {})
             
@@ -1626,6 +2488,16 @@ def main():  # pragma: no cover - CLI entry point
                 print(json.dumps(video_data, indent=2))
             else:
                 print("No video files found")
+            
+            # Success Metrics
+            print("\n" + "-"*70)
+            print("🎯 SUCCESS METRICS")
+            print("-"*70)
+            success_data = project_data.get('success_metrics')
+            if success_data and 'error' not in success_data:
+                print(json.dumps(success_data, indent=2))
+            else:
+                print("Success metrics not available")
         
         # Process miscellaneous files section if it exists
         if misc_files:
@@ -1706,6 +2578,16 @@ def main():  # pragma: no cover - CLI entry point
                 print(json.dumps(video_data, indent=2))
             else:
                 print("No video files")
+            
+            # Success Metrics
+            print("\n" + "-"*70)
+            print("🎯 SUCCESS METRICS")
+            print("-"*70)
+            success_data = misc_files.get('success_metrics')
+            if success_data and 'error' not in success_data:
+                print(json.dumps(success_data, indent=2))
+            else:
+                print("Success metrics not available for miscellaneous files")
         
         if llm_consent:
             llm_output = result.get("llm_summaries")

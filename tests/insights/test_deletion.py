@@ -50,8 +50,8 @@ def test_storage_delete_all_zip_and_projects_counts():
 
        
         with sqlite3.connect(s.db_path) as conn:
-            z_before = conn.execute("SELECT COUNT(1) FROM zipfile").fetchone()[0]
-            p_before = conn.execute("SELECT COUNT(1) FROM project").fetchone()[0]
+            z_before = conn.execute("SELECT COUNT(1) FROM ingest").fetchone()[0]
+            p_before = conn.execute("SELECT COUNT(1) FROM project_info").fetchone()[0]
         assert z_before == 2 and p_before == 4
 
         out = s.delete_all()
@@ -60,8 +60,8 @@ def test_storage_delete_all_zip_and_projects_counts():
 
    
         with sqlite3.connect(s.db_path) as conn:
-            z_after = conn.execute("SELECT COUNT(1) FROM zipfile").fetchone()[0]
-            p_after = conn.execute("SELECT COUNT(1) FROM project").fetchone()[0]
+            z_after = conn.execute("SELECT COUNT(1) FROM ingest").fetchone()[0]
+            p_after = conn.execute("SELECT COUNT(1) FROM project_info").fetchone()[0]
         assert z_after == 0 and p_after == 0
 
 

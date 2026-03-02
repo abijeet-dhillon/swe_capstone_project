@@ -18,7 +18,31 @@ RankingCriteria = Literal[
     "commits",    # more total commits ranks higher
     "loc",        # more lines_of_code ranks higher
     "impact",     # weighted combo of commits, loc, code_frac
+    "user_contrib", # user contribution share ranks higher
 ]
+
+
+def _get_user_contrib_score(pi: ProjectInfo, user_email: str = None) -> float:
+    """Calculate user contribution score based on email or name matching."""
+    if not user_email or not pi.authors:
+        return 0.0
+    
+    total_commits = sum(a.get("commits", 0) for a in pi.authors)
+    if total_commits <= 0:
+        return 0.0
+    
+    # Find user by email (exact match) or name (partial match)
+    user_commits = 0
+    for author in pi.authors:
+        author_email = author.get("email", "").lower()
+        author_name = author.get("name", "").lower()
+        
+        if (user_email.lower() == author_email or 
+            user_email.lower() in author_name or
+            any(part in author_name for part in user_email.lower().split('@')[0].split('.'))):
+            user_commits += author.get("commits", 0)
+    
+    return user_commits / total_commits if total_commits > 0 else 0.0
 
 
 def _get_recency_days(pi: ProjectInfo) -> int:
@@ -34,7 +58,7 @@ def _ensure_rank(pi: ProjectInfo) -> ProjectInfo:
     return pi
 
 
-def _criteria_key(criteria: RankingCriteria) -> Callable[[ProjectInfo], Tuple]:
+def _criteria_key(criteria: RankingCriteria, user_email: str = None) -> Callable[[ProjectInfo], Tuple]:
 
     def score_key(pi: ProjectInfo):
         pi = _ensure_rank(pi)
@@ -60,12 +84,20 @@ def _criteria_key(criteria: RankingCriteria) -> Callable[[ProjectInfo], Tuple]:
         composite = 0.5 * commits + 0.4 * (loc ** 0.5) + 0.1 * (code_frac * 100)
         return (round(composite, 4), pi.preliminary_score)
 
+    def user_contrib_key(pi: ProjectInfo):
+        pi = _ensure_rank(pi)
+        user_score = _get_user_contrib_score(pi, user_email)
+        # Also consider total commits as secondary factor
+        total_commits = pi.totals.get("commits", 0)
+        return (user_score, total_commits, pi.preliminary_score)
+
     mapping = {
         "score": score_key,
         "recency": recency_key,
         "commits": commits_key,
         "loc": loc_key,
         "impact": impact_key,
+        "user_contrib": user_contrib_key,
     }
     return mapping[criteria]
 
@@ -74,6 +106,7 @@ def rank_projects(
     projects: Iterable[ProjectInfo],
     n: int = 5,
     criteria: RankingCriteria = "score",
+    user_email: str = None,
 ) -> List[ProjectInfo]:
     items = [
         _ensure_rank(p)
@@ -84,7 +117,7 @@ def rank_projects(
         return []
 
     reverse = True if criteria != "recency" else False
-    key_fn = _criteria_key(criteria)
+    key_fn = _criteria_key(criteria, user_email)
  
     ranked = sorted(items, key=key_fn, reverse=reverse)
     # Limit to 3-5 as acceptance criteria
@@ -163,11 +196,17 @@ def generate_summaries(
     n: int = 5,
     criteria: RankingCriteria = "score",
     max_length: int = 220,
+    user_email: str = None,
 ) -> List[dict]:
-    ranked = rank_projects(projects, n=n, criteria=criteria)
+    ranked = rank_projects(projects, n=n, criteria=criteria, user_email=user_email)
     output = []
     for rank, pi in enumerate(ranked, start=1):
         summary = generate_summary(pi, max_length=max_length)
+        # Add user contribution info if user_email provided
+        user_contrib_score = None
+        if user_email:
+            user_contrib_score = _get_user_contrib_score(pi, user_email)
+        
         output.append(
             {
                 "rank": rank,
@@ -176,6 +215,7 @@ def generate_summaries(
                 "score": pi.preliminary_score,
                 "criteria": criteria,
                 "summary": summary,
+                "user_contrib_score": user_contrib_score,
                 "metrics": {
                     "commits": pi.totals.get("commits", 0),
                     "loc": pi.lines_of_code,
@@ -207,6 +247,7 @@ def to_format(
             "name",
             "score",
             "criteria",
+            "user_contrib_score",
             "commits",
             "loc",
             "recency_days",
@@ -222,6 +263,7 @@ def to_format(
                 s.get("name"),
                 s.get("score"),
                 s.get("criteria"),
+                s.get("user_contrib_score", ""),
                 m.get("commits", 0),
                 m.get("loc", 0),
                 m.get("recency_days", 0),

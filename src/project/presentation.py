@@ -215,9 +215,136 @@ def generate_portfolio_item(
     return portfolio.to_dict()
 
 
+def apply_resume_item_customization(
+    resume_item: Dict[str, Any],
+    customization: Dict[str, Any],
+    *,
+    max_bullets: int = 6,
+) -> Dict[str, Any]:
+    """
+    Apply non-persistent customization to a resume item (pure function, no mutation)
+    
+    This function allows runtime override/editing of resume bullet wording and project name
+    without any database persistence. Useful for UI-driven customization workflows.
+    
+    Args:
+        resume_item: Resume item dict with "project_name" (str) and "bullets" (List[str])
+        customization: Customization dict with optional keys:
+            - "project_name": Optional[str] - Override project name if present and non-empty
+            - "bullets": Optional[List[str]] - Replace entire bullets list (highest precedence)
+            - "edits": Optional[List[Dict]] - Apply index-based edits to existing bullets
+                Each edit: {"index": int, "text": str}
+        max_bullets: Maximum number of bullets allowed (default 6)
+    
+    Returns:
+        New resume item dict with customizations applied (original not mutated)
+    
+    Raises:
+        TypeError: If resume_item or customization are not dicts
+        ValueError: If resume_item is invalid or customization contains invalid data
+    
+    Examples:
+        >>> item = {"project_name": "Cool Project", "bullets": ["Built X", "Improved Y"]}
+        >>> custom = {"edits": [{"index": 1, "text": "Improved Y by 25%"}]}
+        >>> apply_resume_item_customization(item, custom)
+        {"project_name": "Cool Project", "bullets": ["Built X", "Improved Y by 25%"]}
+    """
+    # Validate inputs
+    if not isinstance(resume_item, dict):
+        raise TypeError(f"resume_item must be a dict, got {type(resume_item).__name__}")
+    if not isinstance(customization, dict):
+        raise TypeError(f"customization must be a dict, got {type(customization).__name__}")
+    
+    # Validate resume_item structure
+    if "project_name" not in resume_item:
+        raise ValueError("resume_item must contain 'project_name' key")
+    if not isinstance(resume_item.get("project_name"), str):
+        raise ValueError("resume_item['project_name'] must be a string")
+    
+    if "bullets" not in resume_item:
+        raise ValueError("resume_item must contain 'bullets' key")
+    if not isinstance(resume_item.get("bullets"), list):
+        raise ValueError("resume_item['bullets'] must be a list")
+    if len(resume_item["bullets"]) == 0:
+        raise ValueError("resume_item['bullets'] cannot be empty")
+    if not all(isinstance(b, str) for b in resume_item["bullets"]):
+        raise ValueError("All items in resume_item['bullets'] must be strings")
+    
+    # Start with a copy of the original
+    result = {
+        "project_name": resume_item["project_name"],
+        "bullets": list(resume_item["bullets"])  # Shallow copy
+    }
+    
+    # Apply project_name override if present
+    custom_name = customization.get("project_name")
+    if custom_name is not None:
+        if not isinstance(custom_name, str):
+            raise ValueError("customization['project_name'] must be a string")
+        custom_name_stripped = custom_name.strip()
+        if custom_name_stripped:
+            result["project_name"] = custom_name_stripped
+    
+    # Apply bullets customization (highest precedence)
+    custom_bullets = customization.get("bullets")
+    if custom_bullets is not None:
+        if not isinstance(custom_bullets, list):
+            raise ValueError("customization['bullets'] must be a list")
+        
+        # Strip and filter empty bullets
+        cleaned_bullets = []
+        for bullet in custom_bullets:
+            if not isinstance(bullet, str):
+                raise ValueError("All items in customization['bullets'] must be strings")
+            stripped = bullet.strip()
+            if stripped:
+                cleaned_bullets.append(stripped)
+        
+        if len(cleaned_bullets) == 0:
+            raise ValueError("customization['bullets'] must contain at least one non-empty bullet after stripping")
+        if len(cleaned_bullets) > max_bullets:
+            raise ValueError(f"customization['bullets'] cannot exceed {max_bullets} bullets, got {len(cleaned_bullets)}")
+        
+        result["bullets"] = cleaned_bullets
+    else:
+        # Apply edits if bullets override not present
+        custom_edits = customization.get("edits")
+        if custom_edits is not None:
+            if not isinstance(custom_edits, list):
+                raise ValueError("customization['edits'] must be a list")
+            
+            for edit in custom_edits:
+                if not isinstance(edit, dict):
+                    raise ValueError("Each edit in customization['edits'] must be a dict")
+                if "index" not in edit:
+                    raise ValueError("Each edit must contain 'index' key")
+                if "text" not in edit:
+                    raise ValueError("Each edit must contain 'text' key")
+                
+                index = edit["index"]
+                text = edit["text"]
+                
+                if not isinstance(index, int):
+                    raise ValueError(f"Edit index must be an integer, got {type(index).__name__}")
+                if not isinstance(text, str):
+                    raise ValueError(f"Edit text must be a string, got {type(text).__name__}")
+                
+                if index < 0 or index >= len(result["bullets"]):
+                    raise ValueError(f"Edit index {index} out of range [0, {len(result['bullets'])-1}]")
+                
+                text_stripped = text.strip()
+                if not text_stripped:
+                    raise ValueError(f"Edit text at index {index} cannot be empty after stripping")
+                
+                result["bullets"][index] = text_stripped
+    
+    return result
+
+
 def generate_resume_item(
     project_dict: Dict[str, Any],
     metrics: Optional[ProjectMetrics] = None,
+    customization: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Generate a resume item with 2-3 bullet points from a project analysis dict
@@ -225,6 +352,8 @@ def generate_resume_item(
     Args:
         project_dict: Project result dictionary from ArtifactPipeline._process_project()
         metrics: Optional pre-extracted metrics to avoid recomputation
+        customization: Optional customization dict to override/edit resume item wording
+            (non-persistent, runtime-only). See apply_resume_item_customization for schema.
         
     Returns:
         Dictionary representation of a ResumeItem
@@ -244,7 +373,13 @@ def generate_resume_item(
         bullets=bullets
     )
     
-    return resume.to_dict()
+    resume_dict = resume.to_dict()
+    
+    # Apply customization if provided
+    if customization:
+        resume_dict = apply_resume_item_customization(resume_dict, customization)
+    
+    return resume_dict
 
 
 def _build_tagline(metrics: ProjectMetrics) -> str:
@@ -601,21 +736,25 @@ def generate_items_from_project_id(
     db_path: Optional[str] = None,
     store: Optional["ProjectInsightsStore"] = None,
     regenerate: bool = True,
+    resume_customization: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Generate portfolio and resume items from a stored project by its database ID.
+    Generate portfolio and resume items from a stored project run by its database ID.
     
     This function fetches a project's stored insights from the SQLite database
     and regenerates portfolio/resume items using the current template logic.
     This allows updating presentation items for old projects when templates change.
     
     Args:
-        project_id: The project.id primary key from the SQLite insights database.
+        project_id: The project_info.id primary key from the SQLite insights database.
         db_path: Optional database path. If None, uses default from environment.
             Ignored if `store` is provided.
         store: Optional ProjectInsightsStore instance. If None, creates a new one.
         regenerate: If True (default), always regenerate portfolio/resume items
             from the stored payload. If False, return existing items if present.
+        resume_customization: Optional customization dict to override/edit resume item
+            wording (non-persistent, runtime-only). See apply_resume_item_customization
+            for schema. Only applied if regenerate=True.
     
     Returns:
         Dictionary containing:
@@ -660,7 +799,7 @@ def generate_items_from_project_id(
     
     try:
         portfolio_item = generate_portfolio_item(project_dict)
-        resume_item = generate_resume_item(project_dict)
+        resume_item = generate_resume_item(project_dict, customization=resume_customization)
     except Exception as e:
         raise RuntimeError(f"Failed to generate presentation items: {e}") from e
     

@@ -15,6 +15,7 @@ class ZipEntry:
     compressed_size: int
     is_compressed: bool
     sha256: str
+    zip_timestamp: str
     depth: int
     ext: str
     is_text_guess: bool

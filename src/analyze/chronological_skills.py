@@ -36,7 +36,10 @@ class ChronologicalSkillList:
         self.image_analyzer = ImageProcessor()
 
     def build_skill_timeline(
-        self, directory_path: str, after_date: Optional[datetime] = None
+        self,
+        directory_path: str,
+        after_date: Optional[datetime] = None,
+        timestamp_overrides: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Build a chronological list of discovered skills and media metadata.
@@ -50,6 +53,32 @@ class ChronologicalSkillList:
             List of normalized event dictionaries.
         """
         timeline: List[Dict[str, Any]] = []
+        root_path = Path(directory_path)
+        overrides = timestamp_overrides or {}
+
+        def _should_skip_path(path: Path) -> bool:
+            if path.name.startswith("._") or path.name.startswith("."):
+                return True
+            parts = {p for p in path.parts}
+            if "__MACOSX" in parts:
+                return True
+            return False
+
+        def _rel_path(path: Path) -> Optional[str]:
+            try:
+                rel = path.relative_to(root_path).as_posix()
+                return rel.replace("\\", "/")
+            except Exception:
+                return None
+
+        def _resolve_timestamp(path: Path) -> datetime:
+            rel = _rel_path(path)
+            if rel and rel in overrides:
+                try:
+                    return datetime.fromisoformat(overrides[rel])
+                except Exception:
+                    pass
+            return datetime.fromtimestamp(path.stat().st_mtime)
 
         # --- CODE ANALYSIS ---
         print("[+] Running Code Analyzer...")
@@ -57,7 +86,9 @@ class ChronologicalSkillList:
             code_results = self.code_analyzer.analyze_directory(directory_path)
             for r in code_results:
                 fp = Path(r.file_path)
-                ts = datetime.fromtimestamp(fp.stat().st_mtime)
+                if _should_skip_path(fp):
+                    continue
+                ts = _resolve_timestamp(fp)
                 if after_date and ts < after_date:
                     continue
                 timeline.append({
@@ -81,7 +112,9 @@ class ChronologicalSkillList:
                 if f.suffix.lower() in {".txt", ".pdf", ".docx"}
             ]
             for f in text_files:
-                ts = datetime.fromtimestamp(f.stat().st_mtime)
+                if _should_skip_path(f):
+                    continue
+                ts = _resolve_timestamp(f)
                 if after_date and ts < after_date:
                     continue
                 try:
@@ -111,7 +144,9 @@ class ChronologicalSkillList:
                 if f.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".wmv"}
             ]
             for f in video_files:
-                ts = datetime.fromtimestamp(f.stat().st_mtime)
+                if _should_skip_path(f):
+                    continue
+                ts = _resolve_timestamp(f)
                 if after_date and ts < after_date:
                     continue
                 try:
@@ -137,7 +172,9 @@ class ChronologicalSkillList:
                 if f.suffix.lower() in {".png", ".jpg", ".jpeg"}
             ]
             for f in image_files:
-                ts = datetime.fromtimestamp(f.stat().st_mtime)
+                if _should_skip_path(f):
+                    continue
+                ts = _resolve_timestamp(f)
                 if after_date and ts < after_date:
                     continue
                 try:
