@@ -110,7 +110,7 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
 
         dummy_module = types.ModuleType("src.pipeline.orchestrator")
         report_json_path = Path("reports") / "report_upload_test.json"
-        report_tex_path = report_json_path.with_suffix(".tex")
+        report_pdf_path = report_json_path.with_suffix(".pdf")
 
         class _DummyPipeline:
             def __init__(self, insights_store=None):
@@ -121,10 +121,10 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
                 self.insights_store.record_pipeline_run(zip_path, result)
                 report_json_path.parent.mkdir(exist_ok=True)
                 report_json_path.write_text("{}", encoding="utf-8")
-                report_tex_path.write_text("% rendered tex", encoding="utf-8")
+                report_pdf_path.write_bytes(b"%PDF-1.4\n")
                 result["artifacts"] = {
                     "json_report_path": str(report_json_path),
-                    "resume_tex_path": str(report_tex_path),
+                    "resume_pdf_path": str(report_pdf_path),
                 }
                 return result
 
@@ -138,12 +138,12 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
         data = response.json()
         assert data["zip_hash"]
         assert data["projects"]
-        assert data["resume_tex_path"] == str(report_tex_path)
+        assert data["resume_pdf_path"] == str(report_pdf_path)
     finally:
         app.dependency_overrides.clear()
         report = Path("reports")
         (report / "report_upload_test.json").unlink(missing_ok=True)
-        (report / "report_upload_test.tex").unlink(missing_ok=True)
+        (report / "report_upload_test.pdf").unlink(missing_ok=True)
         shutil.rmtree(td, ignore_errors=True)
 
 

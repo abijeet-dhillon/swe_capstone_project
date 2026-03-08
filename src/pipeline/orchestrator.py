@@ -30,7 +30,7 @@ from src.project.presentation import (
     generate_portfolio_item,
     generate_resume_item,
 )
-from src.resume.resume_artifact import generate_resume_tex_artifact
+from src.resume.resume_artifact import generate_resume_pdf_artifact
 from src.config.config_manager import UserConfigManager
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 
@@ -407,13 +407,13 @@ class ArtifactPipeline:
             print(f"\n📄 Saving JSON report...")
             report_path = self._save_json_report(zip_path, result)
             print(f"     ✓ Report saved to: {report_path}")
-            result["artifacts"] = {"json_report_path": str(report_path), "resume_tex_path": None}
+            result["artifacts"] = {"json_report_path": str(report_path), "resume_pdf_path": None}
 
-            print(f"🧾 Rendering resume .tex artifact...")
-            resume_tex_path = report_path.with_suffix(".tex")
+            print(f"🧾 Rendering resume .pdf artifact...")
+            resume_pdf_path = report_path.with_suffix(".pdf")
             try:
-                rendered_resume_path = generate_resume_tex_artifact(result, resume_tex_path)
-                result["artifacts"]["resume_tex_path"] = str(rendered_resume_path)
+                rendered_resume_path = generate_resume_pdf_artifact(result, resume_pdf_path)
+                result["artifacts"]["resume_pdf_path"] = str(rendered_resume_path)
                 print(f"     ✓ Resume artifact saved to: {rendered_resume_path}")
             except Exception as exc:
                 # Resume rendering should not break successful analysis/report generation.

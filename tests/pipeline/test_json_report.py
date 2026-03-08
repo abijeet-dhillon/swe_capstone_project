@@ -59,7 +59,7 @@ def cleanup_reports():
     if reports_dir.exists():
         for file in reports_dir.glob("report_*.json"):
             file.unlink()
-        for file in reports_dir.glob("report_*.tex"):
+        for file in reports_dir.glob("report_*.pdf"):
             file.unlink()
 
 
@@ -82,11 +82,12 @@ def test_json_report_is_created(test_zip_file):
     report_file = sorted(report_files)[-1]
     assert report_file.exists(), f"Report file {report_file} should exist"
 
-    # Check paired resume .tex artifact path and file
-    tex_file = report_file.with_suffix(".tex")
-    assert tex_file.exists(), f"Resume artifact {tex_file} should exist"
+    # Check paired resume .pdf artifact path and file
+    pdf_file = report_file.with_suffix(".pdf")
+    assert pdf_file.exists(), f"Resume artifact {pdf_file} should exist"
+    assert not report_file.with_suffix(".tex").exists(), "Intermediate .tex should not remain in reports/"
     assert result["artifacts"]["json_report_path"] == str(report_file)
-    assert result["artifacts"]["resume_tex_path"] == str(tex_file)
+    assert result["artifacts"]["resume_pdf_path"] == str(pdf_file)
 
 
 def test_json_report_is_valid_json(test_zip_file):

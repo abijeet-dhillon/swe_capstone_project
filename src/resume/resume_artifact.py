@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 from typing import Any, Dict, List
 
 from jinja2 import Environment, FileSystemLoader
@@ -255,3 +258,33 @@ def generate_resume_tex_artifact(
     context = build_resume_context(report)
     rendered = render_resume_template(context, template_path=template_path)
     return write_rendered_resume(rendered, output_path)
+
+
+def generate_resume_pdf_artifact(
+    report: Dict[str, Any],
+    output_path: Path,
+    *,
+    template_path: Path | None = None,
+) -> Path:
+    template = template_path or Path(__file__).resolve().with_name("resume_template.tex")
+    rendered = render_resume_template(build_resume_context(report), template_path=template)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="resume_pdf_") as tmp:
+        tmp_dir = Path(tmp)
+        tex_path = tmp_dir / "resume.tex"
+        tex_path.write_text(rendered, encoding="utf-8")
+        if (class_file := template.with_name("resume.cls")).exists():
+            shutil.copy2(class_file, tmp_dir / "resume.cls")
+        try:
+            subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", tex_path.name],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError("PDF compilation failed") from exc
+        shutil.move(str(tex_path.with_suffix(".pdf")), output_path)
+    return output_path

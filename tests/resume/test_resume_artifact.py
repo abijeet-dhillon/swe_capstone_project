@@ -1,7 +1,12 @@
+from pathlib import Path
+
+import pytest
+
 from src.resume.resume_artifact import (
     build_resume_context,
     escape_latex,
     generate_resume_tex_artifact,
+    generate_resume_pdf_artifact,
 )
 
 
@@ -94,3 +99,25 @@ def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
     assert r"feature\_1 \& feature\#2" in rendered
     assert r"\{care\}" in rendered
     assert r"\$budget." in rendered
+
+
+def test_generate_resume_pdf_artifact_raises_on_compiler_failure(tmp_path, monkeypatch):
+    template_path = tmp_path / "resume_template.tex"
+    template_path.write_text("{{ name }}", encoding="utf-8")
+    def fail_run(*_args, **_kwargs):
+        raise FileNotFoundError("pdflatex not found")
+    monkeypatch.setattr("src.resume.resume_artifact.subprocess.run", fail_run)
+    with pytest.raises(RuntimeError):
+        generate_resume_pdf_artifact({"projects": {"P": {"project_name": "P"}}}, tmp_path / "reports" / "report.pdf", template_path=template_path)
+
+
+def test_generate_resume_pdf_artifact_writes_pdf_without_tex_in_reports(tmp_path, monkeypatch):
+    template_path = tmp_path / "resume_template.tex"
+    template_path.write_text("{{ name }}", encoding="utf-8")
+    output_path = tmp_path / "reports" / "report_20260101_120000.pdf"
+    def fake_run(_cmd, cwd, **_kwargs):
+        (Path(cwd) / "resume.pdf").write_bytes(b"%PDF-1.4\n")
+    monkeypatch.setattr("src.resume.resume_artifact.subprocess.run", fake_run)
+    rendered_path = generate_resume_pdf_artifact({"projects": {"P": {"project_name": "P"}}}, output_path, template_path=template_path)
+    assert rendered_path.exists()
+    assert not output_path.with_suffix(".tex").exists()
