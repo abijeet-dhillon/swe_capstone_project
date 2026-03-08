@@ -1,7 +1,5 @@
 from pathlib import Path
-
 import pytest
-
 from src.resume.resume_artifact import (
     build_resume_context,
     escape_latex,
@@ -9,10 +7,8 @@ from src.resume.resume_artifact import (
     generate_resume_pdf_artifact,
 )
 
-
 def test_build_resume_context_handles_missing_optional_fields():
     context = build_resume_context({"projects": {"OnlyProject": {"project_name": "OnlyProject"}}})
-
     assert context["name"] == ""
     assert context["email"] == ""
     assert context["education"] == []
@@ -35,7 +31,6 @@ def test_build_resume_context_handles_missing_optional_fields():
         }
     ]
 
-
 def test_escape_latex_escapes_common_special_characters():
     escaped = escape_latex(r"\ { } $ & # _ % ~ ^")
     assert r"\textbackslash{}" in escaped
@@ -49,7 +44,6 @@ def test_escape_latex_escapes_common_special_characters():
     assert r"\textasciitilde{}" in escaped
     assert r"\textasciicircum{}" in escaped
 
-
 def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
     template_path = tmp_path / "resume_template.tex"
     template_path.write_text(
@@ -57,7 +51,6 @@ def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
         encoding="utf-8",
     )
     output_path = tmp_path / "reports" / "report_20260101_120000.tex"
-
     report = {
         "projects": {
             "ProjectAlpha": {
@@ -82,13 +75,11 @@ def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
             }
         }
     }
-
     rendered_path = generate_resume_tex_artifact(
         report,
         output_path,
         template_path=template_path,
     )
-
     assert rendered_path == output_path
     assert rendered_path.exists()
     rendered = rendered_path.read_text(encoding="utf-8")
@@ -100,7 +91,6 @@ def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
     assert r"\{care\}" in rendered
     assert r"\$budget." in rendered
 
-
 def test_generate_resume_pdf_artifact_raises_on_compiler_failure(tmp_path, monkeypatch):
     template_path = tmp_path / "resume_template.tex"
     template_path.write_text("{{ name }}", encoding="utf-8")
@@ -109,7 +99,6 @@ def test_generate_resume_pdf_artifact_raises_on_compiler_failure(tmp_path, monke
     monkeypatch.setattr("src.resume.resume_artifact.subprocess.run", fail_run)
     with pytest.raises(RuntimeError):
         generate_resume_pdf_artifact({"projects": {"P": {"project_name": "P"}}}, tmp_path / "reports" / "report.pdf", template_path=template_path)
-
 
 def test_generate_resume_pdf_artifact_writes_pdf_without_tex_in_reports(tmp_path, monkeypatch):
     template_path = tmp_path / "resume_template.tex"

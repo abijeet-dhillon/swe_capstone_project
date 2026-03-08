@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -7,11 +6,9 @@ import shutil
 import subprocess
 import tempfile
 from typing import Any, Dict, List
-
 from jinja2 import Environment, FileSystemLoader
 
 SKILL_LEVELS = ("Advanced", "Proficient", "Working Knowledge", "Familiar")
-
 _LATEX_REPLACEMENTS = {
     "\\": r"\textbackslash{}",
     "{": r"\{",
@@ -25,11 +22,9 @@ _LATEX_REPLACEMENTS = {
     "^": r"\textasciicircum{}",
 }
 
-
 def escape_latex(value: str) -> str:
     """Escape special LaTeX characters in plain text."""
     return "".join(_LATEX_REPLACEMENTS.get(char, char) for char in value)
-
 
 def escape_latex_data(value: Any) -> Any:
     """Recursively escape LaTeX-sensitive strings."""
@@ -41,14 +36,11 @@ def escape_latex_data(value: Any) -> Any:
         return {key: escape_latex_data(item) for key, item in value.items()}
     return value
 
-
 def _as_dict(value: Any) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
-
 def _as_list(value: Any) -> List[Any]:
     return value if isinstance(value, list) else []
-
 
 def _clean_text(value: Any) -> str:
     if value is None:
@@ -57,13 +49,11 @@ def _clean_text(value: Any) -> str:
         return value.strip()
     return str(value).strip()
 
-
 def _to_int(value: Any) -> int:
     try:
         return int(value or 0)
     except Exception:
         return 0
-
 
 def _format_date(value: Any) -> str:
     raw = _clean_text(value)
@@ -75,7 +65,6 @@ def _format_date(value: Any) -> str:
     except ValueError:
         return raw
 
-
 def _iter_projects(report: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     projects = report.get("projects") or {}
     if not isinstance(projects, dict):
@@ -85,7 +74,6 @@ def _iter_projects(report: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         for name, payload in projects.items()
         if name != "_misc_files" and isinstance(payload, dict)
     }
-
 
 def _select_identity(projects: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
     best_name = ""
@@ -104,7 +92,6 @@ def _select_identity(projects: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
                 best_name = name
                 best_email = email
     return {"name": best_name, "email": best_email}
-
 
 def _collect_skills(projects: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]:
     counts: Counter[str] = Counter()
@@ -141,7 +128,6 @@ def _collect_skills(projects: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]
             buckets["Familiar"].append(skill)
     return buckets
 
-
 def _ranked_project_names(report: Dict[str, Any], projects: Dict[str, Dict[str, Any]]) -> List[str]:
     names: List[str] = []
     ranking = _as_dict(report.get("project_ranking"))
@@ -153,7 +139,6 @@ def _ranked_project_names(report: Dict[str, Any], projects: Dict[str, Dict[str, 
         if name not in names:
             names.append(name)
     return names
-
 
 def _fallback_bullets(metrics: Dict[str, Any], git: Dict[str, Any]) -> List[str]:
     bullets: List[str] = []
@@ -173,7 +158,6 @@ def _fallback_bullets(metrics: Dict[str, Any], git: Dict[str, Any]) -> List[str]
     if skills:
         bullets.append(f"Applied {', '.join(skills[:3])}.")
     return bullets[:3]
-
 
 def _build_projects(report: Dict[str, Any], projects: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     rendered_projects: List[Dict[str, Any]] = []
@@ -211,7 +195,6 @@ def _build_projects(report: Dict[str, Any], projects: Dict[str, Dict[str, Any]])
         )
     return rendered_projects
 
-
 def build_resume_context(report: Dict[str, Any]) -> Dict[str, Any]:
     """Build template-ready context using existing analysis/report output."""
     projects = _iter_projects(report)
@@ -231,7 +214,6 @@ def build_resume_context(report: Dict[str, Any]) -> Dict[str, Any]:
     }
     return escape_latex_data(context)
 
-
 def render_resume_template(
     context: Dict[str, Any],
     *,
@@ -242,12 +224,10 @@ def render_resume_template(
     template = env.get_template(path.name)
     return template.render(**context)
 
-
 def write_rendered_resume(rendered_tex: str, output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(rendered_tex, encoding="utf-8")
     return output_path
-
 
 def generate_resume_tex_artifact(
     report: Dict[str, Any],
@@ -258,7 +238,6 @@ def generate_resume_tex_artifact(
     context = build_resume_context(report)
     rendered = render_resume_template(context, template_path=template_path)
     return write_rendered_resume(rendered, output_path)
-
 
 def generate_resume_pdf_artifact(
     report: Dict[str, Any],

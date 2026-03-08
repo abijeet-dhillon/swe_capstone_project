@@ -55,5 +55,4 @@ scikit-image==0.22.0
 pyzbar==0.1.9
 
 # Resume Generation
-checkmytex
 Jinja2==3.1.4
