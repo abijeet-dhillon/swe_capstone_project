@@ -1,81 +1,159 @@
 \documentclass{resume} % Use the custom resume.cls style
 
-\usepackage[left=0.4 in,top=0.4in,right=0.4 in,bottom=0.4in]{geometry} % Document margins
-\newcommand{\tab}[1]{\hspace{.2667\textwidth}\rlap{#1}} 
+\usepackage[left=0.4in,top=0.4in,right=0.4in,bottom=0.4in]{geometry} % Document margins
+\usepackage{array}
+{% raw %}
+\newcommand{\tab}[1]{\hspace{.2667\textwidth}\rlap{#1}}
 \newcommand{\itab}[1]{\hspace{0em}\rlap{#1}}
-\name{Your Name} % Your name
+{% endraw %}
+\newenvironment{sectioncontent}{
+  \begin{list}{}{
+    \setlength{\leftmargin}{1.5em}
+    \setlength{\rightmargin}{0pt}
+    \setlength{\listparindent}{0pt}
+    \setlength{\itemindent}{0pt}
+    \setlength{\parsep}{0pt}
+    \setlength{\topsep}{0pt}
+    \setlength{\partopsep}{0pt}
+    \setlength{\itemsep}{0pt}
+  }
+  \item[]
+}{
+  \end{list}
+}
+
+% -----------------------------------------------------------------------------
+% Jinja2-ready LaTeX template
+% Expected context keys (example shape):
+%
+% name: str
+% phone: str
+% email: str
+% linkedin_url: str
+% linkedin_label: str
+% github_url: str
+% github_label: str
+%
+% education: [
+%   {
+%     "school": str,
+%     "start_date": str,
+%     "end_date": str,
+%     "degree": str,
+%     "location": str
+%   }
+% ]
+%
+% skills:
+% {
+%   "Advanced": [str, ...],
+%   "Proficient": [str, ...],
+%   "Working Knowledge": [str, ...],
+%   "Familiar": [str, ...]
+% }
+%
+% projects: [
+%   {
+%     "name": str,
+%     "start_date": str,
+%     "end_date": str,
+%     "tech_stack": str,
+%     "github_url": str,
+%     "github_label": str,
+%     "bullets": [str, ...]
+%   }
+% ]
+%
+% awards: [
+%   {
+%     "name": str,
+%     "date": str,
+%     "organization": str,
+%     "bullets": [str, ...]
+%   }
+% ]
+%
+% Important: escape LaTeX special characters in user-generated values before render.
+% -----------------------------------------------------------------------------
+
+\name{ {{- name -}} }
 \address{
-(000) 000-0000 \\
-\href{mailto:youremail@example.com}{youremail@example.com} \\ 
-\href{https://www.linkedin.com/in/your-linkedin/}{LinkedIn} \\ 
-\href{https://github.com/your-github}{GitHub}
-}  %
+    {{- phone -}} \\
+\href{mailto:{{- email -}}}{{- email -}} \\
+\href{ {{- linkedin_url -}} }{ {{- linkedin_label -}} } \\
+\href{ {{- github_url -}} }{ {{- github_label -}} }
+}
 
 \begin{document}
 
     % EDUCATION SECTION
+    {% if education %}
     \begin{rSection}{EDUCATION}
         \vspace{2mm}
-        {\bf University Name} \hfill {Month Year -- Month Year}\\
-        Degree Name \hfill \textit{City, Province/State}\\
+        \begin{sectioncontent}
+        {% for edu in education %}
+        \textbf{ {{- edu.school -}} } \hfill {{ edu.start_date }} -- {{ edu.end_date }}\\
+        {{ edu.degree }} \hfill \textit{ {{- edu.location -}} }\\
+        {% endfor %}
+        \end{sectioncontent}
     \end{rSection}
+    {% endif %}
 
-    % SKILLS    
+    % SKILLS
     \begin{rSection}{SKILLS}
         \vspace{2mm}
-        \begin{tabular}{ @{} >{\bfseries}l @{\hspace{6ex}} l }
-        Advanced & Skill, Skill, Skill, Skill\\
-        Proficient & Skill, Skill, Skill, Skill\\
-        Working Knowledge & Skill, Skill, Skill, Skill\\
-        Familiar & Skill, Skill, Skill, Skill\\
-        \end{tabular}\\
+        \begin{sectioncontent}
+        \begin{tabular}{ @{} >{\bfseries}l @{\hspace{6ex}} p{0.72\textwidth} }
+        Advanced & {{ skills.get("Advanced", []) | join(", ") }}\\
+        Proficient & {{ skills.get("Proficient", []) | join(", ") }}\\
+        Working Knowledge & {{ skills.get("Working Knowledge", []) | join(", ") }}\\
+        Familiar & {{ skills.get("Familiar", []) | join(", ") }}\\
+        \end{tabular}
+        \end{sectioncontent}
     \end{rSection}
 
     % PROJECTS
+    {% if projects %}
     \begin{rSection}{PROJECTS}
         \vspace{2mm}
-        \vspace{-1.25em}
-        \item 
-        \textbf{Project Name 1} \hfill Month Year -- Month Year\\
-        \textit{Language 1, Language 2, Framework/Tool} \hfill \href{https://github.com/your-github/project-1}{Project GitHub}
+        \begin{sectioncontent}
+        {% for project in projects %}
+        \textbf{ {{- project.name -}} } \hfill {{ project.start_date }} -- {{ project.end_date }}\\
+        \textit{ {{- project.tech_stack -}} } 
+        {% if project.bullets %}
          \begin{itemize}
-            \itemsep -3pt {} 
-            \item Built a [type of system: web app / backend service / pipeline] that [brief goal or outcome], using [key technologies].
+            \itemsep -3pt {}
+            {% for bullet in project.bullets %}
+            \item {{ bullet }}
+            {% endfor %}
          \end{itemize}
-        \item 
-        \textbf{Project Name 2} \hfill Month Year -- Month Year\\
-        \textit{Language 1, Language 2, Framework/Tool} \hfill \href{https://github.com/your-github/project-2}{Project GitHub}
-         \begin{itemize}
-            \itemsep -3pt {} 
-            \item Developed a [type of system] that [key functionality], including [feature 1] and [feature 2] for end users.
-        \end{itemize}
-        \item 
-        \textbf{Project Name 3} \hfill Month Year -- Month Year\\
-        \textit{Language 1, Language 2, Framework/Tool} \hfill \href{https://github.com/your-github/project-3}{Project GitHub}
-         \begin{itemize}
-            \itemsep -3pt {} 
-            \item Implemented a [tool / model / dashboard] to [solve problem or provide insight], leveraging [technology or method].
-        \end{itemize}
-    \end{rSection} 
+        {% endif %}
+        {% if not loop.last %}\vspace{0.35em}{% endif %}
+        {% endfor %}
+        \end{sectioncontent}
+    \end{rSection}
+    {% endif %}
 
     % AWARDS
+    {% if awards %}
     \begin{rSection}{AWARDS}
         \vspace{2mm}
-        \vspace{-1.25em}
-        \item
-        \textbf{Award Name} \hfill Month Year\\
-        \textit{Awarding Organization}
+        \begin{sectioncontent}
+        {% for award in awards %}
+        \textbf{ {{- award.name -}} } \hfill {{ award.date }}\\
+        \textit{ {{- award.organization -}} }
+        {% if award.bullets %}
          \begin{itemize}
-            \itemsep -3pt {} 
-             \item Award Description
+            \itemsep -3pt {}
+            {% for bullet in award.bullets %}
+             \item {{ bullet }}
+            {% endfor %}
          \end{itemize}
-        \item
-        \textbf{Award Name} \hfill Month Year\\
-        \textit{Awarding Organization}
-         \begin{itemize}
-            \itemsep -3pt {} 
-             \item Award Description
-         \end{itemize}
-    \end{rSection} 
-    
+        {% endif %}
+        {% if not loop.last %}\vspace{0.35em}{% endif %}
+        {% endfor %}
+        \end{sectioncontent}
+    \end{rSection}
+    {% endif %}
+
 \end{document}
