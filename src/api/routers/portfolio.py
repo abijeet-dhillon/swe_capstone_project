@@ -278,6 +278,101 @@ def get_template_detail(template_id: PortfolioTemplate):
     return _get_template_config(template_id)
 
 
+def _score_project(payload: Dict[str, Any]) -> float:
+    """Derive a simple ranking score from stored project metrics."""
+    metrics = payload.get("project_metrics") or {}
+    commits = int(metrics.get("total_commits") or 0)
+    loc = int(metrics.get("total_lines") or 0)
+    code_frac = float(metrics.get("code_frac") or 0.0)
+    return 0.5 * commits + 0.4 * (loc ** 0.5) + 0.1 * (code_frac * 100)
+
+
+def _build_evolution(git: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract commit-activity data that illustrates a project's evolution over time."""
+    return {
+        "first_commit_at": git.get("first_commit_at"),
+        "last_commit_at": git.get("last_commit_at"),
+        "duration_days": git.get("duration_days") or metrics.get("duration_days", 0),
+        "total_commits": git.get("total_commits") or metrics.get("total_commits", 0),
+        "contributors": git.get("contributors") or [],
+        "activity_mix": git.get("activity_mix") or {},
+    }
+
+
+@router.get("/top")
+def get_top_projects(
+    limit: int = Query(default=3, ge=1, le=10, description="Number of top projects to return (1–10)"),
+    mode: str = Query(default="private", description="'public' strips customization fields; 'private' includes them"),
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Return the top-ranked projects ordered by a composite score (commits + LOC).
+
+    - **limit**: how many projects to return (default 3, max 10).
+    - **mode=public**: read-only view — omits editable customization fields.
+    - **mode=private**: full view including tagline, description, key_features, etc.
+
+    Each entry includes an ``evolution`` block with first/last commit dates,
+    duration, total commits, contributors, and activity mix — illustrating the
+    process and progression of changes over the project's lifetime.
+    """
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+
+    if not all_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+
+    # Load payloads and score each project
+    scored: List[Dict[str, Any]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
+
+    # Rank descending by score; limit to requested N
+    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
+
+    is_public = mode.strip().lower() == "public"
+    result: List[Dict[str, Any]] = []
+    for rank, entry in enumerate(ranked, start=1):
+        pid = entry["project_id"]
+        payload = entry["payload"]
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        git = payload.get("git_analysis") or {}
+
+        project: Dict[str, Any] = {
+            "rank": rank,
+            "project_id": pid,
+            "project_title": payload.get("project_name"),
+            "score": round(entry["score"], 2),
+            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
+            "key_metrics": _build_key_metrics(project_metrics),
+            "evolution": _build_evolution(git, project_metrics),
+        }
+
+        if not is_public:
+            # Private mode: include all customization fields
+            project["tagline"] = portfolio_item.get("tagline")
+            project["description"] = portfolio_item.get("description")
+            project["summary"] = portfolio_item.get("summary")
+            project["key_features"] = portfolio_item.get("key_features") or []
+            project["project_type"] = portfolio_item.get("project_type")
+            project["complexity"] = portfolio_item.get("complexity")
+            project["is_collaborative"] = portfolio_item.get("is_collaborative", False)
+        else:
+            # Public mode: only the summary (read-only description)
+            project["summary"] = portfolio_item.get("summary") or portfolio_item.get("description")
+
+        result.append(project)
+
+    return {"total": len(result), "limit": limit, "mode": mode.strip().lower(), "projects": result}
+
+
 @router.get("/{project_id}")
 def get_portfolio_showcase(
     project_id: int,
