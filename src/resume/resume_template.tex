@@ -20,59 +20,6 @@
 }{
   \end{list}
 }
-% -----------------------------------------------------------------------------
-% Jinja2-ready LaTeX template
-% Expected context keys (example shape):
-%
-% name: str
-% phone: str
-% email: str
-% linkedin_url: str
-% linkedin_label: str
-% github_url: str
-% github_label: str
-%
-% education: [
-%   {
-%     "school": str,
-%     "start_date": str,
-%     "end_date": str,
-%     "degree": str,
-%     "location": str
-%   }
-% ]
-%
-% skills:
-% {
-%   "Advanced": [str, ...],
-%   "Proficient": [str, ...],
-%   "Working Knowledge": [str, ...],
-%   "Familiar": [str, ...]
-% }
-%
-% projects: [
-%   {
-%     "name": str,
-%     "start_date": str,
-%     "end_date": str,
-%     "tech_stack": str,
-%     "github_url": str,
-%     "github_label": str,
-%     "bullets": [str, ...]
-%   }
-% ]
-%
-% awards: [
-%   {
-%     "name": str,
-%     "date": str,
-%     "organization": str,
-%     "bullets": [str, ...]
-%   }
-% ]
-%
-% Important: escape LaTeX special characters in user-generated values before render.
-% -----------------------------------------------------------------------------
 \name{ {{- name -}} }
 \address{
 {% if phone %}{{- phone -}} \\{% endif %}
