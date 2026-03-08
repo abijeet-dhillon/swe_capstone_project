@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
+from src.resume.resume_artifact import render_resume_template, write_rendered_resume
 
 
 def main() -> None:
@@ -55,12 +55,11 @@ def main() -> None:
         ],
     }
 
-    env = Environment(loader=FileSystemLoader(str(resume_dir)), autoescape=False)
-    template = env.get_template(template_name)
-    rendered = template.render(**context)
-
-    output_path = resume_dir / output_name
-    output_path.write_text(rendered, encoding="utf-8")
+    rendered = render_resume_template(
+        context,
+        template_path=resume_dir / template_name,
+    )
+    output_path = write_rendered_resume(rendered, resume_dir / output_name)
     print(f"Rendered template written to: {output_path}")
 
 

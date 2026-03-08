@@ -464,12 +464,15 @@ def _run_upload(
         store.save_run_representation(ingest_id, resolved_representation)
     represented_output = _represent_report(report or {"projects": result.get("projects") or {}}, resolved_representation)
     project_names = [name for name in (result.get("projects") or {}).keys() if name != "_misc_files"]
+    artifacts = result.get("artifacts")
+    resume_tex_path = artifacts.get("resume_tex_path") if isinstance(artifacts, dict) else None
 
     return {
         "status": "ok",
         "zip_hash": zip_hash,
         "ingest_id": ingest_id,
         "projects": project_names,
+        "resume_tex_path": resume_tex_path,
         "representation": resolved_representation,
         "represented_output": represented_output,
     }
