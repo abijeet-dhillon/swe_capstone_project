@@ -78,10 +78,10 @@
 
 \name{ {{- name -}} }
 \address{
-    {{- phone -}} \\
-\href{ mailto:{{- email -}} }{{- email -}} \\
-\href{ {{- linkedin_url -}} }{ {{- linkedin_label -}} } \\
-\href{ {{- github_url -}} }{ {{- github_label -}} }
+{% if phone %}{{- phone -}} \\{% endif %}
+{% if email %}\href{mailto:{{- email -}}}{ {{- email -}} } \\{% endif %}
+{% if linkedin_url and linkedin_label %}\href{ {{- linkedin_url -}} }{ {{- linkedin_label -}} } \\{% endif %}
+{% if github_url and github_label %}\href{ {{- github_url -}} }{ {{- github_label -}} }{% endif %}
 }
 
 \begin{document}
