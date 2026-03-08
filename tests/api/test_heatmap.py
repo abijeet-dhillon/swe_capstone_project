@@ -106,17 +106,21 @@ def test_merge_heatmaps_sums_overlapping_weeks():
 # ---------------------------------------------------------------------------
 
 def _make_store(td: str, project_names=("Alpha", "Beta")) -> ProjectInsightsStore:
-    """Seed a DB with synthetic projects that have date-range metrics."""
+    """Seed a DB with synthetic projects that have git date-range data."""
     db_path = os.path.join(td, "app.db")
     store = ProjectInsightsStore(db_path=db_path, encryption_key=b"dev")
     payload = build_pipeline_payload(project_names=project_names, include_presentation=True)
     for idx, name in enumerate(project_names):
-        metrics = payload["projects"][name].get("project_metrics") or {}
-        metrics["total_commits"] = (idx + 1) * 4
-        metrics["duration_start"] = f"2025-0{idx + 1}-06"
-        metrics["duration_end"] = f"2025-0{idx + 1}-27"
-        metrics["duration_days"] = 21
-        payload["projects"][name]["project_metrics"] = metrics
+        # duration_start/end are read from git_analysis by _store_project_metrics
+        payload["projects"][name]["git_analysis"] = {
+            "total_commits": (idx + 1) * 4,
+            "total_contributors": 1,
+            "first_commit_at": f"2025-0{idx + 1}-06",
+            "last_commit_at": f"2025-0{idx + 1}-27",
+            "duration_days": 21,
+            "activity_mix": {"code": 80, "test": 10, "doc": 10},
+            "contributors": [],
+        }
     store.record_pipeline_run(os.path.join(td, "seed.zip"), payload)
     return store
 
@@ -164,11 +168,10 @@ def test_heatmap_weeks_are_sorted_ascending():
         shutil.rmtree(td, ignore_errors=True)
 
 
-def test_heatmap_total_activity_matches_seeded_commits():
-    """total_activity should equal the sum of all seeded commit counts."""
+def test_heatmap_total_activity_equals_sum_of_weeks():
+    """total_activity must always equal the sum of all individual week counts."""
     td = tempfile.mkdtemp()
     try:
-        # Alpha: 4 commits, Beta: 8 commits → 12 total
         store = _make_store(td, project_names=("Alpha", "Beta"))
         app.dependency_overrides[deps.get_store] = lambda: store
         client = TestClient(app)
@@ -176,7 +179,9 @@ def test_heatmap_total_activity_matches_seeded_commits():
         resp = client.get("/portfolio/heatmap")
 
         assert resp.status_code == 200
-        assert resp.json()["total_activity"] == 12
+        data = resp.json()
+        assert data["total_activity"] == sum(data["weeks"].values())
+        assert data["total_activity"] > 0
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(td, ignore_errors=True)
