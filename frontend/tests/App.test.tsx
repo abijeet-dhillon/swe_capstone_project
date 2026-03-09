@@ -1,52 +1,52 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import App from '../src/renderer/src/App'
 
-describe('App', () => {
-  it('renders the application title', () => {
+describe('App Dashboard', () => {
+  it('renders title and footer', () => {
     render(<App />)
-    expect(
-      screen.getByText('Digital Work Artifact Miner')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Digital Work Artifact Miner')).toBeInTheDocument()
+    expect(screen.getByText('COSC 499 — Digital Work Artifact Miner')).toBeInTheDocument()
   })
 
-  it('renders the team subtitle', () => {
+  it('defaults to private mode with customization enabled for ready cards', () => {
     render(<App />)
-    expect(
-      screen.getByText('Team 14 — Capstone Project')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Customization controls are enabled.')).toBeInTheDocument()
+
+    const customizeButtons = screen.getAllByRole('button', { name: 'Customize' })
+    const enabledButtons = customizeButtons.filter((button) => !button.hasAttribute('disabled'))
+    expect(enabledButtons.length).toBeGreaterThan(0)
   })
 
-  it('renders the welcome card', () => {
+  it('switches to public mode and disables all customize buttons', () => {
     render(<App />)
-    expect(screen.getByText('Welcome')).toBeInTheDocument()
-    expect(
-      screen.getByText(/privacy-first pipeline/i)
-    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Public' }))
+
+    expect(screen.getByText('Customization controls are disabled in public mode.')).toBeInTheDocument()
+
+    const customizeButtons = screen.getAllByRole('button', { name: 'Customize' })
+    customizeButtons.forEach((button) => expect(button).toBeDisabled())
   })
 
-  it('renders quick action buttons', () => {
+  it('filters dashboard cards by search query', () => {
     render(<App />)
-    expect(screen.getByText('Upload Project')).toBeInTheDocument()
-    expect(screen.getByText('View Projects')).toBeInTheDocument()
-    expect(screen.getByText('Generate Report')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Search sections'), {
+      target: { value: 'heatmap' },
+    })
+
+    expect(screen.getByText('Project Activity Heatmap')).toBeInTheDocument()
+    expect(screen.queryByText('One-Page Resume')).not.toBeInTheDocument()
   })
 
-  it('has action buttons disabled initially', () => {
+  it('filters dashboard cards by category select', () => {
     render(<App />)
-    const uploadBtn = screen.getByText('Upload Project')
-    const viewBtn = screen.getByText('View Projects')
-    const reportBtn = screen.getByText('Generate Report')
 
-    expect(uploadBtn).toBeDisabled()
-    expect(viewBtn).toBeDisabled()
-    expect(reportBtn).toBeDisabled()
-  })
+    fireEvent.change(screen.getByLabelText('Filter category'), {
+      target: { value: 'timeline' },
+    })
 
-  it('renders the footer', () => {
-    render(<App />)
-    expect(
-      screen.getByText('COSC 499 — Digital Work Artifact Miner')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Skills Timeline')).toBeInTheDocument()
+    expect(screen.queryByText('Web Portfolio')).not.toBeInTheDocument()
   })
 })
