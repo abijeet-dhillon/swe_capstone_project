@@ -40,43 +40,43 @@ const SkillsTimeline: React.FC = () => {
         { date: "2020-05", level: "beginner", description: "Variables, functions, and basic DOM manipulation" },
         { date: "2020-09", level: "intermediate", description: "ES6+ features and array methods mastery" },
         { date: "2021-02", level: "advanced", description: "Async/await, Promises, and event loop deep dive" },
-        { date: "2022-01", level: "expert", description: "Performance optimization and design patterns" }
+        { date: "2021-11", level: "expert", description: "Performance optimization and design patterns" }
       ],
       projects: ["Interactive Web Apps", "API Integrations", "Algorithm Solutions"],
       depthLevel: 4
     },
     {
-      id: 3, name: "React", category: "framework", startDate: "2020-12", proficiency: 80, yearsExperience: 3.2,
+      id: 3, name: "React", category: "framework", startDate: "2020-12", proficiency: 80, yearsExperience: 1.0,
       description: "Expert in hooks, context, performance optimization, and custom component patterns.",
       milestones: [
         { date: "2020-12", level: "beginner", description: "Components, props, and basic state" },
         { date: "2021-04", level: "intermediate", description: "Hooks and functional components mastery" },
         { date: "2021-10", level: "advanced", description: "Context API, custom hooks, and patterns" },
-        { date: "2023-03", level: "expert", description: "Performance tuning and advanced patterns" }
+        { date: "2021-12", level: "expert", description: "Performance tuning and advanced patterns" }
       ],
       projects: ["Task Manager App", "Social Media Dashboard", "Real-time Chat App"],
       depthLevel: 4
     },
     {
-      id: 4, name: "Node.js", category: "backend", startDate: "2021-05", proficiency: 75, yearsExperience: 2.7,
+      id: 4, name: "Node.js", category: "backend", startDate: "2021-05", proficiency: 75, yearsExperience: 0.6,
       description: "Built scalable APIs, authentication systems, and database integrations.",
       milestones: [
         { date: "2021-05", level: "beginner", description: "Basic Express server and routing" },
         { date: "2021-09", level: "intermediate", description: "RESTful APIs and middleware patterns" },
-        { date: "2022-04", level: "advanced", description: "Authentication, JWT, and database design" },
-        { date: "2023-01", level: "advanced", description: "Microservices and performance optimization" }
+        { date: "2021-10", level: "advanced", description: "Authentication, JWT, and database design" },
+        { date: "2021-12", level: "expert", description: "Scalability, performance optimization, and deployment" }
       ],
       projects: ["REST API Server", "Authentication System", "File Upload Service"],
       depthLevel: 3
     },
     {
-      id: 5, name: "TypeScript", category: "language", startDate: "2021-12", proficiency: 70, yearsExperience: 2.2,
+      id: 5, name: "TypeScript", category: "language", startDate: "2021-12", proficiency: 70, yearsExperience: 0.1,
       description: "Type-safe development with generics, utility types, and advanced type patterns.",
       milestones: [
         { date: "2021-12", level: "beginner", description: "Basic types and interfaces" },
-        { date: "2022-05", level: "intermediate", description: "Generics and type narrowing" },
-        { date: "2023-02", level: "advanced", description: "Conditional types and mapped types" },
-        { date: "2023-08", level: "advanced", description: "Advanced patterns and type-safe architecture" }
+        { date: "2021-12", level: "intermediate", description: "Generics and type narrowing" },
+        { date: "2021-12", level: "advanced", description: "Conditional types and mapped types" },
+        { date: "2021-12", level: "expert", description: "Type-safe architecture patterns" }
       ],
       projects: ["Type-safe React Apps", "API Client Libraries", "Code Generation Tools"],
       depthLevel: 3
