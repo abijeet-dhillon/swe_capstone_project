@@ -109,27 +109,23 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
         import types, sys as _sys
 
         dummy_module = types.ModuleType("src.pipeline.orchestrator")
+        report_json_path = Path("reports") / "report_upload_test.json"
+        report_pdf_path = report_json_path.with_suffix(".pdf")
 
         class _DummyPipeline:
             def __init__(self, insights_store=None):
                 self.insights_store = insights_store
 
-            def _save_json_report(self, zip_path, result):
-                return Path(zip_path)
-
-            def start(
-                self,
-                zip_path,
-                use_llm=False,
-                data_access_consent=True,
-                prompt_project_names=False,
-                git_identifier=None,
-            ):
-                # Minimal shape expected by the API handler
-                return {"projects": {"ProjectAlpha": {}, "ProjectBeta": {}}}
             def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None):
                 result = build_pipeline_payload()
                 self.insights_store.record_pipeline_run(zip_path, result)
+                report_json_path.parent.mkdir(exist_ok=True)
+                report_json_path.write_text("{}", encoding="utf-8")
+                report_pdf_path.write_bytes(b"%PDF-1.4\n")
+                result["artifacts"] = {
+                    "json_report_path": str(report_json_path),
+                    "resume_pdf_path": str(report_pdf_path),
+                }
                 return result
 
         dummy_module.ArtifactPipeline = _DummyPipeline
@@ -142,8 +138,12 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
         data = response.json()
         assert data["zip_hash"]
         assert data["projects"]
+        assert data["resume_pdf_path"] == str(report_pdf_path)
     finally:
         app.dependency_overrides.clear()
+        report = Path("reports")
+        (report / "report_upload_test.json").unlink(missing_ok=True)
+        (report / "report_upload_test.pdf").unlink(missing_ok=True)
         shutil.rmtree(td, ignore_errors=True)
 
 
