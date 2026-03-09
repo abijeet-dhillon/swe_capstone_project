@@ -60,6 +60,8 @@ artifacts.db
 exports/
 scanned_data/
 
-frontend/node_modules
-frontend/package-lock.json
-frontend/dist
+# Frontend (Electron + React)
+frontend/node_modules/
+frontend/dist/
+frontend/out/
+

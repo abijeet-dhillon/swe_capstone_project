@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  getVersion: () => process.versions.electron,
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
+  platform: process.platform,
 })
