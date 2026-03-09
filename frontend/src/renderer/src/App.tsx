@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import ProjectsView from './ProjectsView'
 
+type AppView = 'dashboard' | 'projects'
 type DashboardMode = 'private' | 'public'
 type DashboardCategory = 'all' | 'resume' | 'portfolio' | 'timeline' | 'heatmap' | 'showcase'
 
@@ -50,6 +52,7 @@ const dashboardCards: DashboardCard[] = [
 ]
 
 function App() {
+  const [view, setView] = useState<AppView>('dashboard')
   const [mode, setMode] = useState<DashboardMode>('private')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<DashboardCategory>('all')
@@ -73,7 +76,16 @@ function App() {
         <p className="subtitle">Team 14 — Capstone Project</p>
       </header>
 
+      <nav className="nav-tabs">
+        <button className={`nav-tab ${view === 'dashboard' ? 'is-active' : ''}`} onClick={() => setView('dashboard')}>Dashboard</button>
+        <button className={`nav-tab ${view === 'projects' ? 'is-active' : ''}`} onClick={() => setView('projects')}>Projects</button>
+      </nav>
+
       <main className="app-main">
+        {view === 'projects' ? (
+          <ProjectsView />
+        ) : (
+        <>
         <section className="card" aria-label="dashboard-mode">
           <h2>Dashboard Mode</h2>
           <p>
@@ -150,6 +162,8 @@ function App() {
             ))
           )}
         </section>
+        </>
+        )}
       </main>
 
       <footer className="app-footer">
