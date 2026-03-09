@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import ProjectsView from './ProjectsView'
+import SkillsTimeline from './components/SkillsTimeline'
 
-type AppView = 'dashboard' | 'projects'
+type AppView = 'dashboard' | 'projects' | 'timeline'
 type DashboardMode = 'private' | 'public'
 type DashboardCategory = 'all' | 'resume' | 'portfolio' | 'timeline' | 'heatmap' | 'showcase'
 
@@ -84,85 +85,93 @@ function App() {
       <main className="app-main">
         {view === 'projects' ? (
           <ProjectsView />
+        ) : view === 'timeline' ? (
+          <div>
+            <button className="mode-btn" onClick={() => setView('dashboard')} style={{marginBottom: '20px'}}>
+              ← Back to Dashboard
+            </button>
+            <SkillsTimeline />
+          </div>
         ) : (
-        <>
-        <section className="card" aria-label="dashboard-mode">
-          <h2>Dashboard Mode</h2>
-          <p>
-            Private mode enables customization controls. Public mode limits interaction to search and filter.
-          </p>
-          <div className="mode-toggle" role="group" aria-label="Mode Toggle">
-            <button
-              className={`mode-btn ${mode === 'private' ? 'is-active' : ''}`}
-              onClick={() => setMode('private')}
-              aria-pressed={mode === 'private'}
-            >
-              Private
-            </button>
-            <button
-              className={`mode-btn ${mode === 'public' ? 'is-active' : ''}`}
-              onClick={() => setMode('public')}
-              aria-pressed={mode === 'public'}
-            >
-              Public
-            </button>
-          </div>
-          {mode === 'private' ? (
-            <p className="mode-hint">Customization controls are enabled.</p>
-          ) : (
-            <p className="mode-hint">Customization controls are disabled in public mode.</p>
-          )}
-        </section>
-
-        <section className="status-section" aria-label="search-filter">
-          <h3>Search and Filter</h3>
-          <div className="controls">
-            <input
-              className="input"
-              type="text"
-              placeholder="Search dashboard sections"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="Search sections"
-            />
-            <select
-              className="select"
-              value={category}
-              onChange={(event) => setCategory(event.target.value as DashboardCategory)}
-              aria-label="Filter category"
-            >
-              <option value="all">All Categories</option>
-              <option value="resume">Resume</option>
-              <option value="portfolio">Portfolio</option>
-              <option value="timeline">Timeline</option>
-              <option value="heatmap">Heatmap</option>
-              <option value="showcase">Showcase</option>
-            </select>
-          </div>
-        </section>
-
-        <section className="cards-grid" aria-label="dashboard-cards">
-          {filteredCards.length === 0 ? (
-            <p className="empty-state">No sections match your search/filter.</p>
-          ) : (
-            filteredCards.map((card) => (
-              <article className="feature-card" key={card.id}>
-                <div className="feature-head">
-                  <h4>{card.title}</h4>
-                  <span className={`pill ${card.status}`}>{card.status === 'ready' ? 'Ready' : 'Coming Soon'}</span>
-                </div>
-                <p>{card.description}</p>
+          <>
+            <section className="card" aria-label="dashboard-mode">
+              <h2>Dashboard Mode</h2>
+              <p>
+                Private mode enables customization controls. Public mode limits interaction to search and filter.
+              </p>
+              <div className="mode-toggle" role="group" aria-label="Mode Toggle">
                 <button
-                  className="action-btn"
-                  disabled={mode === 'public' || card.status === 'coming-soon'}
+                  className={`mode-btn ${mode === 'private' ? 'is-active' : ''}`}
+                  onClick={() => setMode('private')}
+                  aria-pressed={mode === 'private'}
                 >
-                  Customize
+                  Private
                 </button>
-              </article>
-            ))
-          )}
-        </section>
-        </>
+                <button
+                  className={`mode-btn ${mode === 'public' ? 'is-active' : ''}`}
+                  onClick={() => setMode('public')}
+                  aria-pressed={mode === 'public'}
+                >
+                  Public
+                </button>
+              </div>
+              {mode === 'private' ? (
+                <p className="mode-hint">Customization controls are enabled.</p>
+              ) : (
+                <p className="mode-hint">Customization controls are disabled in public mode.</p>
+              )}
+            </section>
+
+            <section className="status-section" aria-label="search-filter">
+              <h3>Search and Filter</h3>
+              <div className="controls">
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Search dashboard sections"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  aria-label="Search sections"
+                />
+                <select
+                  className="select"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value as DashboardCategory)}
+                  aria-label="Filter category"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="resume">Resume</option>
+                  <option value="portfolio">Portfolio</option>
+                  <option value="timeline">Timeline</option>
+                  <option value="heatmap">Heatmap</option>
+                  <option value="showcase">Showcase</option>
+                </select>
+              </div>
+            </section>
+
+            <section className="cards-grid" aria-label="dashboard-cards">
+              {filteredCards.length === 0 ? (
+                <p className="empty-state">No sections match your search/filter.</p>
+              ) : (
+                filteredCards.map((card) => (
+                  <article className="feature-card" key={card.id}>
+                    <div className="feature-head">
+                      <h4>{card.title}</h4>
+                      <span className={`pill ${card.status}`}>{card.status === 'ready' ? 'Ready' : 'Coming Soon'}</span>
+                    </div>
+                    <p>{card.description}</p>
+                    <button
+                      className="action-btn"
+                      disabled={mode === 'public' || card.status === 'coming-soon'}
+                      onClick={() => card.id === 'timeline' ? setView('timeline') : undefined}
+                    >
+                      {card.id === 'timeline' ? 'Open Timeline' : 'Customize'}
+                    </button>
+                  </article>
+                ))
+              )}
+            </section>
+          </>
         )}
       </main>
 
