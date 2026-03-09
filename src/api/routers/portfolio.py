@@ -7,6 +7,7 @@ contexts. Also supports edit, generate, and template listing endpoints.
 """
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -315,6 +316,84 @@ def get_top_projects(
     Each entry includes an ``evolution`` block with first/last commit dates,
     duration, total commits, contributors, and activity mix — illustrating the
     process and progression of changes over the project's lifetime.
+def _iso_week_key(iso_date: str) -> Optional[str]:
+    """Return the ISO-8601 week start (Monday) for a date string, or None if unparseable."""
+    raw = iso_date.split("T")[0] if "T" in iso_date else iso_date
+    try:
+        d = datetime.date.fromisoformat(raw)
+    except ValueError:
+        return None
+    # Monday of the ISO week
+    monday = d - datetime.timedelta(days=d.weekday())
+    return monday.isoformat()
+
+
+def _weeks_from_range(start_iso: str, end_iso: str) -> List[str]:
+    """Generate all Monday-week keys between two ISO date strings (inclusive)."""
+    try:
+        start = datetime.date.fromisoformat(start_iso.split("T")[0])
+        end = datetime.date.fromisoformat(end_iso.split("T")[0])
+    except ValueError:
+        return []
+    start = start - datetime.timedelta(days=start.weekday())
+    weeks = []
+    cur = start
+    while cur <= end:
+        weeks.append(cur.isoformat())
+        cur += datetime.timedelta(weeks=1)
+    return weeks
+
+
+def _heatmap_from_timeline(timeline: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Count activity events per ISO week from a chronological skills timeline."""
+    counts: Dict[str, int] = {}
+    for event in timeline:
+        ts = event.get("timestamp", "")
+        week = _iso_week_key(ts) if ts else None
+        if week:
+            counts[week] = counts.get(week, 0) + 1
+    return counts
+
+
+def _heatmap_from_range(start_iso: Optional[str], end_iso: Optional[str], total: int) -> Dict[str, int]:
+    """
+    Synthesize a weekly heatmap when no per-event timeline exists.
+    Distributes ``total`` commits evenly across weeks in [start, end].
+    """
+    if not start_iso or not end_iso or total <= 0:
+        return {}
+    weeks = _weeks_from_range(start_iso, end_iso)
+    if not weeks:
+        return {}
+    base, remainder = divmod(total, len(weeks))
+    return {week: base + (1 if i < remainder else 0) for i, week in enumerate(weeks)}
+
+
+def _merge_heatmaps(maps: List[Dict[str, int]]) -> Dict[str, int]:
+    """Sum multiple {week: count} maps into one."""
+    merged: Dict[str, int] = {}
+    for m in maps:
+        for week, count in m.items():
+            merged[week] = merged.get(week, 0) + count
+    return merged
+
+
+@router.get("/heatmap")
+def get_activity_heatmap(
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Return a weekly commit-activity heatmap across all projects.
+
+    Each key in ``weeks`` is an ISO-8601 date (Monday of the week, e.g. ``"2025-09-01"``).
+    The value is the number of activity events (commits / file changes) recorded that week.
+
+    - If chronological-skills timeline data exists for a project, actual per-file event
+      timestamps are used (most accurate).
+    - Otherwise, total commits are distributed evenly across the project's active date range.
+
+    The response also includes ``total_weeks`` (number of active weeks), ``total_activity``
+    (sum of all counts), and the ``date_range`` covered.
     """
     pipeline = PresentationPipeline(insights_store=store)
     all_projects = pipeline.list_available_projects()
@@ -324,6 +403,7 @@ def get_top_projects(
 
     # Load payloads and score each project
     scored: List[Dict[str, Any]] = []
+    per_project_maps: List[Dict[str, int]] = []
     for item in all_projects:
         pid = item.get("project_id")
         if not isinstance(pid, int):
@@ -371,6 +451,37 @@ def get_top_projects(
         result.append(project)
 
     return {"total": len(result), "limit": limit, "mode": mode.strip().lower(), "projects": result}
+
+        # Prefer timeline events for accuracy
+        timeline = (
+            (payload.get("global_insights") or {})
+            .get("chronological_skills", {})
+            .get("timeline") or []
+        )
+        if timeline:
+            per_project_maps.append(_heatmap_from_timeline(timeline))
+        else:
+            metrics = payload.get("project_metrics") or {}
+            per_project_maps.append(
+                _heatmap_from_range(
+                    metrics.get("duration_start"),
+                    metrics.get("duration_end"),
+                    int(metrics.get("total_commits") or 0),
+                )
+            )
+
+    merged = _merge_heatmaps(per_project_maps)
+
+    if not merged:
+        return {"weeks": {}, "total_weeks": 0, "total_activity": 0, "date_range": None}
+
+    sorted_weeks = sorted(merged)
+    return {
+        "weeks": {w: merged[w] for w in sorted_weeks},
+        "total_weeks": len(sorted_weeks),
+        "total_activity": sum(merged.values()),
+        "date_range": {"start": sorted_weeks[0], "end": sorted_weeks[-1]},
+    }
 
 
 @router.get("/{project_id}")
