@@ -316,6 +316,60 @@ def get_top_projects(
     Each entry includes an ``evolution`` block with first/last commit dates,
     duration, total commits, contributors, and activity mix — illustrating the
     process and progression of changes over the project's lifetime.
+    """
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+
+    if not all_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+
+    scored: List[Dict[str, Any]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
+
+    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
+
+    is_public = mode.strip().lower() == "public"
+    result: List[Dict[str, Any]] = []
+    for rank, entry in enumerate(ranked, start=1):
+        pid = entry["project_id"]
+        payload = entry["payload"]
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        git = payload.get("git_analysis") or {}
+
+        project: Dict[str, Any] = {
+            "rank": rank,
+            "project_id": pid,
+            "project_title": payload.get("project_name"),
+            "score": round(entry["score"], 2),
+            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
+            "key_metrics": _build_key_metrics(project_metrics),
+            "evolution": _build_evolution(git, project_metrics),
+        }
+
+        if not is_public:
+            project["tagline"] = portfolio_item.get("tagline")
+            project["description"] = portfolio_item.get("description")
+            project["summary"] = portfolio_item.get("summary")
+            project["key_features"] = portfolio_item.get("key_features") or []
+            project["project_type"] = portfolio_item.get("project_type")
+            project["complexity"] = portfolio_item.get("complexity")
+            project["is_collaborative"] = portfolio_item.get("is_collaborative", False)
+        else:
+            project["summary"] = portfolio_item.get("summary") or portfolio_item.get("description")
+
+        result.append(project)
+
+    return {"total": len(result), "limit": limit, "mode": mode.strip().lower(), "projects": result}
+
+
 def _iso_week_key(iso_date: str) -> Optional[str]:
     """Return the ISO-8601 week start (Monday) for a date string, or None if unparseable."""
     raw = iso_date.split("T")[0] if "T" in iso_date else iso_date
@@ -401,8 +455,6 @@ def get_activity_heatmap(
     if not all_projects:
         raise HTTPException(status_code=404, detail="No projects found")
 
-    # Load payloads and score each project
-    scored: List[Dict[str, Any]] = []
     per_project_maps: List[Dict[str, int]] = []
     for item in all_projects:
         pid = item.get("project_id")
@@ -411,47 +463,6 @@ def get_activity_heatmap(
         payload = store.load_project_insight_by_id(pid)
         if not payload:
             continue
-        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
-
-    # Rank descending by score; limit to requested N
-    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
-
-    is_public = mode.strip().lower() == "public"
-    result: List[Dict[str, Any]] = []
-    for rank, entry in enumerate(ranked, start=1):
-        pid = entry["project_id"]
-        payload = entry["payload"]
-        portfolio_item = payload.get("portfolio_item") or {}
-        project_metrics = payload.get("project_metrics") or {}
-        git = payload.get("git_analysis") or {}
-
-        project: Dict[str, Any] = {
-            "rank": rank,
-            "project_id": pid,
-            "project_title": payload.get("project_name"),
-            "score": round(entry["score"], 2),
-            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
-            "key_metrics": _build_key_metrics(project_metrics),
-            "evolution": _build_evolution(git, project_metrics),
-        }
-
-        if not is_public:
-            # Private mode: include all customization fields
-            project["tagline"] = portfolio_item.get("tagline")
-            project["description"] = portfolio_item.get("description")
-            project["summary"] = portfolio_item.get("summary")
-            project["key_features"] = portfolio_item.get("key_features") or []
-            project["project_type"] = portfolio_item.get("project_type")
-            project["complexity"] = portfolio_item.get("complexity")
-            project["is_collaborative"] = portfolio_item.get("is_collaborative", False)
-        else:
-            # Public mode: only the summary (read-only description)
-            project["summary"] = portfolio_item.get("summary") or portfolio_item.get("description")
-
-        result.append(project)
-
-    return {"total": len(result), "limit": limit, "mode": mode.strip().lower(), "projects": result}
-
         # Prefer timeline events for accuracy
         timeline = (
             (payload.get("global_insights") or {})
