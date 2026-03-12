@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import ProjectsView from './ProjectsView'
 import SkillsTimeline from './components/SkillsTimeline'
 
+type AppView = 'dashboard' | 'projects' | 'timeline'
 type DashboardMode = 'private' | 'public'
 type DashboardCategory = 'all' | 'resume' | 'portfolio' | 'timeline' | 'heatmap' | 'showcase'
 
@@ -50,13 +52,11 @@ const dashboardCards: DashboardCard[] = [
   },
 ]
 
-type View = 'dashboard' | 'timeline'
-
 function App() {
+  const [view, setView] = useState<AppView>('dashboard')
   const [mode, setMode] = useState<DashboardMode>('private')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<DashboardCategory>('all')
-  const [view, setView] = useState<View>('dashboard')
 
   const filteredCards = useMemo(() => {
     const lowered = query.trim().toLowerCase()
@@ -77,8 +77,15 @@ function App() {
         <p className="subtitle">Team 14 — Capstone Project</p>
       </header>
 
+      <nav className="nav-tabs">
+        <button className={`nav-tab ${view === 'dashboard' ? 'is-active' : ''}`} onClick={() => setView('dashboard')}>Dashboard</button>
+        <button className={`nav-tab ${view === 'projects' ? 'is-active' : ''}`} onClick={() => setView('projects')}>Projects</button>
+      </nav>
+
       <main className="app-main">
-        {view === 'timeline' ? (
+        {view === 'projects' ? (
+          <ProjectsView />
+        ) : view === 'timeline' ? (
           <div>
             <button className="mode-btn" onClick={() => setView('dashboard')} style={{marginBottom: '20px'}}>
               ← Back to Dashboard
