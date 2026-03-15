@@ -99,5 +99,64 @@ def get_git_identifier(
     config = manager.load_config(user_id, silent=True)
     if not config:
         raise HTTPException(status_code=404, detail="User configuration not found")
-    
+
     return {"user_id": user_id, "git_identifier": config.git_identifier}
+
+
+class ProfileUpdateRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    github_username: Optional[str] = None
+    git_identifier: Optional[str] = None
+
+
+@router.get("/profile/{user_id}")
+def get_profile(
+    user_id: str,
+    manager: UserConfigManager = Depends(get_config_manager),
+):
+    config = manager.load_config(user_id, silent=True)
+    if not config:
+        raise HTTPException(status_code=404, detail="User configuration not found")
+
+    return {
+        "user_id": config.user_id,
+        "first_name": config.first_name,
+        "last_name": config.last_name,
+        "email": config.email,
+        "github_username": config.github_username,
+        "git_identifier": config.git_identifier,
+    }
+
+
+@router.patch("/profile/{user_id}")
+def update_profile(
+    user_id: str,
+    payload: ProfileUpdateRequest,
+    manager: UserConfigManager = Depends(get_config_manager),
+):
+    config = manager.load_config(user_id, silent=True)
+    if not config:
+        raise HTTPException(status_code=404, detail="User configuration not found")
+
+    updated = manager.update_config(
+        user_id,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        email=payload.email,
+        github_username=payload.github_username,
+        git_identifier=payload.git_identifier,
+    )
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update profile")
+
+    refreshed = manager.load_config(user_id, silent=True)
+    return {
+        "user_id": user_id,
+        "first_name": refreshed.first_name if refreshed else payload.first_name,
+        "last_name": refreshed.last_name if refreshed else payload.last_name,
+        "email": refreshed.email if refreshed else payload.email,
+        "github_username": refreshed.github_username if refreshed else payload.github_username,
+        "git_identifier": refreshed.git_identifier if refreshed else payload.git_identifier,
+    }
