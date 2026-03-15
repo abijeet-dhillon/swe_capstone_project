@@ -65,3 +65,7 @@ frontend/node_modules/
 frontend/dist/
 frontend/out/
 
+# Claude
+.claude/
+CLAUDE.md
+
