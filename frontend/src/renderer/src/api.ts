@@ -274,6 +274,25 @@ export async function getProjectSkills(projectId: number): Promise<ProjectSkill[
   return skills.map((s) => ({ skill_name: s }))
 }
 
+// ─── Profile Types ─────────────────────────────────────────────────
+
+export type UserProfile = {
+  user_id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  github_username: string | null
+  git_identifier: string | null
+}
+
+export type ProfileUpdateRequest = {
+  first_name?: string
+  last_name?: string
+  email?: string
+  github_username?: string
+  git_identifier?: string
+}
+
 // Consent & Privacy
 export function setPrivacyConsent(req: ConsentRequest): Promise<{ message: string }> {
   return apiFetch('/privacy-consent', {
@@ -288,5 +307,17 @@ export function setGitIdentifier(req: GitIdentifierRequest): Promise<{ message: 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
+  })
+}
+
+export function getProfile(userId: string): Promise<UserProfile> {
+  return apiFetch(`/profile/${encodeURIComponent(userId)}`)
+}
+
+export function updateProfile(userId: string, data: ProfileUpdateRequest): Promise<UserProfile> {
+  return apiFetch(`/profile/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   })
 }
