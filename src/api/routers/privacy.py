@@ -16,6 +16,7 @@ class PrivacyConsentRequest(BaseModel):
     zip_path: str = Field(..., min_length=1)
     llm_consent: bool
     data_access_consent: Optional[bool] = None
+    resume_owner_name: Optional[str] = None
 
 
 class GitIdentifierRequest(BaseModel):
@@ -34,6 +35,9 @@ def set_privacy_consent(
         raise HTTPException(status_code=400, detail="user_id and zip_path are required")
 
     existing = manager.load_config(user_id, silent=True)
+    resume_owner_name = payload.resume_owner_name.strip() if isinstance(payload.resume_owner_name, str) else None
+    if resume_owner_name == "":
+        resume_owner_name = None
     if existing:
         updated = manager.update_config(
             user_id,
@@ -41,6 +45,7 @@ def set_privacy_consent(
             llm_consent=payload.llm_consent,
             llm_consent_asked=True,
             data_access_consent=payload.data_access_consent,
+            resume_owner_name=resume_owner_name,
         )
         if not updated:
             raise HTTPException(status_code=500, detail="Failed to update consent")
@@ -57,6 +62,7 @@ def set_privacy_consent(
             payload.llm_consent,
             llm_consent_asked=True,
             data_access_consent=data_access_consent,
+            resume_owner_name=resume_owner_name,
         )
         if not created:
             raise HTTPException(status_code=500, detail="Failed to store consent")
@@ -67,6 +73,7 @@ def set_privacy_consent(
         "zip_path": zip_path,
         "llm_consent": payload.llm_consent,
         "data_access_consent": data_access_consent,
+        "resume_owner_name": resume_owner_name,
     }
 
 

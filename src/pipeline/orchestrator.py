@@ -194,6 +194,7 @@ class ArtifactPipeline:
         data_access_consent: bool = True,
         prompt_project_names: bool = False,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
@@ -356,6 +357,9 @@ class ArtifactPipeline:
                 "categorized_contents": categorized_contents_full,
                 "projects": project_results
             }
+            cleaned_resume_owner_name = (resume_owner_name or "").strip()
+            if cleaned_resume_owner_name:
+                result["resume_owner"] = {"name": cleaned_resume_owner_name}
             
             # Step 6: Print summary
             print(f"\n[6/9] Generating summary...")
@@ -998,13 +1002,19 @@ class ArtifactPipeline:
             user_contribution = self._extract_user_contribution(
                 filtered, git_identifier
             )
-        
+
         result = {
             "total_commits": filtered_total_commits,
             "total_contributors": len(filtered),
             "contributors": filtered,
-            "user_contribution": user_contribution
+            "user_contribution": user_contribution,
         }
+        if git_identifier:
+            result["git_identifier_matched"] = user_contribution is not None
+            if user_contribution is None:
+                result["user_contribution_warning"] = (
+                    "No contributor matched the provided git identifier; using generic project wording."
+                )
         return result
     
     def _extract_user_contribution(self, contributors: List[Dict[str, Any]], git_identifier: str) -> Optional[Dict[str, Any]]:
@@ -1449,6 +1459,7 @@ class ArtifactPipeline:
         new_zip_path: str,
         old_zip_hash: str,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run the pipeline on a new ZIP and merge results with an existing analysis.
@@ -1484,6 +1495,7 @@ class ArtifactPipeline:
             data_access_consent=True,
             prompt_project_names=False,
             git_identifier=git_identifier,
+            resume_owner_name=resume_owner_name,
         )
 
         if not result or result.get("status") == "cancelled":

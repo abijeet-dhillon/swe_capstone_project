@@ -24,6 +24,7 @@ def test_privacy_consent_creates_config():
                 "zip_path": "/tmp/demo.zip",
                 "llm_consent": True,
                 "data_access_consent": True,
+                "resume_owner_name": "Resume Owner",
             },
         )
 
@@ -33,6 +34,7 @@ def test_privacy_consent_creates_config():
         assert stored.llm_consent is True
         assert stored.llm_consent_asked is True
         assert stored.data_access_consent is True
+        assert stored.resume_owner_name == "Resume Owner"
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(td, ignore_errors=True)
