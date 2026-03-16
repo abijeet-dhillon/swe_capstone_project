@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { filterProjects, type FilteredProject } from './api'
+import { filterProjects, generateResumePdf, type FilteredProject, type ResumeEducationInput } from './api'
 import { StatsCards } from './components/StatsCards'
 import { UploadZone } from './components/UploadZone'
 import { FilterTabs, type TabKey } from './components/FilterTabs'
@@ -118,6 +118,16 @@ const PAGE_META: Record<AppView, { title: string; subtitle: string }> = {
 
 let toastId = 0
 
+const blankEducation = (): ResumeEducationInput => ({
+  school: '',
+  degree: '',
+  location: '',
+  start_date: '',
+  end_date: '',
+  is_current: false,
+  expected_graduation: '',
+})
+
 function App() {
   const [view, setView] = useState<AppView>('dashboard')
   const [projects, setProjects] = useState<FilteredProject[]>([])
@@ -129,6 +139,22 @@ function App() {
   const [mode, setMode] = useState<DashboardMode>('private')
   const [cardQuery, setCardQuery] = useState('')
   const [cardCategory, setCardCategory] = useState<DashboardCategory>('all')
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
+  const [resumeProjectIds, setResumeProjectIds] = useState<number[]>([])
+  const [resumeOwnerName, setResumeOwnerName] = useState('')
+  const [resumePhone, setResumePhone] = useState('')
+  const [resumeEmail, setResumeEmail] = useState('')
+  const [resumeLinkedinUrl, setResumeLinkedinUrl] = useState('')
+  const [resumeLinkedinLabel, setResumeLinkedinLabel] = useState('')
+  const [resumeGithubUrl, setResumeGithubUrl] = useState('')
+  const [resumeGithubLabel, setResumeGithubLabel] = useState('')
+  const [resumeEducation, setResumeEducation] = useState<ResumeEducationInput[]>([blankEducation()])
+  const [resumeDownloadUrl, setResumeDownloadUrl] = useState<string | null>(null)
+  const [resumeFilename, setResumeFilename] = useState('resume.pdf')
+  const [resumeGenerating, setResumeGenerating] = useState(false)
+  const [resumeError, setResumeError] = useState('')
+  const [timelineRefreshNonce, setTimelineRefreshNonce] = useState(0)
+  const [timelineBusy, setTimelineBusy] = useState(false)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -154,6 +180,26 @@ function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
+  const resetResumeModal = useCallback(() => {
+    setResumeModalOpen(false)
+    setResumeProjectIds([])
+    setResumeOwnerName('')
+    setResumePhone('')
+    setResumeEmail('')
+    setResumeLinkedinUrl('')
+    setResumeLinkedinLabel('')
+    setResumeGithubUrl('')
+    setResumeGithubLabel('')
+    setResumeEducation([blankEducation()])
+    setResumeError('')
+    setResumeGenerating(false)
+    setResumeDownloadUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setResumeFilename('resume.pdf')
+  }, [])
+
   const handleUploadComplete = useCallback(
     (msg: string) => {
       const isError = msg.toLowerCase().includes('fail') || msg.toLowerCase().includes('error')
@@ -162,6 +208,97 @@ function App() {
     },
     [addToast, loadProjects],
   )
+
+  const handleResumeCardClick = useCallback(() => {
+    setResumeError('')
+    if (projects.length === 0) {
+      addToast('No projects available', 'error', 'Upload and analyze a ZIP before generating a resume.')
+      setView('upload')
+      return
+    }
+    setResumeProjectIds((prev) => (prev.length > 0 ? prev : projects.slice(0, 1).map((project) => project.project_info_id)))
+    setResumeModalOpen(true)
+  }, [addToast, projects])
+
+  const handleGenerateResumePdf = useCallback(async () => {
+    if (resumeProjectIds.length === 0 || !resumeOwnerName.trim()) {
+      setResumeError('Choose at least one project and enter the resume owner name.')
+      return
+    }
+    setResumeGenerating(true)
+    setResumeError('')
+    try {
+      const { blob, filename } = await generateResumePdf({
+        resume_owner_name: resumeOwnerName.trim(),
+        project_ids: resumeProjectIds,
+        phone: resumePhone.trim(),
+        email: resumeEmail.trim(),
+        linkedin_url: resumeLinkedinUrl.trim(),
+        linkedin_label: resumeLinkedinLabel.trim(),
+        github_url: resumeGithubUrl.trim(),
+        github_label: resumeGithubLabel.trim(),
+        education: resumeEducation
+          .map((entry) => ({
+            school: entry.school?.trim() || '',
+            degree: entry.degree?.trim() || '',
+            location: entry.location?.trim() || '',
+            start_date: entry.start_date?.trim() || '',
+            end_date: entry.end_date?.trim() || '',
+            is_current: Boolean(entry.is_current),
+            expected_graduation: entry.expected_graduation?.trim() || '',
+          }))
+          .filter((entry) => entry.school),
+      })
+      setResumeDownloadUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(blob)
+      })
+      setResumeFilename(filename)
+      addToast('Resume ready', 'success', 'Your PDF is ready to download.')
+    } catch (e) {
+      setResumeError(e instanceof Error ? e.message : 'Failed to generate resume PDF')
+    } finally {
+      setResumeGenerating(false)
+    }
+  }, [
+    addToast,
+    resumeEducation,
+    resumeEmail,
+    resumeGithubLabel,
+    resumeGithubUrl,
+    resumeLinkedinLabel,
+    resumeLinkedinUrl,
+    resumeOwnerName,
+    resumePhone,
+    resumeProjectIds,
+  ])
+
+  const toggleResumeProject = useCallback((projectId: number) => {
+    setResumeProjectIds((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : [...prev, projectId],
+    )
+  }, [])
+
+  const updateEducationField = useCallback(
+    (index: number, field: keyof ResumeEducationInput, value: string | boolean) => {
+      setResumeEducation((prev) =>
+        prev.map((entry, currentIndex) =>
+          currentIndex === index ? { ...entry, [field]: value } : entry,
+        ),
+      )
+    },
+    [],
+  )
+
+  const addEducationEntry = useCallback(() => {
+    setResumeEducation((prev) => [...prev, blankEducation()])
+  }, [])
+
+  const removeEducationEntry = useCallback((index: number) => {
+    setResumeEducation((prev) => (prev.length === 1 ? [blankEducation()] : prev.filter((_, currentIndex) => currentIndex !== index)))
+  }, [])
 
   const filteredProjects = useMemo(() => {
     let list = projects
@@ -245,6 +382,20 @@ function App() {
               <span className="pill info">{projects.length} projects</span>
             </div>
           )}
+          {view === 'timeline' && (
+            <div className="page-header__right">
+              <button
+                className="pv-view-btn"
+                type="button"
+                aria-label="Refresh skill catalog"
+                title="Refresh skill catalog"
+                onClick={() => setTimelineRefreshNonce((prev) => prev + 1)}
+                disabled={timelineBusy}
+              >
+                ↻
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="page-body">
@@ -323,9 +474,17 @@ function App() {
                         <button
                           className="action-btn"
                           disabled={mode === 'public' || card.status === 'coming-soon'}
-                          onClick={() => (card.id === 'timeline' ? setView('timeline') : undefined)}
+                          onClick={() => {
+                            if (card.id === 'timeline') {
+                              setView('timeline')
+                              return
+                            }
+                            if (card.id === 'resume') {
+                              handleResumeCardClick()
+                            }
+                          }}
                         >
-                          {card.id === 'timeline' ? 'Open Timeline' : 'Customize'}
+                          {card.id === 'timeline' ? 'Open Timeline' : card.id === 'resume' ? 'Generate Resume' : 'Customize'}
                         </button>
                       </article>
                     ))
@@ -357,7 +516,10 @@ function App() {
           ) : view === 'projects' ? (
             <ProjectsView />
           ) : view === 'timeline' ? (
-            <SkillsTimeline />
+            <SkillsTimeline
+              refreshNonce={timelineRefreshNonce}
+              onBusyChange={setTimelineBusy}
+            />
           ) : (
             <ProfileView onToast={addToast} />
           )}
@@ -378,6 +540,231 @@ function App() {
 
       {/* ── Toasts ── */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {resumeModalOpen && (
+        <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title">
+          <div className="modal-content">
+            <button className="close" onClick={resetResumeModal} aria-label="Close">
+              ×
+            </button>
+            <div className="modal-header">
+              <h2 id="resume-modal-title">Generate One-Page Resume</h2>
+              <span className="modal-category">Resume</span>
+            </div>
+
+            <p className="modal-description">
+              Select the projects to include, fill in any profile details you want on the resume, then generate the PDF.
+            </p>
+
+            <div className="modal-section">
+              <h4>Projects</h4>
+              <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                {projects.map((project) => (
+                  <label
+                    key={project.project_info_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      background: 'var(--bg-secondary)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={resumeProjectIds.includes(project.project_info_id)}
+                      onChange={() => toggleResumeProject(project.project_info_id)}
+                    />
+                    <span>{project.project_name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <h4>Resume Owner Name</h4>
+              <input
+                className="input"
+                type="text"
+                placeholder="e.g. Jane Doe"
+                value={resumeOwnerName}
+                onChange={(e) => setResumeOwnerName(e.target.value)}
+                style={{ width: '100%', minWidth: 0 }}
+              />
+            </div>
+
+            <div className="modal-section">
+              <h4>Contact</h4>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Phone number"
+                  value={resumePhone}
+                  onChange={(e) => setResumePhone(e.target.value)}
+                  style={{ width: '100%', minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="Email address"
+                  value={resumeEmail}
+                  onChange={(e) => setResumeEmail(e.target.value)}
+                  style={{ width: '100%', minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="LinkedIn URL"
+                  value={resumeLinkedinUrl}
+                  onChange={(e) => setResumeLinkedinUrl(e.target.value)}
+                  style={{ width: '100%', minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="LinkedIn label (optional)"
+                  value={resumeLinkedinLabel}
+                  onChange={(e) => setResumeLinkedinLabel(e.target.value)}
+                  style={{ width: '100%', minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="GitHub URL"
+                  value={resumeGithubUrl}
+                  onChange={(e) => setResumeGithubUrl(e.target.value)}
+                  style={{ width: '100%', minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="GitHub label (optional)"
+                  value={resumeGithubLabel}
+                  onChange={(e) => setResumeGithubLabel(e.target.value)}
+                  style={{ width: '100%', minWidth: 0 }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h4 style={{ margin: 0 }}>Education</h4>
+                <button className="action-btn" type="button" onClick={addEducationEntry}>
+                  Add Education
+                </button>
+              </div>
+              <div style={{ display: 'grid', gap: 14 }}>
+                {resumeEducation.map((entry, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: 12,
+                      padding: 12,
+                      background: 'var(--bg-secondary)',
+                      display: 'grid',
+                      gap: 10,
+                    }}
+                  >
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="University or school"
+                      value={entry.school ?? ''}
+                      onChange={(e) => updateEducationField(index, 'school', e.target.value)}
+                      style={{ width: '100%', minWidth: 0 }}
+                    />
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="Degree or program"
+                      value={entry.degree ?? ''}
+                      onChange={(e) => updateEducationField(index, 'degree', e.target.value)}
+                      style={{ width: '100%', minWidth: 0 }}
+                    />
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="Location"
+                      value={entry.location ?? ''}
+                      onChange={(e) => updateEducationField(index, 'location', e.target.value)}
+                      style={{ width: '100%', minWidth: 0 }}
+                    />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="From (e.g. Sep 2022)"
+                        value={entry.start_date ?? ''}
+                        onChange={(e) => updateEducationField(index, 'start_date', e.target.value)}
+                        style={{ width: '100%', minWidth: 0 }}
+                      />
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="To (e.g. May 2026)"
+                        value={entry.end_date ?? ''}
+                        disabled={Boolean(entry.is_current)}
+                        onChange={(e) => updateEducationField(index, 'end_date', e.target.value)}
+                        style={{ width: '100%', minWidth: 0 }}
+                      />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(entry.is_current)}
+                        onChange={(e) => updateEducationField(index, 'is_current', e.target.checked)}
+                      />
+                      <span>I am still studying here</span>
+                    </label>
+                    {entry.is_current && (
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="Expected graduation (e.g. May 2027)"
+                        value={entry.expected_graduation ?? ''}
+                        onChange={(e) => updateEducationField(index, 'expected_graduation', e.target.value)}
+                        style={{ width: '100%', minWidth: 0 }}
+                      />
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button className="reset-btn" type="button" onClick={() => removeEducationEntry(index)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {resumeError && (
+              <p className="filter-error" style={{ marginBottom: 12 }}>{resumeError}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              {resumeDownloadUrl && (
+                <a
+                  className="btn-primary"
+                  href={resumeDownloadUrl}
+                  download={resumeFilename}
+                >
+                  Download PDF
+                </a>
+              )}
+              <button
+                className="btn-primary"
+                onClick={handleGenerateResumePdf}
+                disabled={resumeGenerating}
+              >
+                {resumeGenerating ? 'Generating…' : 'Generate PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

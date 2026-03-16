@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -34,6 +34,78 @@ class ChronologicalProjectsResponse(BaseModel):
     """Chronological list of projects."""
     total_projects: int
     projects: List[dict]
+
+
+def _normalized_timeline(events: Any) -> List[Dict[str, Any]]:
+    if not isinstance(events, list):
+        return []
+    normalized: List[Dict[str, Any]] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        timestamp = event.get("timestamp")
+        if not isinstance(timestamp, str) or not timestamp:
+            continue
+        skills_raw = event.get("skills")
+        if not isinstance(skills_raw, list):
+            continue
+        skills = [str(value).strip().casefold() for value in skills_raw if isinstance(value, str) and value.strip()]
+        if not skills:
+            continue
+        metadata = event.get("metadata")
+        normalized.append(
+            {
+                "file": str(event.get("file") or "manual-entry"),
+                "timestamp": timestamp,
+                "category": str(event.get("category") or "manual"),
+                "skills": skills,
+                "metadata": metadata if isinstance(metadata, dict) else {},
+            }
+        )
+    return normalized
+
+
+def _project_chronology_view(raw: Any, project_id: Optional[int]) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+
+    if isinstance(project_id, int):
+        overrides = raw.get("project_overrides")
+        if isinstance(overrides, dict):
+            override = overrides.get(str(project_id))
+            if isinstance(override, dict):
+                if "timeline" in override:
+                    timeline = _normalized_timeline(override.get("timeline"))
+                    categories = override.get("categories")
+                    if not isinstance(categories, list):
+                        categories = sorted(
+                            {
+                                event.get("category")
+                                for event in timeline
+                                if isinstance(event.get("category"), str)
+                            }
+                        )
+                    total_events = override.get("total_events")
+                    if not isinstance(total_events, int):
+                        total_events = len(timeline)
+                    return {
+                        "timeline": timeline,
+                        "categories": categories,
+                        "total_events": total_events,
+                    }
+
+    timeline = _normalized_timeline(raw.get("timeline"))
+    categories = raw.get("categories")
+    if not isinstance(categories, list):
+        categories = sorted({event.get("category") for event in timeline if isinstance(event.get("category"), str)})
+    total_events = raw.get("total_events")
+    if not isinstance(total_events, int):
+        total_events = len(timeline)
+    return {
+        "timeline": timeline,
+        "categories": categories,
+        "total_events": total_events,
+    }
 
 
 @router.get("/skills", response_model=ChronologicalSkillsResponse)
@@ -77,19 +149,23 @@ def get_chronological_skills(
             status_code=500,
             detail=f"Error loading project insights: {str(e)}"
         )
-    
+
+    if not payload:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project_id = payload.get("project_id") if isinstance(payload.get("project_id"), int) else None
     global_insights = payload.get("global_insights", {})
-    chron_skills = global_insights.get("chronological_skills", {})
-    
+    chron_skills = _project_chronology_view(
+        global_insights.get("chronological_skills", {}),
+        project_id,
+    )
+
     if not chron_skills or not chron_skills.get("timeline"):
         raise HTTPException(
             status_code=404,
             detail=f"No chronological skills found for project: {project_name}"
         )
-    
-    # Get project_id if available
-    project_id = payload.get("project_id")
-    
+
     return ChronologicalSkillsResponse(
         project_id=project_id,
         project_name=project_name,
@@ -136,8 +212,11 @@ def get_chronological_skills_by_project_id(
     
     # Get chronological skills
     global_insights = payload.get("global_insights", {})
-    chron_skills = global_insights.get("chronological_skills", {})
-    
+    chron_skills = _project_chronology_view(
+        global_insights.get("chronological_skills", {}),
+        project_id,
+    )
+
     if not chron_skills or not chron_skills.get("timeline"):
         raise HTTPException(
             status_code=404,
@@ -225,4 +304,3 @@ def get_chronological_projects(
         total_projects=len(all_projects),
         projects=all_projects
     )
-

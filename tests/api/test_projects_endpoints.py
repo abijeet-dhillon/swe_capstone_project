@@ -116,8 +116,10 @@ def test_projects_upload_triggers_pipeline(monkeypatch):
             def __init__(self, insights_store=None):
                 self.insights_store = insights_store
 
-            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None):
+            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None, resume_owner_name=None):
                 result = build_pipeline_payload()
+                if resume_owner_name:
+                    result["resume_owner"] = {"name": resume_owner_name}
                 self.insights_store.record_pipeline_run(zip_path, result)
                 report_json_path.parent.mkdir(exist_ok=True)
                 report_json_path.write_text("{}", encoding="utf-8")
@@ -193,10 +195,12 @@ def test_project_thumbnail_upload_and_errors():
     try:
         db_path = os.path.join(td, "app.db")
         store, _, project_id = _seed_store(db_path)
+        role_store = ProjectRoleStore(db_path=db_path)
         thumbnails_root = Path(td) / "thumbnails"
         max_bytes = 32
 
         app.dependency_overrides[deps.get_store] = lambda: store
+        app.dependency_overrides[deps.get_role_store] = lambda: role_store
         app.dependency_overrides[deps.get_thumbnail_root] = lambda: thumbnails_root
         app.dependency_overrides[deps.get_thumbnail_max_bytes] = lambda: max_bytes
         client = TestClient(app)

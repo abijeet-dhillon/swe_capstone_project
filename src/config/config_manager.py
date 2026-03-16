@@ -36,6 +36,7 @@ class UserConfig:
     created_at: str
     updated_at: Optional[str] = None
     git_identifier: Optional[str] = None
+    resume_owner_name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[str] = None
@@ -51,6 +52,7 @@ class UserConfig:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "git_identifier": self.git_identifier,
+            "resume_owner_name": self.resume_owner_name,
             "first_name": self.first_name,
             "last_name": self.last_name,
             "email": self.email,
@@ -100,6 +102,10 @@ class UserConfigManager:
                 conn.execute(
                     f"ALTER TABLE {TABLE_NAME} ADD COLUMN git_identifier TEXT;"
                 )
+            if "resume_owner_name" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN resume_owner_name TEXT;"
+                )
             if "first_name" not in cols:
                 conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN first_name TEXT;")
             if "last_name" not in cols:
@@ -116,8 +122,13 @@ class UserConfigManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     f"""
-                    INSERT INTO {TABLE_NAME} (user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at, git_identifier, first_name, last_name, email, github_username)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO {TABLE_NAME} (
+                        user_id, zip_file, llm_consent, llm_consent_asked,
+                        data_access_consent, created_at, updated_at,
+                        git_identifier, resume_owner_name,
+                        first_name, last_name, email, github_username
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET
                         zip_file = excluded.zip_file,
                         llm_consent = excluded.llm_consent,
@@ -125,6 +136,7 @@ class UserConfigManager:
                         data_access_consent = excluded.data_access_consent,
                         updated_at = excluded.updated_at,
                         git_identifier = excluded.git_identifier,
+                        resume_owner_name = excluded.resume_owner_name,
                         first_name = excluded.first_name,
                         last_name = excluded.last_name,
                         email = excluded.email,
@@ -139,6 +151,7 @@ class UserConfigManager:
                         config.created_at,
                         config.updated_at,
                         config.git_identifier,
+                        config.resume_owner_name,
                         config.first_name,
                         config.last_name,
                         config.email,
@@ -158,6 +171,7 @@ class UserConfigManager:
         llm_consent: bool,
         llm_consent_asked: bool = False,
         data_access_consent: bool = False,
+        resume_owner_name: Optional[str] = None,
     ) -> bool:
         """Insert a brand-new config row for the given user."""
         if self.load_config(user_id, silent=True):
@@ -173,6 +187,7 @@ class UserConfigManager:
             data_access_consent=data_access_consent,
             created_at=timestamp,
             updated_at=None,
+            resume_owner_name=resume_owner_name.strip() if isinstance(resume_owner_name, str) and resume_owner_name.strip() else None,
         )
         return self._persist_config(config)
 
@@ -184,6 +199,7 @@ class UserConfigManager:
         llm_consent_asked: Optional[bool] = None,
         data_access_consent: Optional[bool] = None,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         email: Optional[str] = None,
@@ -201,6 +217,8 @@ class UserConfigManager:
             existing.llm_consent = llm_consent
         if git_identifier is not None:
             existing.git_identifier = git_identifier
+        if resume_owner_name is not None:
+            existing.resume_owner_name = resume_owner_name.strip() or None
         if llm_consent_asked is not None:
             existing.llm_consent_asked = llm_consent_asked
         if data_access_consent is not None:
@@ -224,7 +242,9 @@ class UserConfigManager:
             with sqlite3.connect(self.db_path) as conn:
                 row = conn.execute(
                     f"""
-                    SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent, created_at, updated_at, git_identifier, first_name, last_name, email, github_username
+                    SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent,
+                           created_at, updated_at, git_identifier, resume_owner_name,
+                           first_name, last_name, email, github_username
                     FROM {TABLE_NAME}
                     WHERE user_id = ?
                     """,
@@ -248,10 +268,11 @@ class UserConfigManager:
             created_at=row[5],
             updated_at=row[6],
             git_identifier=row[7],
-            first_name=row[8] if len(row) > 8 else None,
-            last_name=row[9] if len(row) > 9 else None,
-            email=row[10] if len(row) > 10 else None,
-            github_username=row[11] if len(row) > 11 else None,
+            resume_owner_name=row[8] if len(row) > 8 else None,
+            first_name=row[9] if len(row) > 9 else None,
+            last_name=row[10] if len(row) > 10 else None,
+            email=row[11] if len(row) > 11 else None,
+            github_username=row[12] if len(row) > 12 else None,
         )
 
 
