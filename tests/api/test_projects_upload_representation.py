@@ -77,8 +77,10 @@ def upload_env():
             def __init__(self, insights_store=None):
                 self.insights_store = insights_store
 
-            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None):
+            def start(self, zip_path, use_llm=False, data_access_consent=True, prompt_project_names=False, git_identifier=None, resume_owner_name=None):
                 result = _upload_result()
+                if resume_owner_name:
+                    result["resume_owner"] = {"name": resume_owner_name}
                 self.insights_store.record_pipeline_run(zip_path, result)
                 return result
 

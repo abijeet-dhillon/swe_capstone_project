@@ -206,6 +206,7 @@ export type ConsentRequest = {
   zip_path: string
   llm_consent: boolean
   data_access_consent: boolean
+  resume_owner_name?: string
 }
 
 export type GitIdentifierRequest = {
@@ -228,6 +229,28 @@ export type UploadResponse = {
   resume_pdf_path?: string | null
   representation?: Record<string, unknown>
   represented_output?: Record<string, unknown>
+}
+
+export type ResumeEducationInput = {
+  school: string
+  degree?: string
+  location?: string
+  start_date?: string
+  end_date?: string
+  is_current?: boolean
+  expected_graduation?: string
+}
+
+export type ResumePdfRequest = {
+  resume_owner_name: string
+  project_ids: number[]
+  phone?: string
+  email?: string
+  linkedin_url?: string
+  linkedin_label?: string
+  github_url?: string
+  github_label?: string
+  education?: ResumeEducationInput[]
 }
 
 // ─── API Functions ─────────────────────────────────────────────────
@@ -332,6 +355,27 @@ export async function getResume(projectId: number): Promise<ResumeData> {
 
 export function generateResume(): Promise<{ message: string }> {
   return apiFetch('/resume/generate', { method: 'POST' })
+}
+
+export async function generateResumePdf(
+  payload: ResumePdfRequest,
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_BASE}/resume/pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(text || res.statusText)
+  }
+  const blob = await res.blob()
+  const disposition = res.headers.get('content-disposition') || ''
+  const filenameMatch = disposition.match(/filename="?([^"]+)"?/)
+  return {
+    blob,
+    filename: filenameMatch?.[1] || 'resume.pdf',
+  }
 }
 
 // Skills

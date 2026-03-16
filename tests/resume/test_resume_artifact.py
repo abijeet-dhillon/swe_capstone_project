@@ -31,6 +31,64 @@ def test_build_resume_context_handles_missing_optional_fields():
         }
     ]
 
+def test_build_resume_context_uses_explicit_resume_owner_over_git_contributor():
+    context = build_resume_context(
+        {
+            "resume_owner": {"name": "Actual Student"},
+            "projects": {
+                "OnlyProject": {
+                    "project_name": "OnlyProject",
+                    "git_analysis": {
+                        "contributors": [
+                            {"author": {"name": "Top Contributor", "email": "top@example.com"}, "commits": 99}
+                        ]
+                    },
+                }
+            },
+        }
+    )
+    assert context["name"] == "Actual Student"
+    assert context["email"] == ""
+
+def test_build_resume_context_includes_optional_profile_fields_and_education():
+    context = build_resume_context(
+        {
+            "resume_owner": {
+                "name": "Actual Student",
+                "phone": "555-111-2222",
+                "email": "student@example.com",
+                "linkedin_url": "https://linkedin.com/in/student",
+                "github_url": "https://github.com/student",
+                "education": [
+                    {
+                        "school": "University of Victoria",
+                        "degree": "BSc Computer Science",
+                        "location": "Victoria, BC",
+                        "start_date": "Sep 2022",
+                        "is_current": True,
+                        "expected_graduation": "May 2027",
+                    }
+                ],
+            },
+            "projects": {"OnlyProject": {"project_name": "OnlyProject"}},
+        }
+    )
+    assert context["phone"] == "555-111-2222"
+    assert context["email"] == "student@example.com"
+    assert context["linkedin_url"] == "https://linkedin.com/in/student"
+    assert context["linkedin_label"] == "LinkedIn"
+    assert context["github_url"] == "https://github.com/student"
+    assert context["github_label"] == "GitHub"
+    assert context["education"] == [
+        {
+            "school": "University of Victoria",
+            "degree": "BSc Computer Science",
+            "location": "Victoria, BC",
+            "start_date": "Sep 2022",
+            "end_date": "Expected May 2027",
+        }
+    ]
+
 def test_escape_latex_escapes_common_special_characters():
     escaped = escape_latex(r"\ { } $ & # _ % ~ ^")
     assert r"\textbackslash{}" in escaped
@@ -52,6 +110,7 @@ def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
     )
     output_path = tmp_path / "reports" / "report_20260101_120000.tex"
     report = {
+        "resume_owner": {"name": "Actual Student"},
         "projects": {
             "ProjectAlpha": {
                 "project_name": "Project_Alpha & Co",
@@ -83,13 +142,33 @@ def test_generate_resume_tex_artifact_writes_escaped_template_output(tmp_path):
     assert rendered_path == output_path
     assert rendered_path.exists()
     rendered = rendered_path.read_text(encoding="utf-8")
-    assert r"Jane \textasciicircum{} Doe" in rendered
-    assert r"jane\_doe@example.com" in rendered
+    assert "Actual Student" in rendered
     assert r"Project\_Alpha \& Co" in rendered
     assert r"40\%" in rendered
     assert r"feature\_1 \& feature\#2" in rendered
     assert r"\{care\}" in rendered
     assert r"\$budget." in rendered
+
+def test_build_resume_context_fallback_bullets_do_not_claim_all_repo_commits_without_match():
+    context = build_resume_context(
+        {
+            "resume_owner": {"name": "Actual Student"},
+            "projects": {
+                "TeamProject": {
+                    "project_name": "TeamProject",
+                    "project_metrics": {"total_lines": 800, "skills": ["Python"]},
+                    "git_analysis": {
+                        "total_commits": 42,
+                        "total_contributors": 3,
+                        "git_identifier_matched": False,
+                        "user_contribution": None,
+                    },
+                }
+            },
+        }
+    )
+    bullets = context["projects"][0]["bullets"]
+    assert any("Worked on a 3-contributor repository with 42 commits." == bullet for bullet in bullets)
 
 def test_generate_resume_pdf_artifact_raises_on_compiler_failure(tmp_path, monkeypatch):
     template_path = tmp_path / "resume_template.tex"

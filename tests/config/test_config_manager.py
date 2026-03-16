@@ -209,3 +209,16 @@ def test_git_identifier_defaults_to_none(manager):
     manager.create_config("no_git_user", "/tmp/data.zip", False)
     cfg = manager.load_config("no_git_user")
     assert cfg.git_identifier is None
+
+
+def test_resume_owner_name_stores_and_loads(manager):
+    manager.create_config("resume_user", "/tmp/data.zip", False, resume_owner_name="Student Name")
+    cfg = manager.load_config("resume_user")
+    assert cfg.resume_owner_name == "Student Name"
+
+
+def test_resume_owner_name_can_be_updated(manager):
+    manager.create_config("resume_update_user", "/tmp/data.zip", False)
+    assert manager.update_config("resume_update_user", resume_owner_name="Updated Name") is True
+    cfg = manager.load_config("resume_update_user")
+    assert cfg.resume_owner_name == "Updated Name"

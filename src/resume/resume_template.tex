@@ -40,18 +40,6 @@
         \end{sectioncontent}
     \end{rSection}
     {% endif %}
-    % SKILLS
-    \begin{rSection}{SKILLS}
-        \vspace{2mm}
-        \begin{sectioncontent}
-        \begin{tabular}{ @{} >{\bfseries}l @{\hspace{6ex}} p{0.72\textwidth} }
-        Advanced & {{ skills.get("Advanced", []) | join(", ") }}\\
-        Proficient & {{ skills.get("Proficient", []) | join(", ") }}\\
-        Working Knowledge & {{ skills.get("Working Knowledge", []) | join(", ") }}\\
-        Familiar & {{ skills.get("Familiar", []) | join(", ") }}\\
-        \end{tabular}
-        \end{sectioncontent}
-    \end{rSection}
     % PROJECTS
     {% if projects %}
     \begin{rSection}{PROJECTS}
@@ -73,6 +61,18 @@
         \end{sectioncontent}
     \end{rSection}
     {% endif %}
+    % SKILLS
+    \begin{rSection}{SKILLS}
+        \vspace{2mm}
+        \begin{sectioncontent}
+        \begin{tabular}{ @{} >{\bfseries}l @{\hspace{6ex}} p{0.72\textwidth} }
+        Advanced & {{ skills.get("Advanced", []) | join(", ") }}\\
+        Proficient & {{ skills.get("Proficient", []) | join(", ") }}\\
+        Working Knowledge & {{ skills.get("Working Knowledge", []) | join(", ") }}\\
+        Familiar & {{ skills.get("Familiar", []) | join(", ") }}\\
+        \end{tabular}
+        \end{sectioncontent}
+    \end{rSection}
     % AWARDS
     {% if awards %}
     \begin{rSection}{AWARDS}

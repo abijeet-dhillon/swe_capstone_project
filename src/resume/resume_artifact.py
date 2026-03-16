@@ -75,23 +75,47 @@ def _iter_projects(report: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         if name != "_misc_files" and isinstance(payload, dict)
     }
 
-def _select_identity(projects: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
-    best_name = ""
-    best_email = ""
-    best_commits = -1
-    for payload in projects.values():
-        git = _as_dict(payload.get("git_analysis"))
-        for contributor in _as_list(git.get("contributors")):
-            contrib = _as_dict(contributor)
-            author = _as_dict(contrib.get("author"))
-            commits = _to_int(contrib.get("commits"))
-            name = _clean_text(author.get("name") or contrib.get("name"))
-            email = _clean_text(author.get("email") or contrib.get("email"))
-            if commits > best_commits and (name or email):
-                best_commits = commits
-                best_name = name
-                best_email = email
-    return {"name": best_name, "email": best_email}
+def _select_explicit_identity(report: Dict[str, Any]) -> Dict[str, str]:
+    owner = _as_dict(report.get("resume_owner"))
+    return {
+        "name": _clean_text(owner.get("name")),
+        "email": _clean_text(owner.get("email")),
+        "phone": _clean_text(owner.get("phone")),
+        "linkedin_url": _clean_text(owner.get("linkedin_url")),
+        "linkedin_label": _clean_text(owner.get("linkedin_label") or ("LinkedIn" if _clean_text(owner.get("linkedin_url")) else "")),
+        "github_url": _clean_text(owner.get("github_url")),
+        "github_label": _clean_text(owner.get("github_label") or ("GitHub" if _clean_text(owner.get("github_url")) else "")),
+    }
+
+
+def _build_education(report: Dict[str, Any]) -> List[Dict[str, str]]:
+    owner = _as_dict(report.get("resume_owner"))
+    education_entries: List[Dict[str, str]] = []
+    for raw_entry in _as_list(owner.get("education")):
+        entry = _as_dict(raw_entry)
+        school = _clean_text(entry.get("school"))
+        degree = _clean_text(entry.get("degree"))
+        location = _clean_text(entry.get("location"))
+        start_date = _clean_text(entry.get("start_date"))
+        end_date = _clean_text(entry.get("end_date"))
+        expected_graduation = _clean_text(entry.get("expected_graduation"))
+        is_current = bool(entry.get("is_current"))
+        if not school and not degree:
+            continue
+        if is_current:
+            end_label = f"Expected {expected_graduation}" if expected_graduation else "Present"
+        else:
+            end_label = end_date or (f"Expected {expected_graduation}" if expected_graduation else "")
+        education_entries.append(
+            {
+                "school": school,
+                "degree": degree,
+                "location": location,
+                "start_date": start_date,
+                "end_date": end_label,
+            }
+        )
+    return education_entries
 
 def _collect_skills(projects: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]:
     counts: Counter[str] = Counter()
@@ -130,6 +154,10 @@ def _collect_skills(projects: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]
 
 def _ranked_project_names(report: Dict[str, Any], projects: Dict[str, Dict[str, Any]]) -> List[str]:
     names: List[str] = []
+    for raw_name in _as_list(report.get("selected_project_names")):
+        name = _clean_text(raw_name)
+        if name and name in projects and name not in names:
+            names.append(name)
     ranking = _as_dict(report.get("project_ranking"))
     for summary in _as_list(ranking.get("top_summaries")):
         name = _clean_text(_as_dict(summary).get("name"))
@@ -145,15 +173,23 @@ def _fallback_bullets(metrics: Dict[str, Any], git: Dict[str, Any]) -> List[str]
     total_lines = _to_int(metrics.get("total_lines"))
     total_commits = _to_int(git.get("total_commits", metrics.get("total_commits")))
     total_contributors = _to_int(git.get("total_contributors", metrics.get("total_contributors")))
+    user_contribution = _as_dict(git.get("user_contribution"))
+    user_commits = _to_int(user_contribution.get("commits"))
     if total_lines > 0:
         bullets.append(f"Delivered {total_lines:,} lines of implementation across project scope.")
     if total_commits > 0:
-        if total_contributors > 1:
+        if user_commits > 0 and total_contributors > 1:
             bullets.append(
-                f"Contributed {total_commits} commits in a {total_contributors}-contributor repository."
+                f"Contributed {user_commits} commits in a {total_contributors}-contributor repository."
+            )
+        elif user_commits > 0:
+            bullets.append(f"Contributed {user_commits} commits.")
+        elif total_contributors > 1:
+            bullets.append(
+                f"Worked on a {total_contributors}-contributor repository with {total_commits} commits."
             )
         else:
-            bullets.append(f"Contributed {total_commits} commits.")
+            bullets.append(f"Worked on a repository with {total_commits} commits.")
     skills = [_clean_text(skill) for skill in _as_list(metrics.get("skills")) if _clean_text(skill)]
     if skills:
         bullets.append(f"Applied {', '.join(skills[:3])}.")
@@ -198,16 +234,16 @@ def _build_projects(report: Dict[str, Any], projects: Dict[str, Dict[str, Any]])
 def build_resume_context(report: Dict[str, Any]) -> Dict[str, Any]:
     """Build template-ready context using existing analysis/report output."""
     projects = _iter_projects(report)
-    identity = _select_identity(projects)
+    identity = _select_explicit_identity(report)
     context = {
         "name": identity["name"],
-        "phone": "",
+        "phone": identity["phone"],
         "email": identity["email"],
-        "linkedin_url": "",
-        "linkedin_label": "",
-        "github_url": "",
-        "github_label": "",
-        "education": [],
+        "linkedin_url": identity["linkedin_url"],
+        "linkedin_label": identity["linkedin_label"],
+        "github_url": identity["github_url"],
+        "github_label": identity["github_label"],
+        "education": _build_education(report),
         "skills": _collect_skills(projects),
         "projects": _build_projects(report, projects),
         "awards": [],
