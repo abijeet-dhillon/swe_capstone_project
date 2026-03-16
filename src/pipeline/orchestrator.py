@@ -30,6 +30,7 @@ from src.project.presentation import (
     generate_portfolio_item,
     generate_resume_item,
 )
+from src.resume.resume_artifact import generate_resume_pdf_artifact
 from src.config.config_manager import UserConfigManager
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 
@@ -193,6 +194,7 @@ class ArtifactPipeline:
         data_access_consent: bool = True,
         prompt_project_names: bool = False,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
@@ -355,6 +357,9 @@ class ArtifactPipeline:
                 "categorized_contents": categorized_contents_full,
                 "projects": project_results
             }
+            cleaned_resume_owner_name = (resume_owner_name or "").strip()
+            if cleaned_resume_owner_name:
+                result["resume_owner"] = {"name": cleaned_resume_owner_name}
             
             # Step 6: Print summary
             print(f"\n[6/9] Generating summary...")
@@ -406,6 +411,17 @@ class ArtifactPipeline:
             print(f"\n📄 Saving JSON report...")
             report_path = self._save_json_report(zip_path, result)
             print(f"     ✓ Report saved to: {report_path}")
+            result["artifacts"] = {"json_report_path": str(report_path), "resume_pdf_path": None}
+
+            print(f"🧾 Rendering resume .pdf artifact...")
+            resume_pdf_path = report_path.with_suffix(".pdf")
+            try:
+                rendered_resume_path = generate_resume_pdf_artifact(result, resume_pdf_path)
+                result["artifacts"]["resume_pdf_path"] = str(rendered_resume_path)
+                print(f"     ✓ Resume artifact saved to: {rendered_resume_path}")
+            except Exception as exc:
+                # Resume rendering should not break successful analysis/report generation.
+                print(f"     ⚠️  Resume artifact generation skipped: {exc}")
             
             # Mark progress as complete
             self.progress_tracker.update(stage='complete', processed_files=zip_index.file_count)
@@ -986,13 +1002,19 @@ class ArtifactPipeline:
             user_contribution = self._extract_user_contribution(
                 filtered, git_identifier
             )
-        
+
         result = {
             "total_commits": filtered_total_commits,
             "total_contributors": len(filtered),
             "contributors": filtered,
-            "user_contribution": user_contribution
+            "user_contribution": user_contribution,
         }
+        if git_identifier:
+            result["git_identifier_matched"] = user_contribution is not None
+            if user_contribution is None:
+                result["user_contribution_warning"] = (
+                    "No contributor matched the provided git identifier; using generic project wording."
+                )
         return result
     
     def _extract_user_contribution(self, contributors: List[Dict[str, Any]], git_identifier: str) -> Optional[Dict[str, Any]]:
@@ -1437,6 +1459,7 @@ class ArtifactPipeline:
         new_zip_path: str,
         old_zip_hash: str,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run the pipeline on a new ZIP and merge results with an existing analysis.
@@ -1472,6 +1495,7 @@ class ArtifactPipeline:
             data_access_consent=True,
             prompt_project_names=False,
             git_identifier=git_identifier,
+            resume_owner_name=resume_owner_name,
         )
 
         if not result or result.get("status") == "cancelled":

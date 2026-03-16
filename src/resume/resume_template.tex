@@ -1,0 +1,97 @@
+\documentclass{resume} % Use the custom resume.cls style
+\usepackage[left=0.4in,top=0.4in,right=0.4in,bottom=0.4in]{geometry} % Document margins
+\usepackage{array}
+{% raw %}
+\newcommand{\tab}[1]{\hspace{.2667\textwidth}\rlap{#1}}
+\newcommand{\itab}[1]{\hspace{0em}\rlap{#1}}
+{% endraw %}
+\newenvironment{sectioncontent}{
+  \begin{list}{}{
+    \setlength{\leftmargin}{1.5em}
+    \setlength{\rightmargin}{0pt}
+    \setlength{\listparindent}{0pt}
+    \setlength{\itemindent}{0pt}
+    \setlength{\parsep}{0pt}
+    \setlength{\topsep}{0pt}
+    \setlength{\partopsep}{0pt}
+    \setlength{\itemsep}{0pt}
+  }
+  \item[]
+}{
+  \end{list}
+}
+\name{ {{- name -}} }
+\address{
+{% if phone %}{{- phone -}} \\{% endif %}
+{% if email %}\href{mailto:{{- email -}}}{ {{- email -}} } \\{% endif %}
+{% if linkedin_url and linkedin_label %}\href{ {{- linkedin_url -}} }{ {{- linkedin_label -}} } \\{% endif %}
+{% if github_url and github_label %}\href{ {{- github_url -}} }{ {{- github_label -}} }{% endif %}
+}
+\begin{document}
+    % EDUCATION SECTION
+    {% if education %}
+    \begin{rSection}{EDUCATION}
+        \vspace{2mm}
+        \begin{sectioncontent}
+        {% for edu in education %}
+        \textbf{ {{- edu.school -}} } \hfill {{ edu.start_date }} -- {{ edu.end_date }}\\
+        {{ edu.degree }} \hfill \textit{ {{- edu.location -}} }\\
+        {% endfor %}
+        \end{sectioncontent}
+    \end{rSection}
+    {% endif %}
+    % PROJECTS
+    {% if projects %}
+    \begin{rSection}{PROJECTS}
+        \vspace{2mm}
+        \begin{sectioncontent}
+        {% for project in projects %}
+        \textbf{ {{- project.name -}} } \hfill {{ project.start_date }} -- {{ project.end_date }}\\
+        \textit{ {{- project.tech_stack -}} } 
+        {% if project.bullets %}
+         \begin{itemize}
+            \itemsep -3pt {}
+            {% for bullet in project.bullets %}
+            \item {{ bullet }}
+            {% endfor %}
+         \end{itemize}
+        {% endif %}
+        {% if not loop.last %}\vspace{0.35em}{% endif %}
+        {% endfor %}
+        \end{sectioncontent}
+    \end{rSection}
+    {% endif %}
+    % SKILLS
+    \begin{rSection}{SKILLS}
+        \vspace{2mm}
+        \begin{sectioncontent}
+        \begin{tabular}{ @{} >{\bfseries}l @{\hspace{6ex}} p{0.72\textwidth} }
+        Advanced & {{ skills.get("Advanced", []) | join(", ") }}\\
+        Proficient & {{ skills.get("Proficient", []) | join(", ") }}\\
+        Working Knowledge & {{ skills.get("Working Knowledge", []) | join(", ") }}\\
+        Familiar & {{ skills.get("Familiar", []) | join(", ") }}\\
+        \end{tabular}
+        \end{sectioncontent}
+    \end{rSection}
+    % AWARDS
+    {% if awards %}
+    \begin{rSection}{AWARDS}
+        \vspace{2mm}
+        \begin{sectioncontent}
+        {% for award in awards %}
+        \textbf{ {{- award.name -}} } \hfill {{ award.date }}\\
+        \textit{ {{- award.organization -}} }
+        {% if award.bullets %}
+         \begin{itemize}
+            \itemsep -3pt {}
+            {% for bullet in award.bullets %}
+             \item {{ bullet }}
+            {% endfor %}
+         \end{itemize}
+        {% endif %}
+        {% if not loop.last %}\vspace{0.35em}{% endif %}
+        {% endfor %}
+        \end{sectioncontent}
+    \end{rSection}
+    {% endif %}
+\end{document}

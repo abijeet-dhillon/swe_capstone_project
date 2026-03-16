@@ -161,3 +161,74 @@ def test_year_validation_422(skills_client):
     client, _ = skills_client
     response = client.get("/skills/year", params={"year": 26})
     assert response.status_code == 422
+
+
+def test_skill_mutations_persist_to_chronological_timeline(skills_client):
+    client, project_id = skills_client
+
+    add_response = client.post(
+        "/skills/add",
+        json={"project_id": project_id, "skills": ["graphql"], "month": 2, "year": 2027},
+    )
+    assert add_response.status_code == 200
+    assert "graphql" in add_response.json()["skills"]
+
+    after_add = client.get(f"/chronological/skills/{project_id}")
+    assert after_add.status_code == 200
+    add_timeline = after_add.json()["timeline"]
+    assert any("graphql" in item.get("skills", []) for item in add_timeline)
+    assert any(
+        "graphql" in item.get("skills", []) and str(item.get("timestamp", "")).startswith("2027-02-01")
+        for item in add_timeline
+    )
+
+    edit_response = client.post(
+        "/skills/edit",
+        json={"project_id": project_id, "old": "graphql", "new": "rust", "month": 3, "year": 2028},
+    )
+    assert edit_response.status_code == 200
+    assert "graphql" not in edit_response.json()["skills"]
+    assert "rust" in edit_response.json()["skills"]
+
+    after_edit = client.get(f"/chronological/skills/{project_id}")
+    assert after_edit.status_code == 200
+    edit_timeline = after_edit.json()["timeline"]
+    assert all("graphql" not in item.get("skills", []) for item in edit_timeline)
+    assert any("rust" in item.get("skills", []) for item in edit_timeline)
+    assert any(
+        "rust" in item.get("skills", []) and str(item.get("timestamp", "")).startswith("2028-03-01")
+        for item in edit_timeline
+    )
+
+    remove_response = client.post(
+        "/skills/remove",
+        json={"project_id": project_id, "skills": ["rust"]},
+    )
+    assert remove_response.status_code == 200
+    assert "rust" not in remove_response.json()["skills"]
+
+    after_remove = client.get(f"/chronological/skills/{project_id}")
+    assert after_remove.status_code == 404
+
+
+def test_month_year_must_be_provided_together(skills_client):
+    client, project_id = skills_client
+    response = client.post(
+        "/skills/add",
+        json={"project_id": project_id, "skills": ["python"], "month": 5},
+    )
+    assert response.status_code == 400
+    assert "month" in response.json()["detail"].lower()
+
+
+def test_empty_override_does_not_fallback_to_base_chronology(skills_client):
+    client, project_id = skills_client
+    clear_response = client.post(
+        "/skills/edit",
+        json={"project_id": project_id, "skills": []},
+    )
+    assert clear_response.status_code == 200
+    assert clear_response.json() == {"project_id": project_id, "skills": []}
+
+    timeline_response = client.get(f"/chronological/skills/{project_id}")
+    assert timeline_response.status_code == 404

@@ -7,6 +7,7 @@ contexts. Also supports edit, generate, and template listing endpoints.
 """
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -276,6 +277,222 @@ def list_templates():
 def get_template_detail(template_id: PortfolioTemplate):
     """Get detailed configuration for a specific template (industry or academic)."""
     return _get_template_config(template_id)
+
+
+def _score_project(payload: Dict[str, Any]) -> float:
+    """Derive a simple ranking score from stored project metrics."""
+    metrics = payload.get("project_metrics") or {}
+    commits = int(metrics.get("total_commits") or 0)
+    loc = int(metrics.get("total_lines") or 0)
+    code_frac = float(metrics.get("code_frac") or 0.0)
+    return 0.5 * commits + 0.4 * (loc ** 0.5) + 0.1 * (code_frac * 100)
+
+
+def _build_evolution(git: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract commit-activity data that illustrates a project's evolution over time."""
+    return {
+        "first_commit_at": git.get("first_commit_at"),
+        "last_commit_at": git.get("last_commit_at"),
+        "duration_days": git.get("duration_days") or metrics.get("duration_days", 0),
+        "total_commits": git.get("total_commits") or metrics.get("total_commits", 0),
+        "contributors": git.get("contributors") or [],
+        "activity_mix": git.get("activity_mix") or {},
+    }
+
+
+@router.get("/top")
+def get_top_projects(
+    limit: int = Query(default=3, ge=1, le=10, description="Number of top projects to return (1–10)"),
+    mode: str = Query(default="private", description="'public' strips customization fields; 'private' includes them"),
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Return the top-ranked projects ordered by a composite score (commits + LOC).
+
+    - **limit**: how many projects to return (default 3, max 10).
+    - **mode=public**: read-only view — omits editable customization fields.
+    - **mode=private**: full view including tagline, description, key_features, etc.
+
+    Each entry includes an ``evolution`` block with first/last commit dates,
+    duration, total commits, contributors, and activity mix — illustrating the
+    process and progression of changes over the project's lifetime.
+    """
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+
+    if not all_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+
+    scored: List[Dict[str, Any]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
+
+    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
+
+    is_public = mode.strip().lower() == "public"
+    result: List[Dict[str, Any]] = []
+    for rank, entry in enumerate(ranked, start=1):
+        pid = entry["project_id"]
+        payload = entry["payload"]
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        git = payload.get("git_analysis") or {}
+
+        project: Dict[str, Any] = {
+            "rank": rank,
+            "project_id": pid,
+            "project_title": payload.get("project_name"),
+            "score": round(entry["score"], 2),
+            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
+            "key_metrics": _build_key_metrics(project_metrics),
+            "evolution": _build_evolution(git, project_metrics),
+        }
+
+        if not is_public:
+            project["tagline"] = portfolio_item.get("tagline")
+            project["description"] = portfolio_item.get("description")
+            project["summary"] = portfolio_item.get("summary")
+            project["key_features"] = portfolio_item.get("key_features") or []
+            project["project_type"] = portfolio_item.get("project_type")
+            project["complexity"] = portfolio_item.get("complexity")
+            project["is_collaborative"] = portfolio_item.get("is_collaborative", False)
+        else:
+            project["summary"] = portfolio_item.get("summary") or portfolio_item.get("description")
+
+        result.append(project)
+
+    return {"total": len(result), "limit": limit, "mode": mode.strip().lower(), "projects": result}
+
+
+def _iso_week_key(iso_date: str) -> Optional[str]:
+    """Return the ISO-8601 week start (Monday) for a date string, or None if unparseable."""
+    raw = iso_date.split("T")[0] if "T" in iso_date else iso_date
+    try:
+        d = datetime.date.fromisoformat(raw)
+    except ValueError:
+        return None
+    # Monday of the ISO week
+    monday = d - datetime.timedelta(days=d.weekday())
+    return monday.isoformat()
+
+
+def _weeks_from_range(start_iso: str, end_iso: str) -> List[str]:
+    """Generate all Monday-week keys between two ISO date strings (inclusive)."""
+    try:
+        start = datetime.date.fromisoformat(start_iso.split("T")[0])
+        end = datetime.date.fromisoformat(end_iso.split("T")[0])
+    except ValueError:
+        return []
+    start = start - datetime.timedelta(days=start.weekday())
+    weeks = []
+    cur = start
+    while cur <= end:
+        weeks.append(cur.isoformat())
+        cur += datetime.timedelta(weeks=1)
+    return weeks
+
+
+def _heatmap_from_timeline(timeline: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Count activity events per ISO week from a chronological skills timeline."""
+    counts: Dict[str, int] = {}
+    for event in timeline:
+        ts = event.get("timestamp", "")
+        week = _iso_week_key(ts) if ts else None
+        if week:
+            counts[week] = counts.get(week, 0) + 1
+    return counts
+
+
+def _heatmap_from_range(start_iso: Optional[str], end_iso: Optional[str], total: int) -> Dict[str, int]:
+    """
+    Synthesize a weekly heatmap when no per-event timeline exists.
+    Distributes ``total`` commits evenly across weeks in [start, end].
+    """
+    if not start_iso or not end_iso or total <= 0:
+        return {}
+    weeks = _weeks_from_range(start_iso, end_iso)
+    if not weeks:
+        return {}
+    base, remainder = divmod(total, len(weeks))
+    return {week: base + (1 if i < remainder else 0) for i, week in enumerate(weeks)}
+
+
+def _merge_heatmaps(maps: List[Dict[str, int]]) -> Dict[str, int]:
+    """Sum multiple {week: count} maps into one."""
+    merged: Dict[str, int] = {}
+    for m in maps:
+        for week, count in m.items():
+            merged[week] = merged.get(week, 0) + count
+    return merged
+
+
+@router.get("/heatmap")
+def get_activity_heatmap(
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Return a weekly commit-activity heatmap across all projects.
+
+    Each key in ``weeks`` is an ISO-8601 date (Monday of the week, e.g. ``"2025-09-01"``).
+    The value is the number of activity events (commits / file changes) recorded that week.
+
+    - If chronological-skills timeline data exists for a project, actual per-file event
+      timestamps are used (most accurate).
+    - Otherwise, total commits are distributed evenly across the project's active date range.
+
+    The response also includes ``total_weeks`` (number of active weeks), ``total_activity``
+    (sum of all counts), and the ``date_range`` covered.
+    """
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+
+    if not all_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+
+    per_project_maps: List[Dict[str, int]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        # Prefer timeline events for accuracy
+        timeline = (
+            (payload.get("global_insights") or {})
+            .get("chronological_skills", {})
+            .get("timeline") or []
+        )
+        if timeline:
+            per_project_maps.append(_heatmap_from_timeline(timeline))
+        else:
+            metrics = payload.get("project_metrics") or {}
+            per_project_maps.append(
+                _heatmap_from_range(
+                    metrics.get("duration_start"),
+                    metrics.get("duration_end"),
+                    int(metrics.get("total_commits") or 0),
+                )
+            )
+
+    merged = _merge_heatmaps(per_project_maps)
+
+    if not merged:
+        return {"weeks": {}, "total_weeks": 0, "total_activity": 0, "date_range": None}
+
+    sorted_weeks = sorted(merged)
+    return {
+        "weeks": {w: merged[w] for w in sorted_weeks},
+        "total_weeks": len(sorted_weeks),
+        "total_activity": sum(merged.values()),
+        "date_range": {"start": sorted_weeks[0], "end": sorted_weeks[-1]},
+    }
 
 
 @router.get("/{project_id}")

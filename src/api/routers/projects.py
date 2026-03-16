@@ -441,6 +441,11 @@ def _run_upload(
             and "git_identifier" in inspect.signature(pipeline.start).parameters
         ):
             start_kwargs["git_identifier"] = config.git_identifier
+        if (
+            getattr(config, "resume_owner_name", None) is not None
+            and "resume_owner_name" in inspect.signature(pipeline.start).parameters
+        ):
+            start_kwargs["resume_owner_name"] = config.resume_owner_name
         result = pipeline.start(
             zip_path,
             **start_kwargs,
@@ -464,12 +469,15 @@ def _run_upload(
         store.save_run_representation(ingest_id, resolved_representation)
     represented_output = _represent_report(report or {"projects": result.get("projects") or {}}, resolved_representation)
     project_names = [name for name in (result.get("projects") or {}).keys() if name != "_misc_files"]
+    artifacts = result.get("artifacts")
+    resume_pdf_path = artifacts.get("resume_pdf_path") if isinstance(artifacts, dict) else None
 
     return {
         "status": "ok",
         "zip_hash": zip_hash,
         "ingest_id": ingest_id,
         "projects": project_names,
+        "resume_pdf_path": resume_pdf_path,
         "representation": resolved_representation,
         "represented_output": represented_output,
     }
@@ -739,6 +747,7 @@ def update_existing_zip(
 
     # Resolve git_identifier from config
     git_identifier = getattr(config, "git_identifier", None)
+    resume_owner_name = getattr(config, "resume_owner_name", None)
 
     try:
         from src.pipeline.orchestrator import ArtifactPipeline  # type: ignore
@@ -748,6 +757,7 @@ def update_existing_zip(
             new_zip_path=new_zip_path,
             old_zip_hash=old_zip_hash,
             git_identifier=git_identifier,
+            resume_owner_name=resume_owner_name,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
