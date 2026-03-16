@@ -132,6 +132,73 @@ export type ProjectSkill = {
   evidence?: string
 }
 
+export type SkillCatalogResponse = {
+  project_id: number
+  skills: string[]
+}
+
+export type SkillsAddRequest = {
+  project_id: number
+  skills: string[]
+  month?: number
+  year?: number
+  timestamp?: string
+}
+
+export type SkillsRemoveRequest = {
+  project_id: number
+  skills: string[]
+}
+
+export type SkillsEditRequest = {
+  project_id: number
+  old?: string
+  new?: string
+  skills?: string[]
+  month?: number
+  year?: number
+  timestamp?: string
+}
+
+export type ChronologicalSkillEvent = {
+  file: string
+  timestamp: string
+  category: string
+  skills: string[]
+  metadata: Record<string, unknown>
+}
+
+export type ChronologicalSkillsResponse = {
+  project_id?: number
+  project_name?: string
+  zip_hash: string
+  total_events: number
+  categories: string[]
+  timeline: ChronologicalSkillEvent[]
+}
+
+export type ChronologicalProject = {
+  project_name: string
+  zip_hash: string
+  zip_path: string
+  created_at: string
+  is_git_repo: boolean
+  languages: string[]
+  total_commits: number
+  total_contributors: number
+}
+
+export type ChronologicalProjectsResponse = {
+  total_projects: number
+  projects: ChronologicalProject[]
+}
+
+export type ProjectTimelineLookup = {
+  project_id: number
+  project_name: string
+  zip_hash: string
+}
+
 // ─── Consent Types ─────────────────────────────────────────────────
 
 export type ConsentRequest = {
@@ -316,6 +383,68 @@ export async function getProjectSkills(projectId: number): Promise<ProjectSkill[
   const raw: Record<string, unknown> = await apiFetch(`/skills/${projectId}`)
   const skills = (raw.skills ?? []) as string[]
   return skills.map((s) => ({ skill_name: s }))
+}
+
+export function listSkillsCatalog(): Promise<string[]> {
+  return apiFetch('/skills')
+}
+
+export function getSkillsByYear(year: number): Promise<{ year: number; timeline: ChronologicalSkillEvent[] }> {
+  return apiFetch(`/skills/year?year=${encodeURIComponent(String(year))}`)
+}
+
+export function addProjectSkills(req: SkillsAddRequest): Promise<SkillCatalogResponse> {
+  return apiFetch('/skills/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+}
+
+export function removeProjectSkills(req: SkillsRemoveRequest): Promise<SkillCatalogResponse> {
+  return apiFetch('/skills/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+}
+
+export function editProjectSkills(req: SkillsEditRequest): Promise<SkillCatalogResponse> {
+  return apiFetch('/skills/edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+}
+
+export function getChronologicalSkills(params: {
+  zipHash?: string
+  projectName?: string
+} = {}): Promise<ChronologicalSkillsResponse> {
+  const query = new URLSearchParams()
+  if (params.zipHash) query.set('zip_hash', params.zipHash)
+  if (params.projectName) query.set('project_name', params.projectName)
+  const suffix = query.toString()
+  return apiFetch(`/chronological/skills${suffix ? `?${suffix}` : ''}`)
+}
+
+export function getChronologicalSkillsByProjectId(projectId: number): Promise<ChronologicalSkillsResponse> {
+  return apiFetch(`/chronological/skills/${projectId}`)
+}
+
+export function getChronologicalProjects(limit = 50): Promise<ChronologicalProjectsResponse> {
+  return apiFetch(`/chronological/projects?limit=${encodeURIComponent(String(limit))}`)
+}
+
+export async function getProjectTimelineLookup(): Promise<ProjectTimelineLookup[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>('/projects')
+  return raw
+    .map((item) => ({
+      project_id: Number(item.project_id ?? 0),
+      project_name: String(item.project_name ?? ''),
+      zip_hash: String(item.zip_hash ?? ''),
+    }))
+    .filter((item) => item.project_id > 0 && item.project_name.length > 0 && item.zip_hash.length > 0)
 }
 
 // Consent & Privacy

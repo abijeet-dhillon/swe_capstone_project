@@ -1,5 +1,5 @@
 /* ============================================
-   SKILLS TIMELINE — Bright Theme
+   SKILLS TIMELINE â€” Bright Theme
    ============================================ */
 
 .timeline-container {
@@ -14,6 +14,32 @@
   gap: 8px;
   margin-bottom: 28px;
   flex-wrap: wrap;
+}
+
+.timeline-controls--load {
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.timeline-controls--year {
+  margin-bottom: 18px;
+  align-items: center;
+}
+
+.timeline-select {
+  min-width: 140px;
+}
+
+.timeline-select--project {
+  min-width: 240px;
+}
+
+.timeline-select--mode {
+  min-width: 140px;
+}
+
+.timeline-select--year {
+  min-width: 120px;
 }
 
 .filter-btn {
@@ -51,7 +77,7 @@
 }
 
 .timeline::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 7px;
   top: 8px;
@@ -187,6 +213,17 @@
   font-size: 0.82rem;
   line-height: 1.6;
   margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.timeline-notice {
+  color: var(--blue);
+  background: var(--blue-bg);
+  border: 1px solid #c3e0ff;
+  border-radius: var(--radius-button);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 /* ---- Timeline Meta ---- */
@@ -197,6 +234,39 @@
   margin-top: 12px;
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+.timeline-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.timeline-card-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timeline-card-btn:hover:not(:disabled) {
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.timeline-card-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.timeline-card-btn--danger:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .years-badge {
@@ -339,6 +409,26 @@
 
 .modal-section {
   margin-bottom: 20px;
+}
+
+.timeline-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.timeline-form-field span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.timeline-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .modal-section h4 {

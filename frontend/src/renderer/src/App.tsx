@@ -145,6 +145,8 @@ function App() {
   const [resumeFilename, setResumeFilename] = useState('resume.pdf')
   const [resumeGenerating, setResumeGenerating] = useState(false)
   const [resumeError, setResumeError] = useState('')
+  const [timelineRefreshNonce, setTimelineRefreshNonce] = useState(0)
+  const [timelineBusy, setTimelineBusy] = useState(false)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -372,6 +374,20 @@ function App() {
               <span className="pill info">{projects.length} projects</span>
             </div>
           )}
+          {view === 'timeline' && (
+            <div className="page-header__right">
+              <button
+                className="pv-view-btn"
+                type="button"
+                aria-label="Refresh skill catalog"
+                title="Refresh skill catalog"
+                onClick={() => setTimelineRefreshNonce((prev) => prev + 1)}
+                disabled={timelineBusy}
+              >
+                ↻
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="page-body">
@@ -492,7 +508,10 @@ function App() {
           ) : view === 'projects' ? (
             <ProjectsView />
           ) : (
-            <SkillsTimeline />
+            <SkillsTimeline
+              refreshNonce={timelineRefreshNonce}
+              onBusyChange={setTimelineBusy}
+            />
           )}
         </div>
 
