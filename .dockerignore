@@ -14,3 +14,15 @@ output/
 *.zip
 *.json
 *.csv
+
+# Frontend exclusions (prevent Docker build issues)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/*.log
+frontend/coverage/
+frontend/.nyc_output/
+frontend/.vscode/
+frontend/.idea/

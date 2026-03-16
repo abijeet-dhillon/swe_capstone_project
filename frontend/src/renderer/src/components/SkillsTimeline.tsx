@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useSkillsTimeline } from '../hooks/useSkillsTimeline'
 
 interface SkillMilestone {
   date: string
@@ -20,68 +21,7 @@ interface Skill {
 }
 
 const SkillsTimeline: React.FC = () => {
-  const [skills] = useState<Skill[]>([
-    {
-      id: 1, name: "HTML/CSS", category: "language", startDate: "2019-12", proficiency: 90, yearsExperience: 4.2,
-      description: "Mastered semantic markup, responsive design, CSS Grid, Flexbox, and modern animations.",
-      milestones: [
-        { date: "2019-12", level: "beginner", description: "Learned basic HTML tags and CSS selectors" },
-        { date: "2020-03", level: "intermediate", description: "Built first responsive layouts with Flexbox" },
-        { date: "2020-08", level: "advanced", description: "Mastered CSS Grid and complex animations" },
-        { date: "2021-06", level: "expert", description: "Created design systems and component libraries" }
-      ],
-      projects: ["Portfolio Website", "E-commerce UI", "Dashboard Design System"],
-      depthLevel: 4
-    },
-    {
-      id: 2, name: "JavaScript", category: "language", startDate: "2020-05", proficiency: 85, yearsExperience: 3.7,
-      description: "Deep understanding of closures, prototypes, async patterns, and functional programming.",
-      milestones: [
-        { date: "2020-05", level: "beginner", description: "Variables, functions, and basic DOM manipulation" },
-        { date: "2020-09", level: "intermediate", description: "ES6+ features and array methods mastery" },
-        { date: "2021-02", level: "advanced", description: "Async/await, Promises, and event loop deep dive" },
-        { date: "2021-11", level: "expert", description: "Performance optimization and design patterns" }
-      ],
-      projects: ["Interactive Web Apps", "API Integrations", "Algorithm Solutions"],
-      depthLevel: 4
-    },
-    {
-      id: 3, name: "React", category: "framework", startDate: "2020-12", proficiency: 80, yearsExperience: 1.0,
-      description: "Expert in hooks, context, performance optimization, and custom component patterns.",
-      milestones: [
-        { date: "2020-12", level: "beginner", description: "Components, props, and basic state" },
-        { date: "2021-04", level: "intermediate", description: "Hooks and functional components mastery" },
-        { date: "2021-10", level: "advanced", description: "Context API, custom hooks, and patterns" },
-        { date: "2021-12", level: "expert", description: "Performance tuning and advanced patterns" }
-      ],
-      projects: ["Task Manager App", "Social Media Dashboard", "Real-time Chat App"],
-      depthLevel: 4
-    },
-    {
-      id: 4, name: "Node.js", category: "backend", startDate: "2021-05", proficiency: 75, yearsExperience: 0.6,
-      description: "Built scalable APIs, authentication systems, and database integrations.",
-      milestones: [
-        { date: "2021-05", level: "beginner", description: "Basic Express server and routing" },
-        { date: "2021-09", level: "intermediate", description: "RESTful APIs and middleware patterns" },
-        { date: "2021-10", level: "advanced", description: "Authentication, JWT, and database design" },
-        { date: "2021-12", level: "expert", description: "Scalability, performance optimization, and deployment" }
-      ],
-      projects: ["REST API Server", "Authentication System", "File Upload Service"],
-      depthLevel: 3
-    },
-    {
-      id: 5, name: "TypeScript", category: "language", startDate: "2021-12", proficiency: 70, yearsExperience: 0.1,
-      description: "Type-safe development with generics, utility types, and advanced type patterns.",
-      milestones: [
-        { date: "2021-12", level: "beginner", description: "Basic types and interfaces" },
-        { date: "2021-12", level: "intermediate", description: "Generics and type narrowing" },
-        { date: "2021-12", level: "advanced", description: "Conditional types and mapped types" },
-        { date: "2021-12", level: "expert", description: "Type-safe architecture patterns" }
-      ],
-      projects: ["Type-safe React Apps", "API Client Libraries", "Code Generation Tools"],
-      depthLevel: 3
-    }
-  ])
+  const { skills, loading, error } = useSkillsTimeline()
   const [filter, setFilter] = useState<string>('all')
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
 
@@ -90,10 +30,44 @@ const SkillsTimeline: React.FC = () => {
   const getProficiencyColor = (proficiency: number) => proficiency >= 80 ? '#10b981' : proficiency >= 60 ? '#3b82f6' : '#f59e0b'
   const getLevelColor = (level: string) => ({ beginner: '#f59e0b', intermediate: '#3b82f6', advanced: '#8b5cf6', expert: '#10b981' }[level] || '#6b7280')
 
+  if (loading) {
+    return (
+      <div className="timeline-container">
+        <div className="timeline-loading">
+          <div className="loading-spinner"></div>
+          <p>Loading skills data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="timeline-container">
+        <div className="timeline-error">
+          <p>Error loading skills: {error}</p>
+          <button onClick={() => window.location.reload()} className="btn-primary">
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (skills.length === 0) {
+    return (
+      <div className="timeline-container">
+        <div className="timeline-empty">
+          <p>No skills data available. Upload a project to see your skills timeline.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="timeline-container">
       <div className="timeline-controls">
-        {['all', 'language', 'framework', 'backend'].map(cat => (
+        {['all', 'language', 'framework', 'backend', 'tool'].map(cat => (
           <button key={cat} className={`filter-btn ${filter === cat ? 'active' : ''}`} onClick={() => setFilter(cat)}>
             {cat === 'all' ? 'All Skills' : cat.charAt(0).toUpperCase() + cat.slice(1) + 's'}
           </button>
