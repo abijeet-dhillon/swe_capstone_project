@@ -37,6 +37,10 @@ class UserConfig:
     updated_at: Optional[str] = None
     git_identifier: Optional[str] = None
     resume_owner_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    github_username: Optional[str] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -49,6 +53,10 @@ class UserConfig:
             "updated_at": self.updated_at,
             "git_identifier": self.git_identifier,
             "resume_owner_name": self.resume_owner_name,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "email": self.email,
+            "github_username": self.github_username,
         }
 
 
@@ -98,6 +106,14 @@ class UserConfigManager:
                 conn.execute(
                     f"ALTER TABLE {TABLE_NAME} ADD COLUMN resume_owner_name TEXT;"
                 )
+            if "first_name" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN first_name TEXT;")
+            if "last_name" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN last_name TEXT;")
+            if "email" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN email TEXT;")
+            if "github_username" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN github_username TEXT;")
             conn.commit()
 
     def _persist_config(self, config: UserConfig) -> bool:
@@ -109,9 +125,10 @@ class UserConfigManager:
                     INSERT INTO {TABLE_NAME} (
                         user_id, zip_file, llm_consent, llm_consent_asked,
                         data_access_consent, created_at, updated_at,
-                        git_identifier, resume_owner_name
+                        git_identifier, resume_owner_name,
+                        first_name, last_name, email, github_username
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET
                         zip_file = excluded.zip_file,
                         llm_consent = excluded.llm_consent,
@@ -119,7 +136,11 @@ class UserConfigManager:
                         data_access_consent = excluded.data_access_consent,
                         updated_at = excluded.updated_at,
                         git_identifier = excluded.git_identifier,
-                        resume_owner_name = excluded.resume_owner_name;
+                        resume_owner_name = excluded.resume_owner_name,
+                        first_name = excluded.first_name,
+                        last_name = excluded.last_name,
+                        email = excluded.email,
+                        github_username = excluded.github_username;
                     """,
                     (
                         config.user_id,
@@ -131,6 +152,10 @@ class UserConfigManager:
                         config.updated_at,
                         config.git_identifier,
                         config.resume_owner_name,
+                        config.first_name,
+                        config.last_name,
+                        config.email,
+                        config.github_username,
                     ),
                 )
                 conn.commit()
@@ -175,6 +200,10 @@ class UserConfigManager:
         data_access_consent: Optional[bool] = None,
         git_identifier: Optional[str] = None,
         resume_owner_name: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        email: Optional[str] = None,
+        github_username: Optional[str] = None,
     ) -> bool:
         """Update an existing config row."""
         existing = self.load_config(user_id, silent=True)
@@ -194,6 +223,14 @@ class UserConfigManager:
             existing.llm_consent_asked = llm_consent_asked
         if data_access_consent is not None:
             existing.data_access_consent = data_access_consent
+        if first_name is not None:
+            existing.first_name = first_name
+        if last_name is not None:
+            existing.last_name = last_name
+        if email is not None:
+            existing.email = email
+        if github_username is not None:
+            existing.github_username = github_username
 
         existing.updated_at = datetime.now(timezone.utc).isoformat()
         return self._persist_config(existing)
@@ -206,7 +243,8 @@ class UserConfigManager:
                 row = conn.execute(
                     f"""
                     SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent,
-                           created_at, updated_at, git_identifier, resume_owner_name
+                           created_at, updated_at, git_identifier, resume_owner_name,
+                           first_name, last_name, email, github_username
                     FROM {TABLE_NAME}
                     WHERE user_id = ?
                     """,
@@ -230,7 +268,11 @@ class UserConfigManager:
             created_at=row[5],
             updated_at=row[6],
             git_identifier=row[7],
-            resume_owner_name=row[8],
+            resume_owner_name=row[8] if len(row) > 8 else None,
+            first_name=row[9] if len(row) > 9 else None,
+            last_name=row[10] if len(row) > 10 else None,
+            email=row[11] if len(row) > 11 else None,
+            github_username=row[12] if len(row) > 12 else None,
         )
 
 

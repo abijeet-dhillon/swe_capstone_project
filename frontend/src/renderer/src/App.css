@@ -1859,3 +1859,40 @@
     transform: translateY(0);
   }
 }
+
+/* ============================================
+   PROFILE VIEW
+   ============================================ */
+
+.profile-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.profile-field--full {
+  grid-column: 1 / -1;
+}
+
+.profile-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 560px) {
+  .profile-fields {
+    grid-template-columns: 1fr;
+  }
+  .profile-field--full {
+    grid-column: 1;
+  }
+}

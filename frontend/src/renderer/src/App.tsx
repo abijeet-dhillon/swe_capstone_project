@@ -8,8 +8,9 @@ import { DetailPanel } from './components/DetailPanel'
 import { ToastContainer, type ToastData } from './components/Toast'
 import ProjectsView from './ProjectsView'
 import SkillsTimeline from './components/SkillsTimeline'
+import { ProfileView } from './components/ProfileView'
 
-type AppView = 'dashboard' | 'upload' | 'projects' | 'timeline'
+type AppView = 'dashboard' | 'upload' | 'projects' | 'timeline' | 'profile'
 type DashboardMode = 'private' | 'public'
 type DashboardCategory = 'all' | 'resume' | 'portfolio' | 'timeline' | 'heatmap' | 'showcase'
 
@@ -77,6 +78,8 @@ function NavIcon({ name }: { name: string }) {
       return <svg {...props}><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
     case 'timeline':
       return <svg {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    case 'profile':
+      return <svg {...props}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
     default:
       return null
   }
@@ -87,6 +90,7 @@ const NAV_ITEMS: { view: AppView; label: string }[] = [
   { view: 'upload', label: 'Upload' },
   { view: 'projects', label: 'Projects' },
   { view: 'timeline', label: 'Timeline' },
+  { view: 'profile', label: 'Profile' },
 ]
 
 const PAGE_META: Record<AppView, { title: string; subtitle: string }> = {
@@ -105,6 +109,10 @@ const PAGE_META: Record<AppView, { title: string; subtitle: string }> = {
   timeline: {
     title: 'Skills Timeline',
     subtitle: 'Track your learning progression over time',
+  },
+  profile: {
+    title: 'Profile',
+    subtitle: 'Manage your personal information and developer identity',
   },
 }
 
@@ -507,11 +515,13 @@ function App() {
             <UploadZone onUploadComplete={handleUploadComplete} />
           ) : view === 'projects' ? (
             <ProjectsView />
-          ) : (
+          ) : view === 'timeline' ? (
             <SkillsTimeline
               refreshNonce={timelineRefreshNonce}
               onBusyChange={setTimelineBusy}
             />
+          ) : (
+            <ProfileView onToast={addToast} />
           )}
         </div>
 
