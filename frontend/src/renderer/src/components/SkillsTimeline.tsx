@@ -414,6 +414,40 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
     }
   }
 
+  if (loading) {
+    return (
+      <div className="timeline-container">
+        <div className="timeline-loading">
+          <div className="loading-spinner"></div>
+          <p>Loading skills data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="timeline-container">
+        <div className="timeline-error">
+          <p>Error loading skills: {error}</p>
+          <button onClick={() => window.location.reload()} className="btn-primary">
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (skills.length === 0) {
+    return (
+      <div className="timeline-container">
+        <div className="timeline-empty">
+          <p>No skills data available. Upload a project to see your skills timeline.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="timeline-container">
       <div className="timeline-controls timeline-controls--load">

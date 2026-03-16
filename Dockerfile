@@ -29,5 +29,11 @@ COPY requirements.txt requirements.txt
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the code
-COPY . .
+# Copy the rest of the backend code
+COPY src/ src/
+COPY scripts/ scripts/
+COPY utils/ utils/
+COPY tests/ tests/
+COPY docs/ docs/
+COPY env.template env.template
+COPY README.md README.md
