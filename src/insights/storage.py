@@ -1017,6 +1017,99 @@ class ProjectInsightsStore:
                 )
                 conn.commit()
 
+    def upsert_project_chronology_override(
+        self,
+        project_id: int,
+        timeline: List[Dict[str, Any]],
+    ) -> bool:
+        """
+        Persist a project-specific chronology override under chronology_json.project_overrides.
+
+        The override is keyed by project_info.id so chronological endpoints can return
+        timeline data that reflects user mutations from /skills endpoints.
+        """
+        with self._lock:
+            with self._connect() as conn:
+                project_row = conn.execute(
+                    f"SELECT ingest_id FROM {PROJECT_INFO_TABLE} WHERE id = ?;",
+                    (project_id,),
+                ).fetchone()
+                if not project_row:
+                    return False
+                ingest_id = int(project_row[0])
+
+                chronology_row = conn.execute(
+                    f"""
+                    SELECT id, chronology_json
+                    FROM {CHRONOLOGY_TABLE}
+                    WHERE ingest_id = ?
+                    ORDER BY id DESC
+                    LIMIT 1;
+                    """,
+                    (ingest_id,),
+                ).fetchone()
+
+                chronology_payload: Dict[str, Any] = {}
+                chronology_row_id: Optional[int] = None
+                if chronology_row:
+                    chronology_row_id = int(chronology_row[0])
+                    raw_payload = chronology_row[1]
+                    if raw_payload:
+                        try:
+                            loaded = json.loads(raw_payload)
+                            if isinstance(loaded, dict):
+                                chronology_payload = loaded
+                        except Exception:
+                            chronology_payload = {}
+
+                if not isinstance(chronology_payload.get("timeline"), list):
+                    chronology_payload["timeline"] = []
+                if not isinstance(chronology_payload.get("categories"), list):
+                    chronology_payload["categories"] = []
+                if not isinstance(chronology_payload.get("total_events"), int):
+                    chronology_payload["total_events"] = len(chronology_payload["timeline"])
+
+                overrides = chronology_payload.get("project_overrides")
+                if not isinstance(overrides, dict):
+                    overrides = {}
+                    chronology_payload["project_overrides"] = overrides
+
+                categories = sorted(
+                    {
+                        str(item.get("category"))
+                        for item in timeline
+                        if isinstance(item, dict) and isinstance(item.get("category"), str)
+                    }
+                )
+                overrides[str(project_id)] = {
+                    "timeline": timeline,
+                    "total_events": len(timeline),
+                    "categories": categories,
+                    "updated_at": _utcnow(),
+                }
+
+                now = _utcnow()
+                payload_json = json.dumps(chronology_payload)
+                if chronology_row_id is not None:
+                    conn.execute(
+                        f"""
+                        UPDATE {CHRONOLOGY_TABLE}
+                        SET chronology_json = ?, created_at = ?
+                        WHERE id = ?;
+                        """,
+                        (payload_json, now, chronology_row_id),
+                    )
+                else:
+                    conn.execute(
+                        f"""
+                        INSERT OR REPLACE INTO {CHRONOLOGY_TABLE} (ingest_id, chronology_json, created_at)
+                        VALUES (?, ?, ?);
+                        """,
+                        (ingest_id, payload_json, now),
+                    )
+                conn.commit()
+                return True
+
     def load_latest_global_insights(self) -> Optional[Dict[str, Any]]:
         """Load global insights for the latest ingest run."""
         with self._connect() as conn:
