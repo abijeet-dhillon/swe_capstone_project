@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { filterProjects, generateResumePdf, type FilteredProject, type ResumeEducationInput } from './api'
+import { filterProjects, generateResumePdf, generatePortfolioSite, type FilteredProject, type ResumeEducationInput } from './api'
 import { StatsCards } from './components/StatsCards'
 import { UploadZone } from './components/UploadZone'
 import { FilterTabs, type TabKey } from './components/FilterTabs'
@@ -156,6 +156,21 @@ function App() {
   const [timelineRefreshNonce, setTimelineRefreshNonce] = useState(0)
   const [timelineBusy, setTimelineBusy] = useState(false)
 
+  const [portfolioModalOpen, setPortfolioModalOpen] = useState(false)
+  const [portfolioProjectIds, setPortfolioProjectIds] = useState<number[]>([])
+  const [portfolioName, setPortfolioName] = useState('')
+  const [portfolioTitle, setPortfolioTitle] = useState('Full-Stack Developer')
+  const [portfolioBio, setPortfolioBio] = useState('')
+  const [portfolioEmail, setPortfolioEmail] = useState('')
+  const [portfolioLocation, setPortfolioLocation] = useState('')
+  const [portfolioGithubUrl, setPortfolioGithubUrl] = useState('')
+  const [portfolioLinkedinUrl, setPortfolioLinkedinUrl] = useState('')
+  const [portfolioYoe, setPortfolioYoe] = useState('')
+  const [portfolioOss, setPortfolioOss] = useState('')
+  const [portfolioGenerating, setPortfolioGenerating] = useState(false)
+  const [portfolioError, setPortfolioError] = useState('')
+  const [portfolioUrl, setPortfolioUrl] = useState<string | null>(null)
+
   const loadProjects = useCallback(async () => {
     setLoading(true)
     try {
@@ -299,6 +314,76 @@ function App() {
   const removeEducationEntry = useCallback((index: number) => {
     setResumeEducation((prev) => (prev.length === 1 ? [blankEducation()] : prev.filter((_, currentIndex) => currentIndex !== index)))
   }, [])
+
+  const resetPortfolioModal = useCallback(() => {
+    setPortfolioModalOpen(false)
+    setPortfolioProjectIds([])
+    setPortfolioName('')
+    setPortfolioTitle('Full-Stack Developer')
+    setPortfolioBio('')
+    setPortfolioEmail('')
+    setPortfolioLocation('')
+    setPortfolioGithubUrl('')
+    setPortfolioLinkedinUrl('')
+    setPortfolioYoe('')
+    setPortfolioOss('')
+    setPortfolioError('')
+    setPortfolioGenerating(false)
+    setPortfolioUrl(null)
+  }, [])
+
+  const handlePortfolioCardClick = useCallback(() => {
+    setPortfolioError('')
+    if (projects.length === 0) {
+      addToast('No projects available', 'error', 'Upload and analyze a ZIP before generating a portfolio.')
+      setView('upload')
+      return
+    }
+    setPortfolioProjectIds((prev) => (prev.length > 0 ? prev : projects.slice(0, 2).map((p) => p.project_info_id)))
+    setPortfolioModalOpen(true)
+  }, [addToast, projects])
+
+  const togglePortfolioProject = useCallback((projectId: number) => {
+    setPortfolioProjectIds((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : prev.length >= 4 ? prev : [...prev, projectId],
+    )
+  }, [])
+
+  const handleGeneratePortfolio = useCallback(async () => {
+    if (portfolioProjectIds.length < 2) {
+      setPortfolioError('Select at least 2 projects.')
+      return
+    }
+    if (!portfolioName.trim()) {
+      setPortfolioError('Enter your name.')
+      return
+    }
+    setPortfolioGenerating(true)
+    setPortfolioError('')
+    try {
+      const res = await generatePortfolioSite({
+        name: portfolioName.trim(),
+        title: portfolioTitle.trim() || 'Full-Stack Developer',
+        bio: portfolioBio.trim(),
+        email: portfolioEmail.trim(),
+        location: portfolioLocation.trim(),
+        github_url: portfolioGithubUrl.trim(),
+        linkedin_url: portfolioLinkedinUrl.trim(),
+        years_experience: portfolioYoe.trim(),
+        projects_completed: String(projects.length),
+        open_source_contributions: portfolioOss.trim(),
+        project_ids: portfolioProjectIds,
+      })
+      setPortfolioUrl(res.url)
+      addToast('Portfolio ready', 'success', res.message || 'Your portfolio is live at localhost:3000')
+    } catch (e) {
+      setPortfolioError(e instanceof Error ? e.message : 'Failed to generate portfolio')
+    } finally {
+      setPortfolioGenerating(false)
+    }
+  }, [addToast, portfolioBio, portfolioEmail, portfolioGithubUrl, portfolioLinkedinUrl, portfolioLocation, portfolioName, portfolioOss, portfolioProjectIds, portfolioTitle, portfolioYoe, projects.length])
 
   const filteredProjects = useMemo(() => {
     let list = projects
@@ -481,10 +566,15 @@ function App() {
                             }
                             if (card.id === 'resume') {
                               handleResumeCardClick()
+                              return
+                            }
+                            if (card.id === 'portfolio') {
+                              handlePortfolioCardClick()
+                              return
                             }
                           }}
                         >
-                          {card.id === 'timeline' ? 'Open Timeline' : card.id === 'resume' ? 'Generate Resume' : 'Customize'}
+                          {card.id === 'timeline' ? 'Open Timeline' : card.id === 'resume' ? 'Generate Resume' : card.id === 'portfolio' ? 'Generate Portfolio' : 'Customize'}
                         </button>
                       </article>
                     ))
@@ -760,6 +850,134 @@ function App() {
                 disabled={resumeGenerating}
               >
                 {resumeGenerating ? 'Generating…' : 'Generate PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {portfolioModalOpen && (
+        <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="portfolio-modal-title">
+          <div className="modal-content">
+            <button className="close" onClick={resetPortfolioModal} aria-label="Close">
+              ×
+            </button>
+            <div className="modal-header">
+              <h2 id="portfolio-modal-title">Generate Web Portfolio</h2>
+              <span className="modal-category">Portfolio</span>
+            </div>
+
+            <p className="modal-description">
+              Select 2–4 projects, fill in your profile details, then generate your portfolio website.
+            </p>
+
+            <div className="modal-section">
+              <h4>Projects (select 2–4)</h4>
+              <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                {projects.map((project) => (
+                  <label
+                    key={project.project_info_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      background: 'var(--bg-secondary)',
+                      opacity: !portfolioProjectIds.includes(project.project_info_id) && portfolioProjectIds.length >= 4 ? 0.5 : 1,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={portfolioProjectIds.includes(project.project_info_id)}
+                      onChange={() => togglePortfolioProject(project.project_info_id)}
+                      disabled={!portfolioProjectIds.includes(project.project_info_id) && portfolioProjectIds.length >= 4}
+                    />
+                    <span>{project.project_name}</span>
+                  </label>
+                ))}
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                {portfolioProjectIds.length}/4 selected
+              </span>
+            </div>
+
+            <div className="modal-section">
+              <h4>Name</h4>
+              <input
+                className="input"
+                type="text"
+                placeholder="e.g. Jane Doe"
+                value={portfolioName}
+                onChange={(e) => setPortfolioName(e.target.value)}
+                style={{ width: '100%', minWidth: 0 }}
+              />
+            </div>
+
+            <div className="modal-section">
+              <h4>Title</h4>
+              <input
+                className="input"
+                type="text"
+                placeholder="e.g. Full-Stack Developer"
+                value={portfolioTitle}
+                onChange={(e) => setPortfolioTitle(e.target.value)}
+                style={{ width: '100%', minWidth: 0 }}
+              />
+            </div>
+
+            <div className="modal-section">
+              <h4>About Me</h4>
+              <textarea
+                className="input"
+                placeholder="Write a short bio about yourself..."
+                value={portfolioBio}
+                onChange={(e) => setPortfolioBio(e.target.value)}
+                rows={3}
+                style={{ width: '100%', minWidth: 0, resize: 'vertical' }}
+              />
+            </div>
+
+            <div className="modal-section">
+              <h4>Contact & Links</h4>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <input className="input" type="email" placeholder="Email address" value={portfolioEmail} onChange={(e) => setPortfolioEmail(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+                <input className="input" type="text" placeholder="Location (e.g. Vancouver, BC)" value={portfolioLocation} onChange={(e) => setPortfolioLocation(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+                <input className="input" type="text" placeholder="GitHub URL" value={portfolioGithubUrl} onChange={(e) => setPortfolioGithubUrl(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+                <input className="input" type="text" placeholder="LinkedIn URL" value={portfolioLinkedinUrl} onChange={(e) => setPortfolioLinkedinUrl(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <h4>Highlights</h4>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <input className="input" type="text" placeholder="Years of experience (e.g. 4+)" value={portfolioYoe} onChange={(e) => setPortfolioYoe(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+                <input className="input" type="text" placeholder="Open source contributions (e.g. 50+)" value={portfolioOss} onChange={(e) => setPortfolioOss(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+              </div>
+            </div>
+
+            {portfolioError && (
+              <p className="filter-error" style={{ marginBottom: 12 }}>{portfolioError}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              {portfolioUrl && (
+                <a
+                  className="btn-primary"
+                  href={portfolioUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View Portfolio
+                </a>
+              )}
+              <button
+                className="btn-primary"
+                onClick={handleGeneratePortfolio}
+                disabled={portfolioGenerating}
+              >
+                {portfolioGenerating ? 'Generating…' : 'Generate Portfolio'}
               </button>
             </div>
           </div>

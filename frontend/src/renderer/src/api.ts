@@ -253,6 +253,27 @@ export type ResumePdfRequest = {
   education?: ResumeEducationInput[]
 }
 
+export type PortfolioSiteRequest = {
+  name: string
+  title?: string
+  bio?: string
+  email?: string
+  location?: string
+  github_url?: string
+  linkedin_url?: string
+  years_experience?: string
+  projects_completed?: string
+  open_source_contributions?: string
+  project_ids: number[]
+}
+
+export type PortfolioSiteResponse = {
+  status: string
+  url: string
+  server_started: boolean
+  message: string
+}
+
 // ─── API Functions ─────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -340,6 +361,14 @@ export async function getPortfolio(projectId: number): Promise<PortfolioData> {
     },
     evolution: raw.evolution as PortfolioData['evolution'],
   }
+}
+
+export function generatePortfolioSite(payload: PortfolioSiteRequest): Promise<PortfolioSiteResponse> {
+  return apiFetch('/portfolio/generate-site', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 }
 
 // Resume

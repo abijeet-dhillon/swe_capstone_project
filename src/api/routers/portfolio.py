@@ -3,11 +3,17 @@ Portfolio API router.
 
 Provides GET /portfolio/{project_id} with optional ?template=industry or ?template=academic
 to tailor the response for professional (impact, deliverables) vs academic (rigor, artifacts)
-contexts. Also supports edit, generate, and template listing endpoints.
+contexts. Also supports edit, generate, template listing, and site generation endpoints.
 """
 from __future__ import annotations
 
 import datetime
+import json
+import logging
+import os
+import shutil
+import signal
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -18,6 +24,8 @@ from src.api.deps import get_role_store, get_store
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -596,3 +604,257 @@ def generate_portfolio(project_id: int, store: ProjectInsightsStore = Depends(ge
     if persist_fields:
         store.update_portfolio_insights_fields(project_id, persist_fields)
     return {"project_id": project_id, "portfolio_item": portfolio}
+
+
+# ---------------------------------------------------------------------------
+# Portfolio site generation
+# ---------------------------------------------------------------------------
+
+_portfolio_dev_pid: Optional[int] = None
+
+PORTFOLIO_TEMPLATE_DIR = Path(__file__).resolve().parents[3] / "portfolio-template"
+
+
+class PortfolioSiteRequest(BaseModel):
+    name: str
+    title: str = "Full-Stack Developer"
+    bio: str = ""
+    email: str = ""
+    location: str = ""
+    github_url: str = ""
+    linkedin_url: str = ""
+    years_experience: str = ""
+    projects_completed: str = ""
+    open_source_contributions: str = ""
+    project_ids: List[int] = Field(..., min_length=2, max_length=4)
+
+
+def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
+    """Render a syntactically valid TypeScript config from the profile dict."""
+
+    def _js(value: Any) -> str:
+        return json.dumps(value, ensure_ascii=False)
+
+    socials = profile.get("socials") or []
+    about = profile.get("about") or {}
+    skills = profile.get("skills") or []
+    projects = profile.get("projects") or []
+
+    socials_str = ",\n    ".join(
+        f'{{ platform: {_js(s["platform"])}, url: {_js(s["url"])}, icon: {_js(s["icon"])} }}'
+        for s in socials
+    )
+
+    highlights_str = ",\n      ".join(
+        f'{{ label: {_js(h["label"])}, value: {_js(h["value"])} }}'
+        for h in (about.get("highlights") or [])
+    )
+
+    desc_str = ",\n      ".join(_js(d) for d in (about.get("description") or []))
+
+    skill_cats = []
+    for cat in skills:
+        items = ", ".join(_js(s) for s in cat["skills"])
+        skill_cats.append(
+            f'    {{\n      name: {_js(cat["name"])},\n      skills: [{items}],\n    }}'
+        )
+    skills_str = ",\n".join(skill_cats)
+
+    proj_entries = []
+    for p in projects:
+        tags = ", ".join(_js(t) for t in p.get("tags", []))
+        entry = f'    {{\n      title: {_js(p["title"])},\n      description: {_js(p.get("description", ""))},\n      image: "/placeholder-project.jpg",\n      tags: [{tags}],'
+        if p.get("sourceUrl"):
+            entry += f'\n      sourceUrl: {_js(p["sourceUrl"])},'
+        if p.get("liveUrl"):
+            entry += f'\n      liveUrl: {_js(p["liveUrl"])},'
+        if p.get("featured"):
+            entry += "\n      featured: true,"
+        entry += "\n    }"
+        proj_entries.append(entry)
+    projects_str = ",\n".join(proj_entries)
+
+    return f'''import type {{ DeveloperProfile }} from "@/types/portfolio";
+
+export const portfolio: DeveloperProfile = {{
+  name: {_js(profile.get("name", ""))},
+  title: {_js(profile.get("title", ""))},
+  bio: {_js(profile.get("bio", ""))},
+  avatarUrl: "/avatar-placeholder.jpg",
+  resumeUrl: "/resume.pdf",
+  email: {_js(profile.get("email", ""))},
+  location: {_js(profile.get("location", ""))},
+
+  socials: [
+    {socials_str}
+  ],
+
+  about: {{
+    description: [
+      {desc_str}
+    ],
+    highlights: [
+      {highlights_str}
+    ],
+  }},
+
+  skills: [
+{skills_str}
+  ],
+
+  projects: [
+{projects_str}
+  ],
+
+  experience: [],
+}};
+'''
+
+
+def _is_running_in_docker() -> bool:
+    """Detect if the process is running inside a Docker container."""
+    return os.path.exists("/.dockerenv") or os.environ.get("RUNNING_IN_DOCKER") == "1"
+
+
+def _find_npm() -> Optional[str]:
+    """Return the path to npm if available, or None."""
+    return shutil.which("npm")
+
+
+def _ensure_dev_server() -> bool:
+    """Start the Next.js dev server if it is not already running.
+
+    Returns True if the server was started or is already running,
+    False if npm is unavailable (e.g. inside Docker).
+    """
+    global _portfolio_dev_pid
+
+    if _portfolio_dev_pid is not None:
+        try:
+            os.kill(_portfolio_dev_pid, 0)
+            return True
+        except OSError:
+            _portfolio_dev_pid = None
+
+    if _is_running_in_docker():
+        logger.info("Running inside Docker — skipping portfolio dev server (run 'npm run dev' in portfolio-template/ on the host)")
+        return False
+
+    npm_path = _find_npm()
+    if not npm_path:
+        logger.warning("npm not found — cannot start portfolio dev server")
+        return False
+
+    proc = subprocess.Popen(
+        [npm_path, "run", "dev"],
+        cwd=str(PORTFOLIO_TEMPLATE_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    _portfolio_dev_pid = proc.pid
+    logger.info("Started portfolio dev server (pid=%s)", proc.pid)
+    return True
+
+
+@router.post("/generate-site")
+def generate_portfolio_site(
+    req: PortfolioSiteRequest,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Generate a portfolio website from user profile info and selected projects.
+
+    Writes the portfolio config, starts the Next.js dev server, and returns
+    the URL where the user can view their portfolio.
+    """
+    socials: List[Dict[str, str]] = []
+    if req.github_url:
+        socials.append({"platform": "GitHub", "url": req.github_url, "icon": "github"})
+    if req.linkedin_url:
+        socials.append({"platform": "LinkedIn", "url": req.linkedin_url, "icon": "linkedin"})
+
+    highlights: List[Dict[str, str]] = []
+    if req.years_experience:
+        highlights.append({"label": "Years Experience", "value": req.years_experience})
+    if req.projects_completed:
+        highlights.append({"label": "Projects Completed", "value": req.projects_completed})
+    if req.open_source_contributions:
+        highlights.append({"label": "Open Source Contributions", "value": req.open_source_contributions})
+
+    all_skills: Dict[str, set] = {}
+    ts_projects: List[Dict[str, Any]] = []
+
+    for i, pid in enumerate(req.project_ids):
+        payload = store.load_project_insight_by_id(pid)
+        if payload is None:
+            raise HTTPException(status_code=404, detail=f"Project {pid} not found")
+
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        project_name = payload.get("project_name") or f"Project {pid}"
+
+        skills_list = (
+            portfolio_item.get("skills")
+            or project_metrics.get("skills")
+            or []
+        )
+        languages = portfolio_item.get("languages") or project_metrics.get("languages") or []
+        frameworks = portfolio_item.get("frameworks") or project_metrics.get("frameworks") or []
+
+        for lang in languages:
+            all_skills.setdefault("Languages", set()).add(str(lang))
+        for fw in frameworks:
+            all_skills.setdefault("Frameworks", set()).add(str(fw))
+        for sk in skills_list:
+            all_skills.setdefault("Tools & Skills", set()).add(str(sk))
+
+        tags = list(dict.fromkeys(
+            [str(s) for s in languages[:3]] + [str(s) for s in frameworks[:3]] + [str(s) for s in skills_list[:3]]
+        ))
+
+        ts_projects.append({
+            "title": project_name,
+            "description": portfolio_item.get("summary") or portfolio_item.get("description") or "",
+            "tags": tags[:6],
+            "featured": i < 2,
+        })
+
+    skill_categories = [
+        {"name": cat, "skills": sorted(items)}
+        for cat, items in all_skills.items()
+        if items
+    ]
+
+    profile: Dict[str, Any] = {
+        "name": req.name,
+        "title": req.title,
+        "bio": req.bio,
+        "email": req.email,
+        "location": req.location,
+        "socials": socials,
+        "about": {
+            "description": [req.bio] if req.bio else [],
+            "highlights": highlights,
+        },
+        "skills": skill_categories,
+        "projects": ts_projects,
+    }
+
+    config_path = PORTFOLIO_TEMPLATE_DIR / "src" / "config" / "portfolio.ts"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(_build_portfolio_ts(profile), encoding="utf-8")
+    logger.info("Wrote portfolio config to %s", config_path)
+
+    server_running = _ensure_dev_server()
+
+    return {
+        "status": "ok",
+        "url": "http://localhost:3000",
+        "server_started": server_running,
+        "message": (
+            "Portfolio generated. Visit http://localhost:3000 to view it."
+            if server_running
+            else "Portfolio config written. Run 'cd portfolio-template && npm run dev' on the host to view it at http://localhost:3000."
+        ),
+    }
