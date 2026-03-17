@@ -146,6 +146,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [hasLoadedTimeline, setHasLoadedTimeline] = useState(false)
+  const [lastLoadedProjectKey, setLastLoadedProjectKey] = useState<string | null>(null)
   const firstRefreshHandled = useRef(false)
 
   const selectedProject = useMemo(
@@ -166,6 +167,13 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
     if (yearFilter === 'all') return cards
     return cards.filter((card) => String(card.year) === yearFilter)
   }, [cards, yearFilter])
+  const selectedProjectCount = useMemo(() => {
+    if (selectedProjectKey === ALL_PROJECTS_KEY) return null
+    if (hasLoadedTimeline && lastLoadedProjectKey === selectedProjectKey) {
+      return cards.length
+    }
+    return projectCatalog.length
+  }, [cards.length, hasLoadedTimeline, lastLoadedProjectKey, projectCatalog.length, selectedProjectKey])
 
   useEffect(() => {
     onBusyChange?.(isBusy)
@@ -286,6 +294,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
           setNotice(`Loaded ${loadedCards.length} items for ${selectedProject.projectName}`)
         }
       }
+      setLastLoadedProjectKey(selectedProjectKey)
       setHasLoadedTimeline(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load timeline')
@@ -477,7 +486,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
         </select>
         <span className="pill info">{globalCatalog.length} catalog skills</span>
         {selectedProjectKey !== ALL_PROJECTS_KEY && (
-          <span className="pill ready">{projectCatalog.length} in selected project</span>
+          <span className="pill ready">{selectedProjectCount ?? 0} in selected project</span>
         )}
       </div>
 

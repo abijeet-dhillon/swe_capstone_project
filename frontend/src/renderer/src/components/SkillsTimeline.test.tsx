@@ -134,6 +134,32 @@ describe('SkillsTimeline', () => {
     expect(mocked.getChronologicalSkillsByProjectId).toHaveBeenCalledWith(7)
   })
 
+  it('shows selected project count based on loaded timeline cards', async () => {
+    mocked.getChronologicalSkillsByProjectId.mockResolvedValueOnce({
+      project_id: 7,
+      project_name: 'Alpha',
+      zip_hash: 'ziphash01',
+      total_events: 1,
+      categories: ['code'],
+      timeline: [
+        {
+          file: 'alpha/a.py',
+          timestamp: '2026-02-02T10:00:00',
+          category: 'code',
+          skills: ['python', 'fastapi'],
+          metadata: {},
+        },
+      ],
+    })
+    mocked.getProjectSkills.mockResolvedValueOnce([{ skill_name: 'python' }])
+
+    render(<SkillsTimeline />)
+    await selectAlphaAndLoad()
+
+    expect(screen.getByText('Loaded 2 items for Alpha')).toBeInTheDocument()
+    expect(screen.getByText('2 in selected project')).toBeInTheDocument()
+  })
+
   it('loads timeline using zip-name lookup mode', async () => {
     render(<SkillsTimeline />)
     await waitForTimelineControls()
