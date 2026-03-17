@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import App from '../src/renderer/src/App'
 
@@ -121,10 +121,10 @@ describe('App Layout', () => {
     expect(screen.getByText('Search, filter, and explore your analyzed projects')).toBeInTheDocument()
   })
 
-  it('switches to Timeline view when nav clicked', () => {
+  it('switches to Timeline view when nav clicked', async () => {
     render(<App />)
     fireEvent.click(screen.getAllByText('Timeline')[0])
-    expect(screen.getByRole('button', { name: 'Load timeline' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Load timeline' })).toBeInTheDocument())
   })
 
   it('renders header refresh action in timeline view', () => {

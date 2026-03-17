@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SkillsTimeline from './SkillsTimeline'
 import * as api from '../api'
 
@@ -18,7 +18,7 @@ vi.mock('../api', () => ({
 
 const mocked = vi.mocked(api)
 
-function seedMocks() {
+function seedMocks(): void {
   mocked.getChronologicalProjects.mockResolvedValue({
     total_projects: 1,
     projects: [
@@ -84,191 +84,98 @@ function seedMocks() {
     ],
   })
   mocked.getProjectSkills.mockResolvedValue([{ skill_name: 'python' }])
-  mocked.addProjectSkills.mockResolvedValue({ project_id: 7, skills: ['python', 'graphql'] })
+  mocked.addProjectSkills.mockResolvedValue({ project_id: 7, skills: ['graphql'] })
   mocked.editProjectSkills.mockResolvedValue({ project_id: 7, skills: ['golang'] })
   mocked.removeProjectSkills.mockResolvedValue({ project_id: 7, skills: [] })
 }
 
+async function waitForTimelineControls(): Promise<void> {
+  await waitFor(() => expect(screen.getByLabelText('Project selector')).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Load timeline' })).toBeEnabled())
+}
+
 async function selectAlphaAndLoad(): Promise<void> {
+  await waitForTimelineControls()
   fireEvent.change(screen.getByLabelText('Project selector'), { target: { value: 'ziphash01::Alpha' } })
   fireEvent.click(screen.getByRole('button', { name: 'Load timeline' }))
   await waitFor(() => expect(mocked.getChronologicalSkillsByProjectId).toHaveBeenCalledWith(7))
 }
 
-// Mock the hook
-vi.mock('../hooks/useSkillsTimeline', () => ({
-  useSkillsTimeline: vi.fn()
-}))
-
-import { useSkillsTimeline } from '../hooks/useSkillsTimeline'
-
-const mockSkills = [
-  {
-    id: 1,
-    name: 'JavaScript',
-    category: 'language' as const,
-    startDate: '2020-05',
-    proficiency: 85,
-    yearsExperience: 3.7,
-    description: 'Deep understanding of closures, prototypes, async patterns, and functional programming.',
-    milestones: [
-      { date: '2020-05', level: 'beginner' as const, description: 'Variables, functions, and basic DOM manipulation' },
-      { date: '2020-09', level: 'intermediate' as const, description: 'ES6+ features and array methods mastery' }
-    ],
-    projects: ['Interactive Web Apps', 'API Integrations'],
-    depthLevel: 4
-  },
-  {
-    id: 2,
-    name: 'React',
-    category: 'framework' as const,
-    startDate: '2020-12',
-    proficiency: 80,
-    yearsExperience: 1.0,
-    description: 'Expert in hooks, context, performance optimization, and custom component patterns.',
-    milestones: [
-      { date: '2020-12', level: 'beginner' as const, description: 'Components, props, and basic state' },
-      { date: '2021-04', level: 'intermediate' as const, description: 'Hooks and functional components mastery' }
-    ],
-    projects: ['Task Manager App', 'Social Media Dashboard'],
-    depthLevel: 4
-  }
-]
-
 describe('SkillsTimeline', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    seedMocks()
   })
 
-  it('renders loading state', () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: [],
-      loading: true,
-      error: null,
-      refetch: vi.fn()
-    })
+  it('renders without crashing and shows timeline controls', async () => {
+    expect(() => render(<SkillsTimeline />)).not.toThrow()
+
+    await waitForTimelineControls()
+    expect(screen.getByRole('button', { name: 'Load timeline' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'All projects' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Project ID' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'ZIP + Name' })).toBeInTheDocument()
+  })
+
+  it('shows loading state while project options are being fetched', () => {
+    mocked.getChronologicalProjects.mockImplementation(() => new Promise(() => undefined))
+    mocked.getProjectTimelineLookup.mockImplementation(() => new Promise(() => undefined))
+    mocked.listSkillsCatalog.mockImplementation(() => new Promise(() => undefined))
 
     render(<SkillsTimeline />)
     expect(screen.getByText('Loading skills data...')).toBeInTheDocument()
   })
 
-  it('renders error state', () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: [],
-      loading: false,
-      error: 'Failed to fetch',
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    expect(screen.getByText('Error loading skills: Failed to fetch')).toBeInTheDocument()
-    expect(screen.getByText('Retry')).toBeInTheDocument()
-  })
-
-  it('renders empty state when no skills', () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: [],
-      loading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    expect(screen.getByText('No skills data available. Upload a project to see your skills timeline.')).toBeInTheDocument()
-  })
-
-  it('renders timeline with skills', async () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: mockSkills,
-      loading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    
-    await waitFor(() => {
-      expect(screen.getByText('All Skills')).toBeInTheDocument()
-      expect(screen.getByText('Languages')).toBeInTheDocument()
-      expect(screen.getByText('Frameworks')).toBeInTheDocument()
-      expect(screen.getByText('Backends')).toBeInTheDocument()
-      expect(screen.getByText('Tools')).toBeInTheDocument()
-    })
-  })
-
-  it('displays skill items', async () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: mockSkills,
-      loading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    
-    await waitFor(() => {
-      expect(screen.getByText('JavaScript')).toBeInTheDocument()
-      expect(screen.getByText('React')).toBeInTheDocument()
-    })
-  })
-
-  it('filters skills by category', async () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: mockSkills,
-      loading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Languages'))
-      expect(screen.getByText('JavaScript')).toBeInTheDocument()
-      expect(screen.queryByText('React')).not.toBeInTheDocument()
-    })
-  })
-
-  it('opens modal when skill is clicked', async () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: mockSkills,
-      loading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('JavaScript').closest('.timeline-content')!)
-      expect(screen.getByText('Learning Progression')).toBeInTheDocument()
-      expect(screen.getByText('Projects Built')).toBeInTheDocument()
-    })
-  })
-
-  it('closes modal when close button is clicked', async () => {
-    vi.mocked(useSkillsTimeline).mockReturnValue({
-      skills: mockSkills,
-      loading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    render(<SkillsTimeline />)
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('JavaScript').closest('.timeline-content')!)
-      fireEvent.click(screen.getByText('×'))
-      expect(screen.queryByText('Learning Progression')).not.toBeInTheDocument()
-    })
-    seedMocks()
-  })
-
   it('loads timeline using project-id lookup mode', async () => {
     render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
     await selectAlphaAndLoad()
+
     expect(screen.getByText('python')).toBeInTheDocument()
+    expect(mocked.getChronologicalSkillsByProjectId).toHaveBeenCalledWith(7)
+  })
+
+  it('loads timeline using zip-name lookup mode', async () => {
+    render(<SkillsTimeline />)
+    await waitForTimelineControls()
+
+    fireEvent.change(screen.getByLabelText('Project selector'), { target: { value: 'ziphash01::Alpha' } })
+    fireEvent.change(screen.getByLabelText('Lookup mode'), { target: { value: 'zip-name' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Load timeline' }))
+
+    await waitFor(() =>
+      expect(mocked.getChronologicalSkills).toHaveBeenCalledWith({
+        zipHash: 'ziphash01',
+        projectName: 'Alpha',
+      }),
+    )
+    expect(mocked.getChronologicalSkillsByProjectId).not.toHaveBeenCalled()
+  })
+
+  it('loads all projects when All projects is selected', async () => {
+    render(<SkillsTimeline />)
+    await waitForTimelineControls()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load timeline' }))
+
+    await waitFor(() =>
+      expect(mocked.getChronologicalSkills).toHaveBeenCalledWith({
+        zipHash: 'ziphash01',
+        projectName: 'Alpha',
+      }),
+    )
+    expect(screen.getByText('python')).toBeInTheDocument()
+  })
+
+  it('uses skills/year when All projects + specific year is selected', async () => {
+    render(<SkillsTimeline />)
+    await waitForTimelineControls()
+
+    const currentYear = String(new Date().getFullYear())
+    fireEvent.change(screen.getByLabelText('Year filter'), { target: { value: currentYear } })
+    fireEvent.click(screen.getByRole('button', { name: 'Load timeline' }))
+
+    await waitFor(() => expect(mocked.getSkillsByYear).toHaveBeenCalledWith(Number(currentYear)))
+    expect(screen.getByText('writing')).toBeInTheDocument()
   })
 
   it('deduplicates repeated skills and keeps the most recent event', async () => {
@@ -295,28 +202,19 @@ describe('SkillsTimeline', () => {
         },
       ],
     })
+
     render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
     await selectAlphaAndLoad()
+
     expect(screen.getAllByRole('heading', { name: 'python' })).toHaveLength(1)
     expect(screen.getByText('alpha/new.py')).toBeInTheDocument()
     expect(screen.queryByText('alpha/old.py')).not.toBeInTheDocument()
   })
 
-  it('uses skills/year when All projects + specific year is selected', async () => {
-    render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
-    const currentYear = String(new Date().getFullYear())
-    fireEvent.change(screen.getByLabelText('Year filter'), { target: { value: currentYear } })
-    fireEvent.click(screen.getByRole('button', { name: 'Load timeline' }))
-    await waitFor(() => expect(mocked.getSkillsByYear).toHaveBeenCalledWith(Number(currentYear)))
-    expect(screen.getByText('writing')).toBeInTheDocument()
-  })
-
   it('handles add skill modal flow', async () => {
     render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
     await selectAlphaAndLoad()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add skill' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Add skill' }))
     fireEvent.change(screen.getByLabelText('Add skills input'), { target: { value: 'graphql' } })
@@ -337,8 +235,8 @@ describe('SkillsTimeline', () => {
 
   it('handles edit skill modal flow', async () => {
     render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
     await selectAlphaAndLoad()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     fireEvent.change(screen.getByLabelText('Edit skill input'), { target: { value: 'golang' } })
@@ -360,8 +258,8 @@ describe('SkillsTimeline', () => {
 
   it('handles remove confirmation flow with Yes/No', async () => {
     render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
     await selectAlphaAndLoad()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'No' }))
@@ -369,23 +267,32 @@ describe('SkillsTimeline', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
+
     await waitFor(() =>
-      expect(mocked.removeProjectSkills).toHaveBeenCalledWith({ project_id: 7, skills: ['python'] }),
+      expect(mocked.removeProjectSkills).toHaveBeenCalledWith({
+        project_id: 7,
+        skills: ['python'],
+      }),
     )
   })
 
-  it('shows loading error when timeline request fails', async () => {
+  it('shows inline error and keeps controls available when timeline request fails', async () => {
     mocked.getChronologicalSkillsByProjectId.mockRejectedValueOnce(new Error('boom'))
+
     render(<SkillsTimeline />)
-    await waitFor(() => expect(mocked.getChronologicalProjects).toHaveBeenCalled())
+    await waitForTimelineControls()
+
     fireEvent.change(screen.getByLabelText('Project selector'), { target: { value: 'ziphash01::Alpha' } })
     fireEvent.click(screen.getByRole('button', { name: 'Load timeline' }))
+
     await waitFor(() => expect(screen.getByText('boom')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Load timeline' })).toBeInTheDocument()
   })
 
   it('refreshes global catalog when refresh nonce changes', async () => {
     const { rerender } = render(<SkillsTimeline refreshNonce={0} />)
     await waitFor(() => expect(mocked.listSkillsCatalog).toHaveBeenCalledTimes(1))
+
     rerender(<SkillsTimeline refreshNonce={1} />)
     await waitFor(() => expect(mocked.listSkillsCatalog).toHaveBeenCalledTimes(2))
   })
