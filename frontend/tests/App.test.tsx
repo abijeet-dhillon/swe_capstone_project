@@ -13,6 +13,8 @@ vi.mock('../src/renderer/src/api', () => ({
   getPortfolio: vi.fn().mockResolvedValue({}),
   getResume: vi.fn().mockResolvedValue({ bullets: [] }),
   getProjectSkills: vi.fn().mockResolvedValue([]),
+  updateProject: vi.fn().mockResolvedValue({ status: 'ok', project_id: 1 }),
+  removeProject: vi.fn().mockResolvedValue({ status: 'ok', project_id: 1 }),
   listSkillsCatalog: vi.fn().mockResolvedValue(['python']),
   getSkillsByYear: vi.fn().mockResolvedValue({ year: 2026, timeline: [] }),
   addProjectSkills: vi.fn().mockResolvedValue({ project_id: 1, skills: [] }),

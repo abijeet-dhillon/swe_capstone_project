@@ -84,6 +84,21 @@ export type ProjectDetail = {
   thumbnail?: { image_path: string; mime_type: string } | null
 }
 
+export type ProjectEditRequest = {
+  project_name?: string
+  tagline?: string
+  description?: string
+  project_type?: string
+  complexity?: string
+  summary?: string
+}
+
+export type ProjectMutationResponse = {
+  status: string
+  project_id: number
+  project?: Record<string, unknown>
+}
+
 // ─── Portfolio Types ───────────────────────────────────────────────
 
 export type PortfolioTemplate = {
@@ -325,6 +340,20 @@ export async function getProjectDetail(projectId: number): Promise<ProjectDetail
     summary: (portfolio.summary ?? undefined) as string | undefined,
     user_role: (raw.user_role ?? undefined) as string | undefined,
   }
+}
+
+export function updateProject(projectId: number, payload: ProjectEditRequest): Promise<ProjectMutationResponse> {
+  return apiFetch(`/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function removeProject(projectId: number): Promise<ProjectMutationResponse> {
+  return apiFetch(`/projects/${projectId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function uploadProject(req: UploadRequest): Promise<UploadResponse> {

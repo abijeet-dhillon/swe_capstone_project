@@ -8,6 +8,8 @@ import {
   getSkillsByYear,
   listSkillsCatalog,
   removeProjectSkills,
+  removeProject,
+  updateProject,
 } from './api'
 
 function ok(body: unknown): Response {
@@ -81,5 +83,25 @@ describe('timeline api wrappers', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://localhost:8000/chronological/skills/11', undefined)
     expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://localhost:8000/chronological/projects?limit=25', undefined)
+  })
+
+  it('sends patch/delete payloads to project mutation endpoints', async () => {
+    fetchMock.mockResolvedValue(ok({ status: 'ok', project_id: 9 }))
+    await updateProject(9, { project_name: 'Renamed', summary: 'Updated summary' })
+    await removeProject(9)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/projects/9',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ project_name: 'Renamed', summary: 'Updated summary' }),
+      }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/projects/9',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
   })
 })
