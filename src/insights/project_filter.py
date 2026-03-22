@@ -217,11 +217,11 @@ class ProjectFilterEngine:
         query = """
             SELECT DISTINCT
                 pi.id as project_info_id,
-                p.project_name,
+                COALESCE(pi.project_name, p.project_name) as project_name,
                 p.slug,
                 p.root_path,
-                p.created_at as project_created_at,
-                p.updated_at as project_updated_at,
+                pi.created_at as project_created_at,
+                pi.updated_at as project_updated_at,
                 pi.total_files,
                 pi.total_lines,
                 pi.total_commits,
@@ -235,8 +235,16 @@ class ProjectFilterEngine:
                 port.summary
             FROM project_info pi
             JOIN projects p ON pi.project_id = p.id
+            JOIN ingest i ON i.id = pi.ingest_id
             LEFT JOIN portfolio_insights port ON port.project_info_id = pi.id
             WHERE 1=1
+              AND pi.is_deleted = 0
+              AND i.id = (
+                SELECT id FROM ingest i2
+                WHERE i2.source_hash = i.source_hash
+                ORDER BY i2.id DESC
+                LIMIT 1
+            )
         """
         
         # Date range filtering
@@ -291,7 +299,7 @@ class ProjectFilterEngine:
         if filter_config.search_text:
             search_pattern = f"%{filter_config.search_text}%"
             query += """ AND (
-                p.project_name LIKE ? OR
+                COALESCE(pi.project_name, p.project_name) LIKE ? OR
                 port.description LIKE ? OR
                 port.tagline LIKE ? OR
                 port.summary LIKE ?
@@ -513,4 +521,3 @@ class ProjectFilterEngine:
                 "last_seen": row[3],
                 "total_lines": row[4] or 0
             } for row in cursor.fetchall()}
-
