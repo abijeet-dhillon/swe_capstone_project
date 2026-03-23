@@ -3,6 +3,7 @@ import pytest
 from src.resume.resume_artifact import (
     build_resume_context,
     escape_latex,
+    render_resume_template,
     generate_resume_tex_artifact,
     generate_resume_pdf_artifact,
 )
@@ -88,6 +89,30 @@ def test_build_resume_context_includes_optional_profile_fields_and_education():
             "end_date": "Expected May 2027",
         }
     ]
+
+def test_render_resume_template_renders_contact_info_inline():
+    context = build_resume_context(
+        {
+            "resume_owner": {
+                "name": "Actual Student",
+                "phone": "555-111-2222",
+                "email": "student@example.com",
+                "linkedin_url": "https://linkedin.com/in/student",
+                "github_url": "https://github.com/student",
+            },
+            "projects": {"OnlyProject": {"project_name": "OnlyProject"}},
+        }
+    )
+
+    rendered = render_resume_template(context)
+    address_block = rendered.split("\\address{", 1)[1].split("}\n\\begin{document}", 1)[0]
+
+    assert "555-111-2222" in address_block
+    assert r"\href{mailto:student@example.com}" in address_block
+    assert r"\href{https://linkedin.com/in/student}" in address_block
+    assert r"\href{https://github.com/student}" in address_block
+    assert r"\enspace $|$ \enspace" in address_block
+    assert r"\\" not in address_block
 
 def test_escape_latex_escapes_common_special_characters():
     escaped = escape_latex(r"\ { } $ & # _ % ~ ^")
