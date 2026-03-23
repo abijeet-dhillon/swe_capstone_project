@@ -105,7 +105,7 @@ def test_render_resume_template_renders_contact_info_inline():
     )
 
     rendered = render_resume_template(context)
-    address_block = rendered.split("\\address{", 1)[1].split("}\n\\begin{document}", 1)[0]
+    address_block = rendered.split("\\address{", 1)[1].split("}\n\\begin{document}", 1)[0] if "}\n\\begin{document}" in rendered else rendered.split("\\address{", 1)[1].split("}\\begin{document}", 1)[0]
 
     assert "555-111-2222" in address_block
     assert r"\href{mailto:student@example.com}" in address_block
@@ -113,6 +113,7 @@ def test_render_resume_template_renders_contact_info_inline():
     assert r"\href{https://github.com/student}" in address_block
     assert r"\enspace $|$ \enspace" in address_block
     assert r"\\" not in address_block
+    assert "\n\n" not in address_block
 
 def test_escape_latex_escapes_common_special_characters():
     escaped = escape_latex(r"\ { } $ & # _ % ~ ^")
