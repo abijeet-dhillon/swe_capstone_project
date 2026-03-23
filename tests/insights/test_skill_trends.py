@@ -33,6 +33,7 @@ def temp_db(tmp_path):
                 total_commits INTEGER DEFAULT 0,
                 total_contributors INTEGER DEFAULT 0,
                 is_git_repo INTEGER DEFAULT 0,
+                tags_json TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (project_id) REFERENCES projects(id)
