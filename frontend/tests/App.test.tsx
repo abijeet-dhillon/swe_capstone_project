@@ -3,11 +3,59 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import App from '../src/renderer/src/App'
 
 vi.mock('../src/renderer/src/api', () => ({
-  filterProjects: vi.fn().mockResolvedValue({ total: 0, projects: [], filter_applied: {} }),
+  filterProjects: vi.fn().mockResolvedValue({
+    total: 3,
+    projects: [
+      {
+        project_info_id: 1,
+        project_name: 'docs',
+        slug: 'docs',
+        project_created_at: '2026-03-01T00:00:00',
+        total_files: 5,
+        total_lines: 120,
+        total_commits: 7,
+        total_contributors: 1,
+        is_collaborative: false,
+      },
+      {
+        project_info_id: 2,
+        project_name: 'the-project-sunset',
+        slug: 'the-project-sunset',
+        project_created_at: '2026-03-02T00:00:00',
+        total_files: 9,
+        total_lines: 420,
+        total_commits: 14,
+        total_contributors: 2,
+        is_collaborative: true,
+      },
+      {
+        project_info_id: 3,
+        project_name: 'kestrel-hft',
+        slug: 'kestrel-hft',
+        project_created_at: '2026-03-03T00:00:00',
+        total_files: 11,
+        total_lines: 820,
+        total_commits: 20,
+        total_contributors: 2,
+        is_collaborative: true,
+      },
+    ],
+    filter_applied: {},
+  }),
   getFilterOptions: vi.fn().mockResolvedValue({
     sort_options: [],
     project_types: [],
     complexity_levels: [],
+  }),
+  generateResumePdf: vi.fn().mockResolvedValue({
+    blob: new Blob(['resume'], { type: 'application/pdf' }),
+    filename: 'resume.pdf',
+  }),
+  generatePortfolioSite: vi.fn().mockResolvedValue({
+    status: 'ok',
+    url: 'http://localhost:3000',
+    server_started: true,
+    message: 'Portfolio generated.',
   }),
   getProjectDetail: vi.fn().mockResolvedValue({}),
   getPortfolio: vi.fn().mockResolvedValue({}),
@@ -84,9 +132,8 @@ describe('App Layout', () => {
   it('defaults to private mode with customization enabled', () => {
     render(<App />)
     expect(screen.getByText('Customization controls are enabled.')).toBeInTheDocument()
-    const customizeButtons = screen.getAllByRole('button', { name: 'Customize' })
-    const enabled = customizeButtons.filter((b) => !b.hasAttribute('disabled'))
-    expect(enabled.length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Generate Resume' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Generate Portfolio' })).toBeEnabled()
   })
 
   it('switches to public mode and disables customize buttons', () => {
@@ -95,6 +142,46 @@ describe('App Layout', () => {
     expect(screen.getByText('Customization controls are disabled in public mode.')).toBeInTheDocument()
     const customizeButtons = screen.getAllByRole('button', { name: 'Customize' })
     customizeButtons.forEach((b) => expect(b).toBeDisabled())
+  })
+
+  it('opens the resume modal with grouped sections and footer actions', async () => {
+    render(<App />)
+    await screen.findByText('3 projects')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Resume' }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('Generate One-Page Resume')).toBeInTheDocument()
+    expect(screen.getByText('Choose the work samples you want highlighted on this one-page resume.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Resume owner name')).toBeInTheDocument()
+    expect(screen.getByLabelText('Phone number')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate PDF' })).toBeInTheDocument()
+  })
+
+  it('shows resume validation in the modal footer flow', async () => {
+    render(<App />)
+    await screen.findByText('3 projects')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Resume' }))
+
+    const ownerName = await screen.findByLabelText('Resume owner name')
+    fireEvent.change(ownerName, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate PDF' }))
+
+    expect(await screen.findByText('Choose at least one project and enter the resume owner name.')).toBeInTheDocument()
+  })
+
+  it('opens the portfolio modal with grouped profile fields and clear selection state', async () => {
+    render(<App />)
+    await screen.findByText('3 projects')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Portfolio' }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('Generate Web Portfolio')).toBeInTheDocument()
+    expect(screen.getByText('Choose between two and four projects to feature on the portfolio page.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toBeInTheDocument()
+    expect(screen.getByText('2/4 selected')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Generate Portfolio' }).length).toBeGreaterThan(1)
   })
 
   it('filters feature cards by search query', () => {
