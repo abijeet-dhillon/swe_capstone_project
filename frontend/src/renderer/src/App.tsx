@@ -414,6 +414,10 @@ function App() {
   }, [cardCategory, cardQuery])
 
   const meta = PAGE_META[view]
+  const resumeSelectedProjects = projects.filter((project) => resumeProjectIds.includes(project.project_info_id))
+  const portfolioSelectedProjects = projects.filter((project) => portfolioProjectIds.includes(project.project_info_id))
+  const canGenerateResume = resumeProjectIds.length > 0 && Boolean(resumeOwnerName.trim())
+  const canGeneratePortfolio = portfolioProjectIds.length >= 2 && Boolean(portfolioName.trim())
 
   return (
     <div className="app-layout">
@@ -634,33 +638,32 @@ function App() {
       {resumeModalOpen && (
         <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title">
           <div className="modal-content">
-            <button className="close" onClick={resetResumeModal} aria-label="Close">
-              ×
-            </button>
             <div className="modal-header">
-              <h2 id="resume-modal-title">Generate One-Page Resume</h2>
-              <span className="modal-category">Resume</span>
+              <div className="modal-header__copy">
+                <span className="modal-category">Resume</span>
+                <h2 id="resume-modal-title">Generate One-Page Resume</h2>
+                <p className="modal-description">
+                  Select the projects to include, fill in the details you want on the resume, then generate the PDF.
+                </p>
+              </div>
+              <button className="close" type="button" onClick={resetResumeModal} aria-label="Close">
+                ×
+              </button>
             </div>
 
-            <p className="modal-description">
-              Select the projects to include, fill in any profile details you want on the resume, then generate the PDF.
-            </p>
-
             <div className="modal-section">
-              <h4>Projects</h4>
-              <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Projects</h4>
+                  <p className="modal-helper">Choose the work samples you want highlighted on this one-page resume.</p>
+                </div>
+                <span className="pill info">{resumeProjectIds.length} selected</span>
+              </div>
+              <div className="modal-project-list">
                 {projects.map((project) => (
                   <label
                     key={project.project_info_id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '10px 12px',
-                      border: '1px solid var(--border)',
-                      borderRadius: 10,
-                      background: 'var(--bg-secondary)',
-                    }}
+                    className={`modal-project-option ${resumeProjectIds.includes(project.project_info_id) ? 'is-selected' : ''}`}
                   >
                     <input
                       type="checkbox"
@@ -674,135 +677,164 @@ function App() {
             </div>
 
             <div className="modal-section">
-              <h4>Resume Owner Name</h4>
-              <input
-                className="input"
-                type="text"
-                placeholder="e.g. Jane Doe"
-                value={resumeOwnerName}
-                onChange={(e) => setResumeOwnerName(e.target.value)}
-                style={{ width: '100%', minWidth: 0 }}
-              />
-            </div>
-
-            <div className="modal-section">
-              <h4>Contact</h4>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Phone number"
-                  value={resumePhone}
-                  onChange={(e) => setResumePhone(e.target.value)}
-                  style={{ width: '100%', minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  type="email"
-                  placeholder="Email address"
-                  value={resumeEmail}
-                  onChange={(e) => setResumeEmail(e.target.value)}
-                  style={{ width: '100%', minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="LinkedIn URL"
-                  value={resumeLinkedinUrl}
-                  onChange={(e) => setResumeLinkedinUrl(e.target.value)}
-                  style={{ width: '100%', minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="LinkedIn label (optional)"
-                  value={resumeLinkedinLabel}
-                  onChange={(e) => setResumeLinkedinLabel(e.target.value)}
-                  style={{ width: '100%', minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="GitHub URL"
-                  value={resumeGithubUrl}
-                  onChange={(e) => setResumeGithubUrl(e.target.value)}
-                  style={{ width: '100%', minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="GitHub label (optional)"
-                  value={resumeGithubLabel}
-                  onChange={(e) => setResumeGithubLabel(e.target.value)}
-                  style={{ width: '100%', minWidth: 0 }}
-                />
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Owner</h4>
+                  <p className="modal-helper">Use the exact name you want displayed in the PDF heading.</p>
+                </div>
+              </div>
+              <div className="modal-form-grid modal-form-grid--two">
+                <label className="modal-field">
+                  <span>Resume owner name</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="e.g. Jane Doe"
+                    value={resumeOwnerName}
+                    onChange={(e) => setResumeOwnerName(e.target.value)}
+                  />
+                </label>
               </div>
             </div>
 
             <div className="modal-section">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h4 style={{ margin: 0 }}>Education</h4>
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Contact</h4>
+                  <p className="modal-helper">Optional, but useful for a resume that is ready to share immediately.</p>
+                </div>
+              </div>
+              <div className="modal-form-grid modal-form-grid--two">
+                <label className="modal-field">
+                  <span>Phone number</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="Phone number"
+                    value={resumePhone}
+                    onChange={(e) => setResumePhone(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field">
+                  <span>Email address</span>
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="Email address"
+                    value={resumeEmail}
+                    onChange={(e) => setResumeEmail(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field">
+                  <span>LinkedIn URL</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="LinkedIn URL"
+                    value={resumeLinkedinUrl}
+                    onChange={(e) => setResumeLinkedinUrl(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field">
+                  <span>LinkedIn label</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="LinkedIn label (optional)"
+                    value={resumeLinkedinLabel}
+                    onChange={(e) => setResumeLinkedinLabel(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field">
+                  <span>GitHub URL</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="GitHub URL"
+                    value={resumeGithubUrl}
+                    onChange={(e) => setResumeGithubUrl(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field">
+                  <span>GitHub label</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="GitHub label (optional)"
+                    value={resumeGithubLabel}
+                    onChange={(e) => setResumeGithubLabel(e.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Education</h4>
+                  <p className="modal-helper">Add one or more schools exactly as you want them printed.</p>
+                </div>
                 <button className="action-btn" type="button" onClick={addEducationEntry}>
                   Add Education
                 </button>
               </div>
-              <div style={{ display: 'grid', gap: 14 }}>
+              <div className="modal-education-list">
                 {resumeEducation.map((entry, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: 12,
-                      padding: 12,
-                      background: 'var(--bg-secondary)',
-                      display: 'grid',
-                      gap: 10,
-                    }}
-                  >
-                    <input
-                      className="input"
-                      type="text"
-                      placeholder="University or school"
-                      value={entry.school ?? ''}
-                      onChange={(e) => updateEducationField(index, 'school', e.target.value)}
-                      style={{ width: '100%', minWidth: 0 }}
-                    />
-                    <input
-                      className="input"
-                      type="text"
-                      placeholder="Degree or program"
-                      value={entry.degree ?? ''}
-                      onChange={(e) => updateEducationField(index, 'degree', e.target.value)}
-                      style={{ width: '100%', minWidth: 0 }}
-                    />
-                    <input
-                      className="input"
-                      type="text"
-                      placeholder="Location"
-                      value={entry.location ?? ''}
-                      onChange={(e) => updateEducationField(index, 'location', e.target.value)}
-                      style={{ width: '100%', minWidth: 0 }}
-                    />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      <input
-                        className="input"
-                        type="text"
-                        placeholder="From (e.g. Sep 2022)"
-                        value={entry.start_date ?? ''}
-                        onChange={(e) => updateEducationField(index, 'start_date', e.target.value)}
-                        style={{ width: '100%', minWidth: 0 }}
-                      />
-                      <input
-                        className="input"
-                        type="text"
-                        placeholder="To (e.g. May 2026)"
-                        value={entry.end_date ?? ''}
-                        disabled={Boolean(entry.is_current)}
-                        onChange={(e) => updateEducationField(index, 'end_date', e.target.value)}
-                        style={{ width: '100%', minWidth: 0 }}
-                      />
+                  <div key={index} className="modal-education-card">
+                    <div className="modal-form-grid modal-form-grid--two">
+                      <label className="modal-field">
+                        <span>School</span>
+                        <input
+                          className="input"
+                          type="text"
+                          placeholder="University or school"
+                          value={entry.school ?? ''}
+                          onChange={(e) => updateEducationField(index, 'school', e.target.value)}
+                        />
+                      </label>
+                      <label className="modal-field">
+                        <span>Degree or program</span>
+                        <input
+                          className="input"
+                          type="text"
+                          placeholder="Degree or program"
+                          value={entry.degree ?? ''}
+                          onChange={(e) => updateEducationField(index, 'degree', e.target.value)}
+                        />
+                      </label>
+                      <label className="modal-field">
+                        <span>Location</span>
+                        <input
+                          className="input"
+                          type="text"
+                          placeholder="Location"
+                          value={entry.location ?? ''}
+                          onChange={(e) => updateEducationField(index, 'location', e.target.value)}
+                        />
+                      </label>
+                      <label className="modal-field">
+                        <span>From</span>
+                        <input
+                          className="input"
+                          type="text"
+                          placeholder="Sep 2022"
+                          value={entry.start_date ?? ''}
+                          onChange={(e) => updateEducationField(index, 'start_date', e.target.value)}
+                        />
+                      </label>
+                      <label className="modal-field">
+                        <span>To</span>
+                        <input
+                          className="input"
+                          type="text"
+                          placeholder="May 2026"
+                          value={entry.end_date ?? ''}
+                          disabled={Boolean(entry.is_current)}
+                          onChange={(e) => updateEducationField(index, 'end_date', e.target.value)}
+                        />
+                      </label>
                     </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label className="modal-checkbox">
                       <input
                         type="checkbox"
                         checked={Boolean(entry.is_current)}
@@ -811,16 +843,18 @@ function App() {
                       <span>I am still studying here</span>
                     </label>
                     {entry.is_current && (
-                      <input
-                        className="input"
-                        type="text"
-                        placeholder="Expected graduation (e.g. May 2027)"
-                        value={entry.expected_graduation ?? ''}
-                        onChange={(e) => updateEducationField(index, 'expected_graduation', e.target.value)}
-                        style={{ width: '100%', minWidth: 0 }}
-                      />
+                      <label className="modal-field">
+                        <span>Expected graduation</span>
+                        <input
+                          className="input"
+                          type="text"
+                          placeholder="Expected graduation (e.g. May 2027)"
+                          value={entry.expected_graduation ?? ''}
+                          onChange={(e) => updateEducationField(index, 'expected_graduation', e.target.value)}
+                        />
+                      </label>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div className="modal-education-actions">
                       <button className="reset-btn" type="button" onClick={() => removeEducationEntry(index)}>
                         Remove
                       </button>
@@ -831,10 +865,28 @@ function App() {
             </div>
 
             {resumeError && (
-              <p className="filter-error" style={{ marginBottom: 12 }}>{resumeError}</p>
+              <p className="filter-error">{resumeError}</p>
             )}
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
+              <div className="modal-footer__summary">
+                <strong>{resumeSelectedProjects.length}</strong>
+                <span>{resumeSelectedProjects.length === 1 ? 'project selected' : 'projects selected'}</span>
+                {!canGenerateResume && <span className="modal-footer__hint">Select a project and enter the resume owner name.</span>}
+              </div>
+              <div className="modal-footer__actions">
+                <button className="reset-btn" type="button" onClick={resetResumeModal}>
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary"
+                  type="button"
+                  onClick={handleGenerateResumePdf}
+                  disabled={resumeGenerating}
+                >
+                  {resumeGenerating ? 'Generating…' : 'Generate PDF'}
+                </button>
+              </div>
               {resumeDownloadUrl && (
                 <a
                   className="btn-primary"
@@ -844,13 +896,6 @@ function App() {
                   Download PDF
                 </a>
               )}
-              <button
-                className="btn-primary"
-                onClick={handleGenerateResumePdf}
-                disabled={resumeGenerating}
-              >
-                {resumeGenerating ? 'Generating…' : 'Generate PDF'}
-              </button>
             </div>
           </div>
         </div>
@@ -859,33 +904,34 @@ function App() {
       {portfolioModalOpen && (
         <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="portfolio-modal-title">
           <div className="modal-content">
-            <button className="close" onClick={resetPortfolioModal} aria-label="Close">
-              ×
-            </button>
             <div className="modal-header">
-              <h2 id="portfolio-modal-title">Generate Web Portfolio</h2>
-              <span className="modal-category">Portfolio</span>
+              <div className="modal-header__copy">
+                <span className="modal-category">Portfolio</span>
+                <h2 id="portfolio-modal-title">Generate Web Portfolio</h2>
+                <p className="modal-description">
+                  Pick 2 to 4 projects, add the profile details you want displayed, then generate your portfolio website.
+                </p>
+              </div>
+              <button className="close" type="button" onClick={resetPortfolioModal} aria-label="Close">
+                ×
+              </button>
             </div>
 
-            <p className="modal-description">
-              Select 2–4 projects, fill in your profile details, then generate your portfolio website.
-            </p>
-
             <div className="modal-section">
-              <h4>Projects (select 2–4)</h4>
-              <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Projects</h4>
+                  <p className="modal-helper">Choose between two and four projects to feature on the portfolio page.</p>
+                </div>
+                <span className="pill info">{portfolioProjectIds.length}/4 selected</span>
+              </div>
+              <div className="modal-project-list">
                 {projects.map((project) => (
                   <label
                     key={project.project_info_id}
+                    className={`modal-project-option ${portfolioProjectIds.includes(project.project_info_id) ? 'is-selected' : ''}`}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '10px 12px',
-                      border: '1px solid var(--border)',
-                      borderRadius: 10,
-                      background: 'var(--bg-secondary)',
-                      opacity: !portfolioProjectIds.includes(project.project_info_id) && portfolioProjectIds.length >= 4 ? 0.5 : 1,
+                      opacity: !portfolioProjectIds.includes(project.project_info_id) && portfolioProjectIds.length >= 4 ? 0.55 : 1,
                     }}
                   >
                     <input
@@ -898,70 +944,107 @@ function App() {
                   </label>
                 ))}
               </div>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                {portfolioProjectIds.length}/4 selected
-              </span>
             </div>
 
             <div className="modal-section">
-              <h4>Name</h4>
-              <input
-                className="input"
-                type="text"
-                placeholder="e.g. Jane Doe"
-                value={portfolioName}
-                onChange={(e) => setPortfolioName(e.target.value)}
-                style={{ width: '100%', minWidth: 0 }}
-              />
-            </div>
-
-            <div className="modal-section">
-              <h4>Title</h4>
-              <input
-                className="input"
-                type="text"
-                placeholder="e.g. Full-Stack Developer"
-                value={portfolioTitle}
-                onChange={(e) => setPortfolioTitle(e.target.value)}
-                style={{ width: '100%', minWidth: 0 }}
-              />
-            </div>
-
-            <div className="modal-section">
-              <h4>About Me</h4>
-              <textarea
-                className="input"
-                placeholder="Write a short bio about yourself..."
-                value={portfolioBio}
-                onChange={(e) => setPortfolioBio(e.target.value)}
-                rows={3}
-                style={{ width: '100%', minWidth: 0, resize: 'vertical' }}
-              />
-            </div>
-
-            <div className="modal-section">
-              <h4>Contact & Links</h4>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <input className="input" type="email" placeholder="Email address" value={portfolioEmail} onChange={(e) => setPortfolioEmail(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
-                <input className="input" type="text" placeholder="Location (e.g. Vancouver, BC)" value={portfolioLocation} onChange={(e) => setPortfolioLocation(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
-                <input className="input" type="text" placeholder="GitHub URL" value={portfolioGithubUrl} onChange={(e) => setPortfolioGithubUrl(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
-                <input className="input" type="text" placeholder="LinkedIn URL" value={portfolioLinkedinUrl} onChange={(e) => setPortfolioLinkedinUrl(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Profile</h4>
+                  <p className="modal-helper">These details become the hero section of your generated site.</p>
+                </div>
+              </div>
+              <div className="modal-form-grid modal-form-grid--two">
+                <label className="modal-field">
+                  <span>Name</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="e.g. Jane Doe"
+                    value={portfolioName}
+                    onChange={(e) => setPortfolioName(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field">
+                  <span>Title</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="e.g. Full-Stack Developer"
+                    value={portfolioTitle}
+                    onChange={(e) => setPortfolioTitle(e.target.value)}
+                  />
+                </label>
+                <label className="modal-field modal-field--full">
+                  <span>About me</span>
+                  <textarea
+                    className="input"
+                    placeholder="Write a short bio about yourself..."
+                    value={portfolioBio}
+                    onChange={(e) => setPortfolioBio(e.target.value)}
+                    rows={3}
+                  />
+                </label>
               </div>
             </div>
 
             <div className="modal-section">
-              <h4>Highlights</h4>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <input className="input" type="text" placeholder="Years of experience (e.g. 4+)" value={portfolioYoe} onChange={(e) => setPortfolioYoe(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
-                <input className="input" type="text" placeholder="Open source contributions (e.g. 50+)" value={portfolioOss} onChange={(e) => setPortfolioOss(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Links & highlights</h4>
+                  <p className="modal-helper">These fields are optional and can make the generated portfolio feel more complete.</p>
+                </div>
+              </div>
+              <div className="modal-form-grid modal-form-grid--two">
+                <label className="modal-field">
+                  <span>Email address</span>
+                  <input className="input" type="email" placeholder="Email address" value={portfolioEmail} onChange={(e) => setPortfolioEmail(e.target.value)} />
+                </label>
+                <label className="modal-field">
+                  <span>Location</span>
+                  <input className="input" type="text" placeholder="Location (e.g. Vancouver, BC)" value={portfolioLocation} onChange={(e) => setPortfolioLocation(e.target.value)} />
+                </label>
+                <label className="modal-field">
+                  <span>GitHub URL</span>
+                  <input className="input" type="text" placeholder="GitHub URL" value={portfolioGithubUrl} onChange={(e) => setPortfolioGithubUrl(e.target.value)} />
+                </label>
+                <label className="modal-field">
+                  <span>LinkedIn URL</span>
+                  <input className="input" type="text" placeholder="LinkedIn URL" value={portfolioLinkedinUrl} onChange={(e) => setPortfolioLinkedinUrl(e.target.value)} />
+                </label>
+                <label className="modal-field">
+                  <span>Years of experience</span>
+                  <input className="input" type="text" placeholder="e.g. 4+" value={portfolioYoe} onChange={(e) => setPortfolioYoe(e.target.value)} />
+                </label>
+                <label className="modal-field">
+                  <span>Open source contributions</span>
+                  <input className="input" type="text" placeholder="e.g. 50+" value={portfolioOss} onChange={(e) => setPortfolioOss(e.target.value)} />
+                </label>
               </div>
             </div>
 
             {portfolioError && (
-              <p className="filter-error" style={{ marginBottom: 12 }}>{portfolioError}</p>
+              <p className="filter-error">{portfolioError}</p>
             )}
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
+              <div className="modal-footer__summary">
+                <strong>{portfolioSelectedProjects.length}</strong>
+                <span>{portfolioSelectedProjects.length === 1 ? 'project selected' : 'projects selected'}</span>
+                {!canGeneratePortfolio && <span className="modal-footer__hint">Select at least two projects and enter your name.</span>}
+              </div>
+              <div className="modal-footer__actions">
+                <button className="reset-btn" type="button" onClick={resetPortfolioModal}>
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary"
+                  type="button"
+                  onClick={handleGeneratePortfolio}
+                  disabled={portfolioGenerating}
+                >
+                  {portfolioGenerating ? 'Generating…' : 'Generate Portfolio'}
+                </button>
+              </div>
               {portfolioUrl && (
                 <a
                   className="btn-primary"
@@ -972,13 +1055,6 @@ function App() {
                   View Portfolio
                 </a>
               )}
-              <button
-                className="btn-primary"
-                onClick={handleGeneratePortfolio}
-                disabled={portfolioGenerating}
-              >
-                {portfolioGenerating ? 'Generating…' : 'Generate Portfolio'}
-              </button>
             </div>
           </div>
         </div>
