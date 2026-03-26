@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, validator
 
-from src.api.deps import resolve_db_path
+from src.api.deps import get_store, resolve_db_path
 from src.insights.project_filter import (
     DateRange,
     FilterPreset,
@@ -26,6 +26,8 @@ router = APIRouter(prefix="/filter", tags=["filter"])
 
 def get_filter_engine(db_url: Optional[str] = None) -> ProjectFilterEngine:
     """Dependency to get filter engine instance."""
+    # Ensure storage schema migrations are applied before raw SQL filtering.
+    get_store(db_url=db_url)
     db_path = resolve_db_path(db_url)
     return ProjectFilterEngine(db_path=db_path)
 
