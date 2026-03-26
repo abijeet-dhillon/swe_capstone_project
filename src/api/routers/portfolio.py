@@ -629,6 +629,85 @@ class PortfolioSiteRequest(BaseModel):
     project_ids: List[int] = Field(..., min_length=2, max_length=4)
 
 
+def _build_heatmap_data(store: ProjectInsightsStore) -> Optional[Dict[str, Any]]:
+    """Aggregate the activity heatmap across all projects in the store."""
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+    if not all_projects:
+        return None
+
+    per_project_maps: List[Dict[str, int]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        timeline = (payload.get("git_analysis") or {}).get("timeline") or []
+        if timeline:
+            per_project_maps.append(_heatmap_from_timeline(timeline))
+        else:
+            metrics = payload.get("project_metrics") or {}
+            per_project_maps.append(
+                _heatmap_from_range(
+                    metrics.get("duration_start"),
+                    metrics.get("duration_end"),
+                    int(metrics.get("total_commits") or 0),
+                )
+            )
+
+    merged = _merge_heatmaps(per_project_maps)
+    if not merged:
+        return None
+
+    sorted_weeks = sorted(merged.keys())
+    return {
+        "weeks": {k: merged[k] for k in sorted_weeks},
+        "total_weeks": len(sorted_weeks),
+        "total_activity": sum(merged.values()),
+        "date_range": {"start": sorted_weeks[0], "end": sorted_weeks[-1]},
+    }
+
+
+def _build_showcase_data(store: ProjectInsightsStore, limit: int = 3) -> Optional[List[Dict[str, Any]]]:
+    """Return the top-ranked projects as showcase entries."""
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+    if not all_projects:
+        return None
+
+    scored: List[Dict[str, Any]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
+
+    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
+    result: List[Dict[str, Any]] = []
+    for rank, entry in enumerate(ranked, start=1):
+        pid = entry["project_id"]
+        payload = entry["payload"]
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        git = payload.get("git_analysis") or {}
+        result.append({
+            "rank": rank,
+            "project_id": pid,
+            "project_title": payload.get("project_name"),
+            "score": round(entry["score"], 2),
+            "summary": portfolio_item.get("summary") or portfolio_item.get("description"),
+            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
+            "key_metrics": _build_key_metrics(project_metrics),
+            "evolution": _build_evolution(git, project_metrics),
+        })
+    return result or None
+
+
 def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     """Render a syntactically valid TypeScript config from the profile dict."""
 
@@ -639,6 +718,8 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     about = profile.get("about") or {}
     skills = profile.get("skills") or []
     projects = profile.get("projects") or []
+    heatmap: Optional[Dict[str, Any]] = profile.get("heatmap")
+    showcase: Optional[List[Dict[str, Any]]] = profile.get("showcase")
 
     socials_str = ",\n    ".join(
         f'{{ platform: {_js(s["platform"])}, url: {_js(s["url"])}, icon: {_js(s["icon"])} }}'
@@ -674,6 +755,64 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
         proj_entries.append(entry)
     projects_str = ",\n".join(proj_entries)
 
+    # Optional heatmap block
+    heatmap_str = ""
+    if heatmap:
+        weeks_entries = ", ".join(
+            f'{_js(k)}: {v}' for k, v in sorted(heatmap.get("weeks", {}).items())
+        )
+        dr = heatmap.get("date_range") or {}
+        heatmap_str = (
+            f'\n  heatmap: {{\n'
+            f'    weeks: {{ {weeks_entries} }},\n'
+            f'    total_weeks: {heatmap.get("total_weeks", 0)},\n'
+            f'    total_activity: {heatmap.get("total_activity", 0)},\n'
+            f'    date_range: {{ start: {_js(dr.get("start", ""))}, end: {_js(dr.get("end", ""))} }},\n'
+            f'  }},'
+        )
+
+    # Optional showcase block
+    showcase_str = ""
+    if showcase:
+        entries = []
+        for p in showcase:
+            evo = p.get("evolution") or {}
+            km = p.get("key_metrics") or {}
+            contribs = ", ".join(_js(c) for c in (evo.get("contributors") or []))
+            mix_entries = ", ".join(
+                f'{_js(k)}: {v}' for k, v in (evo.get("activity_mix") or {}).items()
+            )
+            skills_list = ", ".join(_js(s) for s in (p.get("key_skills") or []))
+            entries.append(
+                f'    {{\n'
+                f'      rank: {p.get("rank", 0)},\n'
+                f'      project_id: {p.get("project_id", 0)},\n'
+                f'      project_title: {_js(p.get("project_title", ""))},\n'
+                f'      score: {p.get("score", 0)},\n'
+                f'      summary: {_js(p.get("summary") or "")},\n'
+                f'      key_skills: [{skills_list}],\n'
+                f'      key_metrics: {{\n'
+                f'        total_files: {km.get("total_files", 0)},\n'
+                f'        total_lines: {km.get("total_lines", 0)},\n'
+                f'        total_commits: {km.get("total_commits", 0)},\n'
+                f'        total_contributors: {km.get("total_contributors", 0)},\n'
+                f'        doc_files: {km.get("doc_files", 0)},\n'
+                f'        image_files: {km.get("image_files", 0)},\n'
+                f'        video_files: {km.get("video_files", 0)},\n'
+                f'        test_files: {km.get("test_files", 0)},\n'
+                f'      }},\n'
+                f'      evolution: {{\n'
+                f'        first_commit_at: {_js(evo.get("first_commit_at"))},\n'
+                f'        last_commit_at: {_js(evo.get("last_commit_at"))},\n'
+                f'        duration_days: {evo.get("duration_days", 0)},\n'
+                f'        total_commits: {evo.get("total_commits", 0)},\n'
+                f'        contributors: [{contribs}],\n'
+                f'        activity_mix: {{ {mix_entries} }},\n'
+                f'      }},\n'
+                f'    }}'
+            )
+        showcase_str = f'\n  showcase: [\n' + ",\n".join(entries) + f'\n  ],'
+
     return f'''import type {{ DeveloperProfile }} from "@/types/portfolio";
 
 export const portfolio: DeveloperProfile = {{
@@ -706,7 +845,7 @@ export const portfolio: DeveloperProfile = {{
 {projects_str}
   ],
 
-  experience: [],
+  experience: [],{heatmap_str}{showcase_str}
 }};
 '''
 
@@ -826,6 +965,20 @@ def generate_portfolio_site(
         if items
     ]
 
+    # --- Heatmap ---------------------------------------------------------------
+    heatmap_data: Optional[Dict[str, Any]] = None
+    try:
+        heatmap_data = _build_heatmap_data(store)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not build heatmap data: %s", exc)
+
+    # --- Top-3 showcase -------------------------------------------------------
+    showcase_data: Optional[List[Dict[str, Any]]] = None
+    try:
+        showcase_data = _build_showcase_data(store, limit=3)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not build showcase data: %s", exc)
+
     profile: Dict[str, Any] = {
         "name": req.name,
         "title": req.title,
@@ -840,6 +993,10 @@ def generate_portfolio_site(
         "skills": skill_categories,
         "projects": ts_projects,
     }
+    if heatmap_data:
+        profile["heatmap"] = heatmap_data
+    if showcase_data:
+        profile["showcase"] = showcase_data
 
     config_path = PORTFOLIO_TEMPLATE_DIR / "src" / "config" / "portfolio.ts"
     config_path.parent.mkdir(parents=True, exist_ok=True)
