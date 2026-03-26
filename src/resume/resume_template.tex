@@ -21,12 +21,7 @@
   \end{list}
 }
 \name{ {{- name -}} }
-\address{
-{% if phone %}{{- phone -}} \\{% endif %}
-{% if email %}\href{mailto:{{- email -}}}{ {{- email -}} } \\{% endif %}
-{% if linkedin_url and linkedin_label %}\href{ {{- linkedin_url -}} }{ {{- linkedin_label -}} } \\{% endif %}
-{% if github_url and github_label %}\href{ {{- github_url -}} }{ {{- github_label -}} }{% endif %}
-}
+\address{ {% set ns = namespace(first=true) -%}{%- if phone -%}{{- phone -}}{%- set ns.first = false -%}{%- endif -%}{%- if email -%}{%- if not ns.first -%}\enspace $|$ \enspace{%- endif -%}\href{mailto:{{- email -}}}{ {{- email -}} }{%- set ns.first = false -%}{%- endif -%}{%- if linkedin_url and linkedin_label -%}{%- if not ns.first -%}\enspace $|$ \enspace{%- endif -%}\href{ {{- linkedin_url -}} }{ {{- linkedin_label -}} }{%- set ns.first = false -%}{%- endif -%}{%- if github_url and github_label -%}{%- if not ns.first -%}\enspace $|$ \enspace{%- endif -%}\href{ {{- github_url -}} }{ {{- github_label -}} }{%- endif -%} }
 \begin{document}
     % EDUCATION SECTION
     {% if education %}
