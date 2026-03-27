@@ -744,7 +744,8 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     proj_entries = []
     for p in projects:
         tags = ", ".join(_js(t) for t in p.get("tags", []))
-        entry = f'    {{\n      title: {_js(p["title"])},\n      description: {_js(p.get("description", ""))},\n      image: "/placeholder-project.jpg",\n      tags: [{tags}],'
+        image_val = p.get("image") or "/placeholder-project.jpg"
+        entry = f'    {{\n      title: {_js(p["title"])},\n      description: {_js(p.get("description", ""))},\n      image: {_js(image_val)},\n      tags: [{tags}],'
         if p.get("sourceUrl"):
             entry += f'\n      sourceUrl: {_js(p["sourceUrl"])},'
         if p.get("liveUrl"):
@@ -952,9 +953,17 @@ def generate_portfolio_site(
             [str(s) for s in languages[:3]] + [str(s) for s in frameworks[:3]] + [str(s) for s in skills_list[:3]]
         ))
 
+        thumbnail = store.get_project_thumbnail(pid)
+        image_url = "/placeholder-project.jpg"
+        if thumbnail and thumbnail.get("image_path"):
+            thumb_path = Path(thumbnail["image_path"])
+            if thumb_path.exists():
+                image_url = f"http://localhost:8000/projects/{pid}/thumbnail/content"
+
         ts_projects.append({
             "title": project_name,
             "description": portfolio_item.get("summary") or portfolio_item.get("description") or "",
+            "image": image_url,
             "tags": tags[:6],
             "featured": i < 2,
         })
