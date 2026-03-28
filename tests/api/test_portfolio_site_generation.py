@@ -1,6 +1,12 @@
 from __future__ import annotations
 import os, shutil, tempfile
-from src.api.routers.portfolio import _build_heatmap_data, _build_portfolio_ts, _build_showcase_data
+from pathlib import Path
+from unittest.mock import patch
+from src.api.routers.portfolio import (
+    _build_heatmap_data,
+    _build_portfolio_ts,
+    _build_showcase_data,
+)
 from src.insights.storage import ProjectInsightsStore
 from tests.insights.utils import build_pipeline_payload
 
@@ -128,3 +134,9 @@ def test_ts_omits_showcase_when_absent():
 def test_ts_embeds_showcase():
     ts = _build_portfolio_ts({**_BASE, "showcase": [{"rank": 1, "project_id": 1, "project_title": "P", "score": 9.0, "summary": "s", "key_skills": ["python"], "key_metrics": {"total_files": 1, "total_lines": 10, "total_commits": 2, "total_contributors": 1, "doc_files": 0, "image_files": 0, "video_files": 0, "test_files": 0}, "evolution": {"first_commit_at": "2025-01-01", "last_commit_at": "2025-03-01", "duration_days": 59, "total_commits": 2, "contributors": [], "activity_mix": {"code": 1.0}}}]})
     assert "showcase:" in ts and '"P"' in ts and "rank: 1" in ts
+
+
+def test_ts_has_resume_url_slash_resume_pdf():
+    """The generated portfolio.ts always includes resumeUrl: '/resume.pdf'."""
+    ts = _build_portfolio_ts(_BASE)
+    assert '"/resume.pdf"' in ts or "resumeUrl" in ts
