@@ -8,6 +8,9 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import httpx
 
+load_dotenv()
+DEFAULT_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
 
 class OpenAIClient:
     """Client for OpenAI API interactions."""
@@ -48,10 +51,10 @@ class OpenAIClient:
             raise exc
     
     def summarize_text(
-        self, 
-        text: str, 
+        self,
+        text: str,
         max_tokens: int = 500,
-        model: str = "gpt-4o-mini"
+        model: str = DEFAULT_MODEL
     ) -> str:
         """
         Summarize the given text using OpenAI's API.
