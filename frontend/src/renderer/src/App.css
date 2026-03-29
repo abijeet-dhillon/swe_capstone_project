@@ -1143,6 +1143,139 @@
   font-weight: 700;
 }
 
+.skill-pill--lang {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.skill-pill--framework {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* ---- Detail Panel Tabs ---- */
+
+.detail-panel__top {
+  padding: 16px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-panel__tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 12px;
+}
+
+.detail-panel__tab {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.detail-panel__tab:hover {
+  color: var(--text-primary);
+}
+
+.detail-panel__tab--active {
+  color: var(--purple-deep);
+  border-bottom-color: var(--purple-deep);
+}
+
+/* ---- AI Analysis ---- */
+
+.ai-analysis__score-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--purple-light), #e8e0ff);
+  border-radius: var(--radius-card);
+}
+
+.ai-analysis__score {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--purple-deep);
+  line-height: 1;
+}
+
+.ai-analysis__score-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ai-analysis__rank {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ai-analysis__criteria {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.ai-analysis__overview {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  background: var(--bg-secondary);
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  border-left: 3px solid var(--purple-deep);
+}
+
+.ai-analysis__attributes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pill.muted {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.ai-analysis__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  gap: 12px;
+}
+
+.ai-analysis__empty-icon {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.ai-analysis__empty p {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ai-analysis__empty-hint {
+  font-size: 0.78rem !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+}
+
 /* ============================================
    LINKEDIN POST MODAL
    ============================================ */

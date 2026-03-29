@@ -61,6 +61,7 @@ exports/
 scanned_data/
 reports/
 uploads/
+data/
 
 # Frontend (Electron + React)
 frontend/node_modules/
