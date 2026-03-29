@@ -8,6 +8,14 @@ echo.
 echo Please keep this terminal window open to keep the processes running.
 echo.
 
+IF NOT EXIST ".env" (
+    echo Notice: No .env file found. Copying env.template to .env...
+    copy env.template .env
+    echo IMPORTANT: If you want to test the optional OpenAI features, please open the newly created '.env' file and add your OPENAI_API_KEY now.
+    pause
+    echo.
+)
+
 echo [1/3] Starting Python Backend via Docker...
 REM Start docker desktop containers in the background
 docker compose up --build -d backend

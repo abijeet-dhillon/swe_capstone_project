@@ -10,6 +10,14 @@ NC='\033[0m'
 echo -e "${BLUE}=== Starting Digital Work Artifact Miner ===${NC}"
 echo -e "${YELLOW}Please keep this terminal window open to keep the processes running.${NC}"
 
+if [ ! -f ".env" ]; then
+    echo -e "\n${YELLOW}Notice: No .env file found. Copying env.template to .env...${NC}"
+    cp env.template .env
+    echo -e "${RED}IMPORTANT: If you want to test the optional OpenAI features, please open the newly created '.env' file in this folder and add your OPENAI_API_KEY now.${NC}"
+    read -p "Press [Enter] to continue starting the app... "
+    echo ""
+fi
+
 # Cleanup function to run when the app closes
 cleanup() {
     echo -e "\n${YELLOW}App closed. Shutting down the services...${NC}"
