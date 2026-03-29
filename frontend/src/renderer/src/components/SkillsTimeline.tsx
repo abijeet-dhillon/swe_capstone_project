@@ -31,12 +31,14 @@ type TimelineCard = {
   timestamp: string
   month: number
   year: number
+  projectName: string
 }
 
 type ModalState =
   | { type: 'add' }
   | { type: 'edit'; card: TimelineCard }
   | { type: 'remove'; card: TimelineCard }
+  | { type: 'detail'; card: TimelineCard }
   | null
 
 type SkillsTimelineProps = {
@@ -46,6 +48,28 @@ type SkillsTimelineProps = {
 
 const ALL_PROJECTS_KEY = '__all_projects__'
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// Category color map: each category gets a color scheme { accent, bg, text }
+const CATEGORY_COLORS: Record<string, { accent: string; bg: string; text: string }> = {
+  code: { accent: '#0984E3', bg: '#DBF0FF', text: '#0984E3' },
+  text: { accent: '#00B894', bg: '#D4FAEF', text: '#00B894' },
+  data: { accent: '#6C5CE7', bg: '#E8E4FF', text: '#6C5CE7' },
+  config: { accent: '#F59E0B', bg: '#FEF3C7', text: '#D97706' },
+  markup: { accent: '#EC4899', bg: '#FCE7F3', text: '#DB2777' },
+  manual: { accent: '#7B68EE', bg: '#E8E4FF', text: '#6C5CE7' },
+  uncategorized: { accent: '#B2BEC3', bg: '#F0F2F5', text: '#636E72' },
+}
+
+function getCategoryColor(category: string): { accent: string; bg: string; text: string } {
+  const key = category.toLowerCase()
+  return CATEGORY_COLORS[key] ?? { accent: '#7B68EE', bg: '#E8E4FF', text: '#6C5CE7' }
+}
+
+function getFileName(filePath: string): string {
+  if (!filePath || filePath === 'unknown' || filePath === 'manual-entry') return filePath
+  const parts = filePath.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || filePath
+}
 
 function optionKey(zipHash: string, projectName: string): string {
   return `${zipHash}::${projectName}`
@@ -100,7 +124,8 @@ function keepMostRecentCardPerSkill(cards: TimelineCard[]): TimelineCard[] {
   )
 }
 
-function makeCardsFromEvents(events: ChronologicalSkillEvent[]): TimelineCard[] {
+// Returns ALL cards (one per skill occurrence) — caller is responsible for dedup
+function makeCardsFromEvents(events: ChronologicalSkillEvent[], projectName: string): TimelineCard[] {
   const cards: TimelineCard[] = []
   events.forEach((event) => {
     const values = splitTimestamp(event.timestamp)
@@ -115,10 +140,47 @@ function makeCardsFromEvents(events: ChronologicalSkillEvent[]): TimelineCard[] 
         timestamp: values.normalized,
         month: values.month,
         year: values.year,
+        projectName,
       })
     })
   })
-  return keepMostRecentCardPerSkill(cards)
+  return cards
+}
+
+function estimateProficiency(
+  _skillName: string,
+  firstSeenTimestamp: string,
+): { level: string; percent: number } {
+  const monthsAgo = Math.max(
+    0,
+    (Date.now() - new Date(firstSeenTimestamp).getTime()) / (1000 * 60 * 60 * 24 * 30),
+  )
+  if (monthsAgo >= 24) return { level: 'Advanced', percent: 85 }
+  if (monthsAgo >= 12) return { level: 'Intermediate', percent: 60 }
+  if (monthsAgo >= 3) return { level: 'Familiar', percent: 35 }
+  return { level: 'Beginner', percent: 15 }
+}
+
+type TimelineGroup = {
+  groupKey: string
+  month: number
+  year: number
+  cards: TimelineCard[]
+}
+
+function groupCardsByMonthYear(cards: TimelineCard[]): TimelineGroup[] {
+  const groupMap = new Map<string, TimelineGroup>()
+  cards.forEach((card) => {
+    const key = `${card.year}-${String(card.month).padStart(2, '0')}`
+    if (!groupMap.has(key)) {
+      groupMap.set(key, { groupKey: key, month: card.month, year: card.year, cards: [] })
+    }
+    groupMap.get(key)!.cards.push(card)
+  })
+  return Array.from(groupMap.values()).sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year
+    return b.month - a.month
+  })
 }
 
 const currentDate = new Date()
@@ -134,6 +196,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>(ALL_PROJECTS_KEY)
   const [yearFilter, setYearFilter] = useState<YearFilter>('all')
   const [cards, setCards] = useState<TimelineCard[]>([])
+  const [allRawCards, setAllRawCards] = useState<TimelineCard[]>([])
   const [globalCatalog, setGlobalCatalog] = useState<string[]>([])
   const [projectCatalog, setProjectCatalog] = useState<string[]>([])
   const [modalState, setModalState] = useState<ModalState>(null)
@@ -167,6 +230,9 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
     if (yearFilter === 'all') return cards
     return cards.filter((card) => String(card.year) === yearFilter)
   }, [cards, yearFilter])
+
+  const groupedTimeline = useMemo(() => groupCardsByMonthYear(visibleCards), [visibleCards])
+
   const selectedProjectCount = useMemo(() => {
     if (selectedProjectKey === ALL_PROJECTS_KEY) return null
     if (hasLoadedTimeline && lastLoadedProjectKey === selectedProjectKey) {
@@ -174,6 +240,67 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
     }
     return projectCatalog.length
   }, [cards.length, hasLoadedTimeline, lastLoadedProjectKey, projectCatalog.length, selectedProjectKey])
+
+  // Summary stats
+  const summaryStats = useMemo(() => {
+    if (visibleCards.length === 0) return null
+    const categories = new Set(visibleCards.map((c) => c.category))
+    const sorted = [...visibleCards].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    )
+    const earliest = sorted[0]
+    const latest = sorted[sorted.length - 1]
+    const dateRange =
+      earliest.year === latest.year && earliest.month === latest.month
+        ? `${MONTH_NAMES[earliest.month - 1]} ${earliest.year}`
+        : `${MONTH_NAMES[earliest.month - 1]} ${earliest.year} – ${MONTH_NAMES[latest.month - 1]} ${latest.year}`
+    return { totalSkills: visibleCards.length, categoryCount: categories.size, dateRange }
+  }, [visibleCards])
+
+  // Skill detail data — computed from allRawCards when detail modal is open
+  const skillDetail = useMemo(() => {
+    if (modalState?.type !== 'detail') return null
+    const skillKey = modalState.card.skill.toLowerCase()
+
+    // All appearances of this skill across raw cards
+    const appearances = allRawCards.filter((c) => c.skill.toLowerCase() === skillKey)
+
+    // Unique projects
+    const projects = [...new Set(appearances.map((c) => c.projectName))].filter(Boolean)
+
+    // Unique source files
+    const files = [...new Set(appearances.map((c) => c.file))].filter(
+      (f) => f && f !== 'unknown' && f !== 'manual-entry',
+    )
+
+    // First and last seen
+    const sorted = [...appearances].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    )
+    const firstSeen = sorted[0]
+    const lastSeen = sorted[sorted.length - 1]
+
+    // Proficiency
+    const proficiency = estimateProficiency(
+      modalState.card.skill,
+      firstSeen?.timestamp ?? modalState.card.timestamp,
+    )
+
+    // Is in global catalog
+    const inCatalog = globalCatalog.some((s) => s.toLowerCase() === skillKey)
+
+    return {
+      skill: modalState.card,
+      appearances: appearances.length,
+      projects,
+      files,
+      firstSeen,
+      lastSeen,
+      proficiency,
+      inCatalog,
+      category: modalState.card.category,
+    }
+  }, [modalState, allRawCards, globalCatalog])
 
   useEffect(() => {
     onBusyChange?.(isBusy)
@@ -243,7 +370,9 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
         setProjectCatalog([])
         if (yearFilter !== 'all') {
           const byYear = await getSkillsByYear(Number(yearFilter))
-          const yearCards = makeCardsFromEvents(byYear.timeline)
+          const raw = makeCardsFromEvents(byYear.timeline, 'All projects')
+          setAllRawCards(raw)
+          const yearCards = keepMostRecentCardPerSkill(raw)
           setCards(yearCards)
           setNotice(`Loaded ${yearCards.length} items for ${yearFilter}`)
         } else {
@@ -255,13 +384,16 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
               }),
             ),
           )
-          const merged: ChronologicalSkillEvent[] = []
-          results.forEach((result) => {
+          const merged: TimelineCard[] = []
+          results.forEach((result, idx) => {
             if (result.status === 'fulfilled') {
-              merged.push(...result.value.timeline)
+              const projName = projectOptions[idx].projectName
+              const raw = makeCardsFromEvents(result.value.timeline, projName)
+              merged.push(...raw)
             }
           })
-          const allCards = makeCardsFromEvents(merged)
+          setAllRawCards(merged)
+          const allCards = keepMostRecentCardPerSkill(merged)
           setCards(allCards)
           setNotice(`Loaded ${allCards.length} items across all projects`)
         }
@@ -282,7 +414,9 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
             ),
           )
         }
-        const loadedCards = makeCardsFromEvents(response.timeline)
+        const raw = makeCardsFromEvents(response.timeline, selectedProject.projectName)
+        setAllRawCards(raw)
+        const loadedCards = keepMostRecentCardPerSkill(raw)
         setCards(loadedCards)
         if (responseProjectId) {
           await refreshProjectCatalog(responseProjectId)
@@ -351,7 +485,9 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
         timestamp,
         month,
         year,
+        projectName: selectedProject?.projectName ?? '',
       }))
+      setAllRawCards((prev) => [...prev, ...nextCards])
       setCards((prev) => keepMostRecentCardPerSkill([...prev, ...nextCards]))
       await refreshProjectCatalog(activeProjectId)
       setModalState(null)
@@ -380,21 +516,19 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
       await editProjectSkills({ project_id: activeProjectId, old: oldSkill, new: nextSkill, month, year })
       const targetTimestamp = makeTimestamp(year, month)
       const oldKey = oldSkill.toLowerCase()
-      setCards((prev) =>
-        keepMostRecentCardPerSkill(
-          prev.map((card) => {
-            if (card.skill.toLowerCase() !== oldKey) return card
-            if (card.id !== modalState.card.id) return { ...card, skill: nextSkill }
-            return {
-              ...card,
-              skill: nextSkill,
-              month,
-              year,
-              timestamp: targetTimestamp,
-            }
-          }),
-        ),
-      )
+      const updateCard = (card: TimelineCard): TimelineCard => {
+        if (card.skill.toLowerCase() !== oldKey) return card
+        if (card.id !== modalState.card.id) return { ...card, skill: nextSkill }
+        return {
+          ...card,
+          skill: nextSkill,
+          month,
+          year,
+          timestamp: targetTimestamp,
+        }
+      }
+      setAllRawCards((prev) => prev.map(updateCard))
+      setCards((prev) => keepMostRecentCardPerSkill(prev.map(updateCard)))
       await refreshProjectCatalog(activeProjectId)
       setModalState(null)
       setNotice(`Updated "${oldSkill}" to "${nextSkill}"`)
@@ -412,6 +546,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
     try {
       await removeProjectSkills({ project_id: activeProjectId, skills: [modalState.card.skill] })
       const removedKey = modalState.card.skill.toLowerCase()
+      setAllRawCards((prev) => prev.filter((card) => card.skill.toLowerCase() !== removedKey))
       setCards((prev) => prev.filter((card) => card.skill.toLowerCase() !== removedKey))
       await refreshProjectCatalog(activeProjectId)
       setModalState(null)
@@ -436,94 +571,149 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
 
   return (
     <div className="timeline-container">
-      <div className="timeline-controls timeline-controls--load">
-        <select
-          className="select timeline-select timeline-select--project"
-          aria-label="Project selector"
-          value={selectedProjectKey}
-          onChange={(e) => setSelectedProjectKey(e.target.value)}
-          disabled={isBusy}
-        >
-          <option value={ALL_PROJECTS_KEY}>All projects</option>
-          {projectOptions.map((project) => (
-            <option key={project.key} value={project.key}>
-              {project.projectName} ({project.zipHash.slice(0, 8)})
-            </option>
-          ))}
-        </select>
-        <select
-          className="select timeline-select timeline-select--mode"
-          aria-label="Lookup mode"
-          value={lookupMode}
-          onChange={(e) => setLookupMode(e.target.value as LookupMode)}
-          disabled={isBusy}
-        >
-          <option value="project-id">Project ID</option>
-          <option value="zip-name">ZIP + Name</option>
-        </select>
-        <button className="apply-btn" onClick={() => void handleLoadTimeline()} disabled={isBusy || loadingOptions}>
-          {loadingTimeline ? 'Loading…' : 'Load timeline'}
-        </button>
-        <button className="reset-btn" onClick={() => setModalState({ type: 'add' })} disabled={isBusy || !canMutate}>
-          Add skill
-        </button>
+      {/* Controls card */}
+      <div className="timeline-controls-card">
+        <div className="timeline-controls timeline-controls--load">
+          <select
+            className="select timeline-select timeline-select--project"
+            aria-label="Project selector"
+            value={selectedProjectKey}
+            onChange={(e) => setSelectedProjectKey(e.target.value)}
+            disabled={isBusy}
+          >
+            <option value={ALL_PROJECTS_KEY}>All projects</option>
+            {projectOptions.map((project) => (
+              <option key={project.key} value={project.key}>
+                {project.projectName} ({project.zipHash.slice(0, 8)})
+              </option>
+            ))}
+          </select>
+          <select
+            className="select timeline-select timeline-select--mode"
+            aria-label="Lookup mode"
+            value={lookupMode}
+            onChange={(e) => setLookupMode(e.target.value as LookupMode)}
+            disabled={isBusy}
+          >
+            <option value="project-id">Project ID</option>
+            <option value="zip-name">ZIP + Name</option>
+          </select>
+          <button className="apply-btn" onClick={() => void handleLoadTimeline()} disabled={isBusy || loadingOptions}>
+            {loadingTimeline ? 'Loading…' : 'Load timeline'}
+          </button>
+          <button className="reset-btn" onClick={() => setModalState({ type: 'add' })} disabled={isBusy || !canMutate}>
+            Add skill
+          </button>
+        </div>
+
+        <div className="timeline-controls timeline-controls--year">
+          <select
+            className="select timeline-select timeline-select--year"
+            aria-label="Year filter"
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value as YearFilter)}
+            disabled={isBusy}
+          >
+            <option value="all">All years</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={String(year)}>
+                {year}
+              </option>
+            ))}
+          </select>
+          <div className="timeline-pills-row">
+            <span className="pill info">{globalCatalog.length} catalog skills</span>
+            {selectedProjectKey !== ALL_PROJECTS_KEY && (
+              <span className="pill ready">{selectedProjectCount ?? 0} in selected project</span>
+            )}
+            {error && <span className="pill error">{error}</span>}
+            {!error && notice && <span className="pill timeline-notice-pill">{notice}</span>}
+          </div>
+        </div>
       </div>
 
-      <div className="timeline-controls timeline-controls--year">
-        <select
-          className="select timeline-select timeline-select--year"
-          aria-label="Year filter"
-          value={yearFilter}
-          onChange={(e) => setYearFilter(e.target.value as YearFilter)}
-          disabled={isBusy}
-        >
-          <option value="all">All</option>
-          {yearOptions.map((year) => (
-            <option key={year} value={String(year)}>
-              {year}
-            </option>
-          ))}
-        </select>
-        <span className="pill info">{globalCatalog.length} catalog skills</span>
-        {selectedProjectKey !== ALL_PROJECTS_KEY && (
-          <span className="pill ready">{selectedProjectCount ?? 0} in selected project</span>
-        )}
-      </div>
+      {/* Summary stats row */}
+      {summaryStats && (
+        <div className="timeline-stats-row">
+          <div className="timeline-stat-pill">
+            <span className="timeline-stat-value">{summaryStats.totalSkills}</span>
+            <span className="timeline-stat-label">skills</span>
+          </div>
+          <div className="timeline-stat-pill">
+            <span className="timeline-stat-value">{summaryStats.categoryCount}</span>
+            <span className="timeline-stat-label">categories</span>
+          </div>
+          <div className="timeline-stat-pill timeline-stat-pill--range">
+            <span className="timeline-stat-label">{summaryStats.dateRange}</span>
+          </div>
+        </div>
+      )}
 
-      {error && <p className="filter-error">{error}</p>}
-      {!error && notice && <p className="timeline-notice">{notice}</p>}
-
-      {visibleCards.length === 0 ? (
-        <p className="empty-state">Load a timeline to view skill cards.</p>
+      {/* Timeline */}
+      {groupedTimeline.length === 0 ? (
+        <div className="timeline-empty-state">
+          <div className="timeline-empty-icon">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" fill="#E8E4FF" />
+              <path d="M16 24h16M24 16v16" stroke="#7B68EE" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <p className="timeline-empty-title">No skills to display</p>
+          <p className="timeline-empty-sub">Select a project and click "Load timeline" to view your skill progression.</p>
+        </div>
       ) : (
         <div className="timeline">
-          {visibleCards.map((card, index) => (
-            <div key={card.id} className="timeline-item" style={{ animationDelay: `${index * 0.05}s` }}>
-              <div className="timeline-dot"></div>
+          {groupedTimeline.map((group, groupIndex) => (
+            <div key={group.groupKey} className="timeline-item" style={{ animationDelay: `${groupIndex * 0.06}s` }}>
+              <div className={`timeline-dot${groupIndex === 0 ? ' timeline-dot--latest' : ''}`}></div>
               <div className="timeline-content">
-                <div className="timeline-header">
-                  <div className="timeline-date">
-                    {MONTH_NAMES[card.month - 1]} {card.year}
-                  </div>
-                  <span className="timeline-category">{card.category}</span>
+                <div className="timeline-group-header">
+                  <span className="timeline-date">
+                    {MONTH_NAMES[group.month - 1]} {group.year}
+                  </span>
+                  <span className="timeline-group-count">{group.cards.length} skill{group.cards.length !== 1 ? 's' : ''}</span>
                 </div>
-                <h3 className="timeline-title">{card.skill}</h3>
-                <p className="timeline-description">{card.file}</p>
-                <div className="timeline-card-actions">
-                  <button
-                    className="timeline-card-btn"
-                    onClick={() => setModalState({ type: 'edit', card })}
-                    disabled={!canMutate || isBusy}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="timeline-card-btn timeline-card-btn--danger"
-                    onClick={() => setModalState({ type: 'remove', card })}
-                    disabled={!canMutate || isBusy}
-                  >
-                    Remove
-                  </button>
+
+                {/* Skill chips */}
+                <div className="timeline-skill-chips">
+                  {group.cards.map((card) => {
+                    const colors = getCategoryColor(card.category)
+                    return (
+                      <div
+                        key={card.id}
+                        className="timeline-skill-chip"
+                        style={{ borderLeftColor: colors.accent }}
+                        onClick={() => setModalState({ type: 'detail', card })}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`View details for ${card.skill}`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setModalState({ type: 'detail', card })
+                          }
+                        }}
+                      >
+                        <div className="timeline-skill-chip-top">
+                          <h3 className="timeline-skill-name">{card.skill}</h3>
+                          <span
+                            className="timeline-category-badge"
+                            style={{ background: colors.bg, color: colors.text }}
+                          >
+                            {card.category}
+                          </span>
+                        </div>
+                        {card.file !== 'manual-entry' && card.file !== 'unknown' && (
+                          <span
+                            className="timeline-file-path"
+                            title={card.file}
+                          >
+                            {card.file}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -531,6 +721,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
         </div>
       )}
 
+      {/* Add modal */}
       {modalState?.type === 'add' && (
         <div className="skill-modal" onClick={() => (mutating ? null : setModalState(null))}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -587,6 +778,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
         </div>
       )}
 
+      {/* Edit modal */}
       {modalState?.type === 'edit' && (
         <div className="skill-modal" onClick={() => (mutating ? null : setModalState(null))}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -642,6 +834,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
         </div>
       )}
 
+      {/* Remove modal */}
       {modalState?.type === 'remove' && (
         <div className="skill-modal" onClick={() => (mutating ? null : setModalState(null))}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -660,6 +853,137 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
                 No
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {modalState?.type === 'detail' && skillDetail && (
+        <div className="skill-modal" onClick={() => setModalState(null)}>
+          <div className="modal-content skill-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setModalState(null)}>&times;</span>
+
+            {/* Header */}
+            <div className="skill-detail-header">
+              <h2 className="skill-detail-title">{skillDetail.skill.skill}</h2>
+              <span
+                className="timeline-category-badge"
+                style={{
+                  background: getCategoryColor(skillDetail.category).bg,
+                  color: getCategoryColor(skillDetail.category).text,
+                }}
+              >
+                {skillDetail.category}
+              </span>
+            </div>
+
+            {/* Proficiency */}
+            <div className="skill-detail-proficiency">
+              <div className="skill-detail-proficiency-header">
+                <span className="skill-detail-proficiency-label">Estimated Proficiency</span>
+                <span className="skill-detail-proficiency-level">{skillDetail.proficiency.level}</span>
+              </div>
+              <div className="proficiency-bar">
+                <div
+                  className="proficiency-fill"
+                  style={{
+                    width: `${skillDetail.proficiency.percent}%`,
+                    background: `linear-gradient(90deg, ${getCategoryColor(skillDetail.category).accent}, ${getCategoryColor(skillDetail.category).accent}dd)`,
+                  }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div className="skill-detail-stats">
+              <div className="skill-detail-stat">
+                <span className="skill-detail-stat-value">{skillDetail.appearances}</span>
+                <span className="skill-detail-stat-label">Appearances</span>
+              </div>
+              <div className="skill-detail-stat">
+                <span className="skill-detail-stat-value">{skillDetail.projects.length}</span>
+                <span className="skill-detail-stat-label">Projects</span>
+              </div>
+              <div className="skill-detail-stat">
+                <span className="skill-detail-stat-value">{skillDetail.files.length}</span>
+                <span className="skill-detail-stat-label">Files</span>
+              </div>
+              <div className="skill-detail-stat">
+                <span className="skill-detail-stat-value">{skillDetail.inCatalog ? 'Yes' : 'No'}</span>
+                <span className="skill-detail-stat-label">In Catalog</span>
+              </div>
+            </div>
+
+            {/* Timeline info */}
+            <div className="skill-detail-section">
+              <h4>Timeline</h4>
+              <div className="skill-detail-dates">
+                <div className="skill-detail-date-item">
+                  <span className="skill-detail-date-label">First seen</span>
+                  <span className="skill-detail-date-value">
+                    {skillDetail.firstSeen
+                      ? `${MONTH_NAMES[skillDetail.firstSeen.month - 1]} ${skillDetail.firstSeen.year}`
+                      : '—'}
+                  </span>
+                </div>
+                <div className="skill-detail-date-item">
+                  <span className="skill-detail-date-label">Last seen</span>
+                  <span className="skill-detail-date-value">
+                    {skillDetail.lastSeen
+                      ? `${MONTH_NAMES[skillDetail.lastSeen.month - 1]} ${skillDetail.lastSeen.year}`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Projects */}
+            {skillDetail.projects.length > 0 && (
+              <div className="skill-detail-section">
+                <h4>Projects</h4>
+                <div className="skill-detail-tags">
+                  {skillDetail.projects.map((p) => (
+                    <span key={p} className="skill-detail-tag">
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Source Files */}
+            {skillDetail.files.length > 0 && (
+              <div className="skill-detail-section">
+                <h4>Source Files</h4>
+                <div className="skill-detail-files">
+                  {skillDetail.files.map((f) => (
+                    <span key={f} className="skill-detail-file" title={f}>
+                      {getFileName(f)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            {canMutate && (
+              <div className="skill-detail-actions">
+                <button
+                  className="apply-btn"
+                  onClick={() => setModalState({ type: 'edit', card: skillDetail.skill })}
+                  disabled={isBusy}
+                >
+                  Edit
+                </button>
+                <button
+                  className="reset-btn skill-detail-remove-btn"
+                  onClick={() => setModalState({ type: 'remove', card: skillDetail.skill })}
+                  disabled={isBusy}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -262,6 +262,10 @@ describe('SkillsTimeline', () => {
   it('handles edit skill modal flow', async () => {
     render(<SkillsTimeline />)
     await selectAlphaAndLoad()
+
+    // Click the chip to open the detail modal, then click Edit inside it
+    await waitFor(() => expect(screen.getByRole('button', { name: 'View details for python' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'View details for python' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
@@ -285,12 +289,19 @@ describe('SkillsTimeline', () => {
   it('handles remove confirmation flow with Yes/No', async () => {
     render(<SkillsTimeline />)
     await selectAlphaAndLoad()
+
+    // Click the chip to open the detail modal, then click Remove inside it
+    await waitFor(() => expect(screen.getByRole('button', { name: 'View details for python' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'View details for python' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'No' }))
     expect(mocked.removeProjectSkills).not.toHaveBeenCalled()
 
+    // Re-open the detail modal to try Remove again
+    fireEvent.click(screen.getByRole('button', { name: 'View details for python' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
 
