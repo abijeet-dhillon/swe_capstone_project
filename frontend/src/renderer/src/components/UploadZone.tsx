@@ -13,6 +13,10 @@ declare global {
       prepareZipForUpload: (
         filePath: string,
       ) => Promise<{ containerPath: string; fileName: string } | null>
+      prepareDroppedZipForUpload: (
+        fileName: string,
+        bytes: Uint8Array,
+      ) => Promise<{ containerPath: string; fileName: string } | null>
       platform: string
     }
   }
@@ -58,27 +62,36 @@ export function UploadZone({
       setDragging(false)
       const file = e.dataTransfer.files[0]
       if (!file) return
-      if (!file.name.endsWith('.zip')) {
+      if (!file.name.toLowerCase().endsWith('.zip')) {
         setErrorMsg('Only .zip files are accepted.')
         setStep('error')
         return
       }
       const filePath = (file as File & { path?: string }).path
-      if (!filePath) {
-        setErrorMsg('Could not read file path. Please use the "Select ZIP File" button instead.')
-        setStep('error')
-        return
-      }
       try {
-        if (window.electronAPI?.prepareZipForUpload) {
+        if (filePath && window.electronAPI?.prepareZipForUpload) {
           const res = await window.electronAPI.prepareZipForUpload(filePath)
           if (res) pickFile(res.containerPath, res.fileName)
           else {
             setErrorMsg('Failed to prepare file for upload. The file may not exist or is inaccessible.')
             setStep('error')
           }
-        } else {
+        } else if (window.electronAPI?.prepareDroppedZipForUpload) {
+          const buf = await file.arrayBuffer()
+          const res = await window.electronAPI.prepareDroppedZipForUpload(
+            file.name,
+            new Uint8Array(buf),
+          )
+          if (res) pickFile(res.containerPath, res.fileName)
+          else {
+            setErrorMsg('Failed to prepare dropped file for upload.')
+            setStep('error')
+          }
+        } else if (filePath) {
           pickFile(filePath, file.name)
+        } else {
+          setErrorMsg('File upload requires the desktop app. Please run the Electron application.')
+          setStep('error')
         }
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Failed to prepare file')
@@ -108,7 +121,7 @@ export function UploadZone({
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       if (!file) return
-      if (!file.name.endsWith('.zip')) {
+      if (!file.name.toLowerCase().endsWith('.zip')) {
         setErrorMsg('Only .zip files are accepted.')
         setStep('error')
         e.target.value = ''
