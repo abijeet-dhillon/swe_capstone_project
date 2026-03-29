@@ -313,6 +313,31 @@ describe('SkillsTimeline', () => {
     )
   })
 
+  it('strips absolute tmp server paths from the rendered timeline files', async () => {
+    mocked.getChronologicalSkillsByProjectId.mockResolvedValueOnce({
+      project_id: 7,
+      project_name: 'Alpha',
+      zip_hash: 'ziphash01',
+      total_events: 1,
+      categories: ['docs'],
+      timeline: [
+        {
+          file: '/tmp/unzipped_gkq228s5/test-data/docs/User_walkthrough.docx',
+          timestamp: '2026-02-02T10:00:00',
+          category: 'docs',
+          skills: ['writing'],
+          metadata: {},
+        },
+      ],
+    })
+
+    render(<SkillsTimeline />)
+    await selectAlphaAndLoad()
+
+    expect(screen.getByText('test-data/docs/User_walkthrough.docx')).toBeInTheDocument()
+    expect(screen.queryByText(/\/tmp\/unzipped_/)).not.toBeInTheDocument()
+  })
+
   it('shows inline error and keeps controls available when timeline request fails', async () => {
     mocked.getChronologicalSkillsByProjectId.mockRejectedValueOnce(new Error('boom'))
 

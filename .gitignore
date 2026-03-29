@@ -59,6 +59,8 @@ Thumbs.db
 artifacts.db
 exports/
 scanned_data/
+reports/
+uploads/
 
 # Frontend (Electron + React)
 frontend/node_modules/

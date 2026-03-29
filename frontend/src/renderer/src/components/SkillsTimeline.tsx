@@ -82,6 +82,11 @@ function parseSkillInput(raw: string): string[] {
     .filter(Boolean)
 }
 
+/** Strip server-side temp extraction prefixes like /tmp/unzipped_abc123/ */
+function stripTmpPrefix(filePath: string): string {
+  return filePath.replace(/^\/tmp\/unzipped_[^/]+\//, '')
+}
+
 function splitTimestamp(timestamp: string): { month: number; year: number; normalized: string } {
   const parsed = new Date(timestamp)
   if (Number.isNaN(parsed.getTime())) {
@@ -708,7 +713,7 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
                             className="timeline-file-path"
                             title={card.file}
                           >
-                            {card.file}
+                            {stripTmpPrefix(card.file)}
                           </span>
                         )}
                       </div>
