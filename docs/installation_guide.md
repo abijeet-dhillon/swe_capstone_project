@@ -320,13 +320,3 @@ npm run dev
 
 - Non-Docker dependency errors (OCR/video/PDF/resume generation):
   host may be missing system packages included in Dockerfile (`ffmpeg`, `tesseract`, `libzbar`, LaTeX packages). Prefer Docker for consistent setup.
-
-## 12. Missing / Needs Confirmation
-
-- Python baseline is inconsistent across repo docs/runtime:
-  `README.md` mentions Python `3.11+` (optional local scripts), while Dockerfile uses `python:3.10-slim`.
-- Node.js/npm version is not pinned (`.nvmrc`/`.node-version` not present).
-- `env.template` includes `OPENAI_MODEL`, `OPENAI_TEMPERATURE`, and `OPENAI_MAX_TOKENS`, but direct runtime lookups for these were not found in scanned backend code.
-- `scripts/start-api.sh` invokes `python -m src.api.app` but advertises port `8000`; module entrypoint in `src/api/app.py` binds to `8010`. Confirm intended behavior.
-- No CI workflow files were found under `.github/workflows/`; confirm intended automated test/build pipeline.
-- Non-Docker host installation instructions for system packages (video/OCR/LaTeX stack) are not documented in repo docs.
