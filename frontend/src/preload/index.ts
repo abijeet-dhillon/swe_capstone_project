@@ -8,5 +8,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     filePath: string,
   ): Promise<{ containerPath: string; fileName: string } | null> =>
     ipcRenderer.invoke('prepare-zip-for-upload', filePath),
+  prepareDroppedZipForUpload: (
+    fileName: string,
+    bytes: Uint8Array,
+  ): Promise<{ containerPath: string; fileName: string } | null> =>
+    ipcRenderer.invoke('prepare-dropped-zip-for-upload', { fileName, bytes }),
   platform: process.platform,
 })
