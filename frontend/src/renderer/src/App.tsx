@@ -48,22 +48,22 @@ const dashboardCards: DashboardCard[] = [
     description: 'Track learning progression and depth across projects over time.',
     icon: '📈',
   },
-  {
-    id: 'heatmap',
-    title: 'Project Activity Heatmap',
-    category: 'heatmap',
-    status: 'coming-soon',
-    description: 'Visualize activity intensity and productivity trends.',
-    icon: '🔥',
-  },
-  {
-    id: 'showcase',
-    title: 'Top 3 Project Showcase',
-    category: 'showcase',
-    status: 'coming-soon',
-    description: 'Highlight top projects and evolution of key changes.',
-    icon: '🏆',
-  },
+  // {
+  //   id: 'heatmap',
+  //   title: 'Project Activity Heatmap',
+  //   category: 'heatmap',
+  //   status: 'coming-soon',
+  //   description: 'Visualize activity intensity and productivity trends.',
+  //   icon: '🔥',
+  // },
+  // {
+  //   id: 'showcase',
+  //   title: 'Top 3 Project Showcase',
+  //   category: 'showcase',
+  //   status: 'coming-soon',
+  //   description: 'Highlight top projects and evolution of key changes.',
+  //   icon: '🏆',
+  // },
 ]
 
 function NavIcon({ name }: { name: string }) {
@@ -129,6 +129,13 @@ const blankEducation = (): ResumeEducationInput => ({
 })
 
 function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+
+  useEffect(() => {
+    if (theme === 'dark') document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
+  }, [theme])
+
   const [view, setView] = useState<AppView>('dashboard')
   const [projects, setProjects] = useState<FilteredProject[]>([])
   const [loading, setLoading] = useState(true)
@@ -427,7 +434,6 @@ function App() {
           <div className="sidebar-brand__icon">RF</div>
           <div>
             <h1>ResumeForge</h1>
-            <span>Artifact Miner</span>
           </div>
         </div>
 
@@ -447,8 +453,15 @@ function App() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          <p>Team 14 — COSC 499</p>
+        <div className="sidebar-footer" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            title="Toggle theme"
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </aside>
 
@@ -538,8 +551,8 @@ function App() {
                       <option value="resume">Resume</option>
                       <option value="portfolio">Portfolio</option>
                       <option value="timeline">Timeline</option>
-                      <option value="heatmap">Heatmap</option>
-                      <option value="showcase">Showcase</option>
+                      {/* <option value="heatmap">Heatmap</option> */}
+                      {/* <option value="showcase">Showcase</option> */}
                     </select>
                   </div>
                 </div>
