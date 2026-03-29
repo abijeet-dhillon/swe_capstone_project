@@ -262,6 +262,10 @@ describe('SkillsTimeline', () => {
   it('handles edit skill modal flow', async () => {
     render(<SkillsTimeline />)
     await selectAlphaAndLoad()
+
+    // Click the chip to open the detail modal, then click Edit inside it
+    await waitFor(() => expect(screen.getByRole('button', { name: 'View details for python' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'View details for python' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
@@ -285,12 +289,19 @@ describe('SkillsTimeline', () => {
   it('handles remove confirmation flow with Yes/No', async () => {
     render(<SkillsTimeline />)
     await selectAlphaAndLoad()
+
+    // Click the chip to open the detail modal, then click Remove inside it
+    await waitFor(() => expect(screen.getByRole('button', { name: 'View details for python' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'View details for python' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'No' }))
     expect(mocked.removeProjectSkills).not.toHaveBeenCalled()
 
+    // Re-open the detail modal to try Remove again
+    fireEvent.click(screen.getByRole('button', { name: 'View details for python' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
 
@@ -300,6 +311,31 @@ describe('SkillsTimeline', () => {
         skills: ['python'],
       }),
     )
+  })
+
+  it('strips absolute tmp server paths from the rendered timeline files', async () => {
+    mocked.getChronologicalSkillsByProjectId.mockResolvedValueOnce({
+      project_id: 7,
+      project_name: 'Alpha',
+      zip_hash: 'ziphash01',
+      total_events: 1,
+      categories: ['docs'],
+      timeline: [
+        {
+          file: '/tmp/unzipped_gkq228s5/test-data/docs/User_walkthrough.docx',
+          timestamp: '2026-02-02T10:00:00',
+          category: 'docs',
+          skills: ['writing'],
+          metadata: {},
+        },
+      ],
+    })
+
+    render(<SkillsTimeline />)
+    await selectAlphaAndLoad()
+
+    expect(screen.getByText('test-data/docs/User_walkthrough.docx')).toBeInTheDocument()
+    expect(screen.queryByText(/\/tmp\/unzipped_/)).not.toBeInTheDocument()
   })
 
   it('shows inline error and keeps controls available when timeline request fails', async () => {

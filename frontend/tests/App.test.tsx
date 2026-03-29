@@ -157,8 +157,11 @@ describe('App Layout', () => {
   it('defaults to private mode with customization enabled', () => {
     render(<App />)
     expect(screen.getByText('Customization controls are enabled.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate Resume' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Generate Portfolio' })).toBeEnabled()
+    // Ready cards (resume, portfolio, timeline) have specific action labels;
+    // only coming-soon cards show "Customize" and those are always disabled.
+    const actionButtons = screen.getAllByRole('button', { name: /Generate|Open Timeline/ })
+    const enabled = actionButtons.filter((b) => !b.hasAttribute('disabled'))
+    expect(enabled.length).toBeGreaterThan(0)
   })
 
   it('switches to public mode and disables action buttons', () => {

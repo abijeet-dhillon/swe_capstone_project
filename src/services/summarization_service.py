@@ -34,7 +34,7 @@ class SummarizationService:
         self, 
         file_path: str, 
         max_summary_tokens: int = 500,
-        model: str = "gpt-4o-mini"
+        model: str = "gpt-5.2"
     ) -> Dict[str, Any]:
         """
         Parse and summarize a document.

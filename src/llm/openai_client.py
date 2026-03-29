@@ -51,7 +51,7 @@ class OpenAIClient:
         self, 
         text: str, 
         max_tokens: int = 500,
-        model: str = "gpt-4o-mini"
+        model: str = "gpt-5.2"
     ) -> str:
         """
         Summarize the given text using OpenAI's API.

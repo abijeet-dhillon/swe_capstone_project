@@ -33,9 +33,9 @@ class LLMAnalyzer:
     def __init__(
         self, 
         api_key: Optional[str] = None,
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-5.2",
         temperature: float = 0.7,
-        max_tokens: int = 1500
+        max_tokens: int = 4096
     ):
         """
         Initialize the LLM Analyzer
@@ -411,7 +411,7 @@ Recent Commits:
 def quick_analyze(
     content: str,
     analysis_type: str = "code_review",
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-5.2"
 ) -> str:
     """
     Quick analysis function for simple use cases
