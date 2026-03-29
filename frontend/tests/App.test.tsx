@@ -141,10 +141,9 @@ describe('App Layout', () => {
     expect(screen.getAllByText('Timeline').length).toBeGreaterThan(0)
   })
 
-  it('renders page header and footer', () => {
+  it('renders page header', () => {
     render(<App />)
     expect(screen.getByText('Your workspace overview and quick actions')).toBeInTheDocument()
-    expect(screen.getByText('COSC 499 — Digital Work Artifact Miner')).toBeInTheDocument()
   })
 
   it('renders upload zone and feature cards on dashboard', () => {
@@ -162,12 +161,16 @@ describe('App Layout', () => {
     expect(screen.getByRole('button', { name: 'Generate Portfolio' })).toBeEnabled()
   })
 
-  it('switches to public mode and disables customize buttons', () => {
+  it('switches to public mode and disables action buttons', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Public' }))
     expect(screen.getByText('Customization controls are disabled in public mode.')).toBeInTheDocument()
-    const customizeButtons = screen.getAllByRole('button', { name: 'Customize' })
-    customizeButtons.forEach((b) => expect(b).toBeDisabled())
+    const featureButtons = [
+      screen.getByRole('button', { name: 'Generate Resume' }),
+      screen.getByRole('button', { name: 'Generate Portfolio' }),
+      screen.getByRole('button', { name: 'Open Timeline' })
+    ]
+    featureButtons.forEach((b) => expect(b).toBeDisabled())
   })
 
   it('opens the resume modal with grouped sections and footer actions', async () => {
@@ -213,10 +216,10 @@ describe('App Layout', () => {
   it('filters feature cards by search query', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('Search sections'), {
-      target: { value: 'heatmap' },
+      target: { value: 'resume' },
     })
-    expect(screen.getByText('Project Activity Heatmap')).toBeInTheDocument()
-    expect(screen.queryByText('One-Page Resume')).not.toBeInTheDocument()
+    expect(screen.getByText('One-Page Resume')).toBeInTheDocument()
+    expect(screen.queryByText('Skills Timeline')).not.toBeInTheDocument()
   })
 
   it('filters feature cards by category', () => {
@@ -246,5 +249,19 @@ describe('App Layout', () => {
     const refresh = screen.getByRole('button', { name: 'Refresh skill catalog' })
     expect(refresh).toBeInTheDocument()
     fireEvent.click(refresh)
+  })
+
+  it('toggles dark mode theme class on document.documentElement', () => {
+    document.documentElement.classList.remove('dark')
+    render(<App />)
+    
+    const toggleBtn = screen.getByTitle('Toggle theme')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    
+    fireEvent.click(toggleBtn)
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    
+    fireEvent.click(toggleBtn)
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })

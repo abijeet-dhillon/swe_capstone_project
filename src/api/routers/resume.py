@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import shutil
 from pathlib import Path
 import tempfile
 from typing import Any, Dict, List, Optional
@@ -15,6 +17,28 @@ from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
 from src.project.presentation import generate_items_from_project_id
 from src.resume.resume_artifact import generate_resume_pdf_artifact
+
+logger = logging.getLogger(__name__)
+
+# Where the portfolio Next.js app serves static files from.
+# Keeping this as a constant means only one place needs updating if the
+# portfolio-template directory ever moves.
+_PORTFOLIO_PUBLIC_DIR = Path(__file__).resolve().parents[3] / "portfolio-template" / "public"
+_PORTFOLIO_RESUME_PATH = _PORTFOLIO_PUBLIC_DIR / "resume.pdf"
+
+
+def _copy_to_portfolio_public(src: Path) -> None:
+    """Copy *src* PDF to the portfolio public dir so the Resume button works.
+
+    Fails silently — if the directory doesn't exist or the copy errors out we
+    log a warning and move on rather than breaking the resume download.
+    """
+    try:
+        _PORTFOLIO_PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, _PORTFOLIO_RESUME_PATH)
+        logger.info("Updated portfolio resume at %s", _PORTFOLIO_RESUME_PATH)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not copy resume to portfolio public dir: %s", exc)
 
 
 router = APIRouter(prefix="/resume", tags=["resume"])
@@ -255,6 +279,11 @@ def generate_resume_pdf(
 
     output_path = Path(tempfile.gettempdir()) / f"resume_project_{project_id}.pdf"
     rendered_path = generate_resume_pdf_artifact(report, output_path)
+
+    # Keep portfolio-template/public/resume.pdf in sync so the Resume button
+    # on the generated portfolio site always serves the latest compiled resume.
+    _copy_to_portfolio_public(rendered_path)
+
     filename = f"{project_name.replace(' ', '_')}_resume.pdf"
     return FileResponse(
         path=rendered_path,
@@ -322,6 +351,11 @@ def generate_resume_pdf_bundle(
 
     output_path = Path(tempfile.gettempdir()) / f"resume_bundle_{'_'.join(str(pid) for pid in selected_ids)}.pdf"
     rendered_path = generate_resume_pdf_artifact(report, output_path)
+
+    # Keep portfolio-template/public/resume.pdf in sync so the Resume button
+    # on the generated portfolio site always serves the latest compiled resume.
+    _copy_to_portfolio_public(rendered_path)
+
     filename_stub = owner["name"].replace(" ", "_") or "_".join(filename_parts[:2]) or "resume"
     return FileResponse(
         path=rendered_path,

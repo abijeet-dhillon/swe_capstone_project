@@ -5,8 +5,10 @@ import {
   getPortfolio,
   getProjectSkills,
   getResume,
+  hasProjectThumbnail,
   removeProject,
   updateProject,
+  uploadProjectThumbnail,
   type FilteredProject,
   type FilterOptions,
   type PortfolioData,
@@ -98,6 +100,8 @@ export default function ProjectsView() {
   })
   const [mutating, setMutating] = useState(false)
   const [detailRefreshNonce, setDetailRefreshNonce] = useState(0)
+  const [thumbnailUploading, setThumbnailUploading] = useState<number | null>(null)
+  const [projectsWithThumbnail, setProjectsWithThumbnail] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     getFilterOptions().then(setOptions).catch(() => {})
@@ -128,6 +132,13 @@ export default function ProjectsView() {
       const res = await filterProjects(buildFilter())
       setProjects(res.projects)
       setTotal(res.total)
+      void Promise.all(
+        res.projects.map((p) =>
+          hasProjectThumbnail(p.project_info_id).then((has) => {
+            if (has) setProjectsWithThumbnail((prev) => new Set([...prev, p.project_info_id]))
+          }),
+        ),
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Filter failed')
     } finally {
@@ -251,6 +262,32 @@ export default function ProjectsView() {
     } finally {
       setMutating(false)
     }
+  }
+
+  const handleThumbnailUpload = async (projectId: number, file: File) => {
+    setThumbnailUploading(projectId)
+    setError('')
+    try {
+      await uploadProjectThumbnail(projectId, file)
+      setProjectsWithThumbnail((prev) => new Set([...prev, projectId]))
+      setNotice('Thumbnail uploaded.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to upload thumbnail')
+    } finally {
+      setThumbnailUploading(null)
+    }
+  }
+
+  const openFilePicker = (projectId: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/webp'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (file) void handleThumbnailUpload(projectId, file)
+    }
+    input.click()
   }
 
   return (
@@ -413,6 +450,18 @@ export default function ProjectsView() {
                   Edit
                 </button>
                 <button
+                  className="timeline-card-btn"
+                  onClick={(e) => openFilePicker(p.project_info_id, e)}
+                  disabled={thumbnailUploading === p.project_info_id}
+                  title={projectsWithThumbnail.has(p.project_info_id) ? 'Replace thumbnail' : 'Upload portfolio thumbnail'}
+                >
+                  {thumbnailUploading === p.project_info_id
+                    ? 'Uploading…'
+                    : projectsWithThumbnail.has(p.project_info_id)
+                      ? '✓ Thumbnail'
+                      : 'Thumbnail'}
+                </button>
+                <button
                   className="timeline-card-btn timeline-card-btn--danger"
                   onClick={(e) => openRemoveModal(p, e)}
                   disabled={mutating || loading}
@@ -456,6 +505,18 @@ export default function ProjectsView() {
               <div className="timeline-card-actions" onClick={(e) => e.stopPropagation()}>
                 <button className="timeline-card-btn" onClick={(e) => openEditModal(p, e)} disabled={mutating || loading}>
                   Edit
+                </button>
+                <button
+                  className="timeline-card-btn"
+                  onClick={(e) => openFilePicker(p.project_info_id, e)}
+                  disabled={thumbnailUploading === p.project_info_id}
+                  title={projectsWithThumbnail.has(p.project_info_id) ? 'Replace thumbnail' : 'Upload portfolio thumbnail'}
+                >
+                  {thumbnailUploading === p.project_info_id
+                    ? 'Uploading…'
+                    : projectsWithThumbnail.has(p.project_info_id)
+                      ? '✓ Thumbnail'
+                      : 'Thumbnail'}
                 </button>
                 <button
                   className="timeline-card-btn timeline-card-btn--danger"

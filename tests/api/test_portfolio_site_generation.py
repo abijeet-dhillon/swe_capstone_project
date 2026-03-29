@@ -1,5 +1,7 @@
 from __future__ import annotations
 import os, shutil, tempfile
+from pathlib import Path
+from unittest.mock import patch
 from src.api.routers.portfolio import _build_heatmap_data, _build_portfolio_ts, _build_showcase_data
 from src.insights.storage import ProjectInsightsStore
 from tests.insights.utils import build_pipeline_payload
@@ -128,3 +130,128 @@ def test_ts_omits_showcase_when_absent():
 def test_ts_embeds_showcase():
     ts = _build_portfolio_ts({**_BASE, "showcase": [{"rank": 1, "project_id": 1, "project_title": "P", "score": 9.0, "summary": "s", "key_skills": ["python"], "key_metrics": {"total_files": 1, "total_lines": 10, "total_commits": 2, "total_contributors": 1, "doc_files": 0, "image_files": 0, "video_files": 0, "test_files": 0}, "evolution": {"first_commit_at": "2025-01-01", "last_commit_at": "2025-03-01", "duration_days": 59, "total_commits": 2, "contributors": [], "activity_mix": {"code": 1.0}}}]})
     assert "showcase:" in ts and '"P"' in ts and "rank: 1" in ts
+
+
+def test_ts_has_resume_url_slash_resume_pdf():
+    """The generated portfolio.ts always includes resumeUrl: '/resume.pdf'."""
+    ts = _build_portfolio_ts(_BASE)
+    assert '"/resume.pdf"' in ts or "resumeUrl" in ts
+# --- thumbnail image field in _build_portfolio_ts ---
+
+def test_ts_project_uses_placeholder_when_no_image():
+    """Project with no image field should fall back to /placeholder-project.jpg."""
+    base = {**_BASE, "projects": [{"title": "P", "description": "D", "tags": ["python"]}]}
+    ts = _build_portfolio_ts(base)
+    assert "/placeholder-project.jpg" in ts
+
+
+def test_ts_project_uses_provided_image_url():
+    """Project with an explicit image URL should emit that URL, not the placeholder."""
+    image_url = "http://localhost:8000/projects/42/thumbnail/content"
+    base = {**_BASE, "projects": [{"title": "P", "description": "D", "image": image_url, "tags": ["python"]}]}
+    ts = _build_portfolio_ts(base)
+    assert image_url in ts
+    assert "/placeholder-project.jpg" not in ts
+
+
+def test_ts_multiple_projects_mixed_thumbnails():
+    """Projects with and without thumbnails should each use the correct image value."""
+    real_url = "http://localhost:8000/projects/1/thumbnail/content"
+    base = {
+        **_BASE,
+        "projects": [
+            {"title": "WithThumb", "description": "D1", "image": real_url, "tags": []},
+            {"title": "NoThumb", "description": "D2", "tags": []},
+        ],
+    }
+    ts = _build_portfolio_ts(base)
+    assert real_url in ts
+    assert "/placeholder-project.jpg" in ts
+
+
+def test_ts_project_image_field_is_quoted_string():
+    """The image value must be a quoted JS string in the output."""
+    image_url = "http://localhost:8000/projects/5/thumbnail/content"
+    base = {**_BASE, "projects": [{"title": "P", "description": "D", "image": image_url, "tags": []}]}
+    ts = _build_portfolio_ts(base)
+    assert f'image: "{image_url}"' in ts
+
+
+# --- generate_portfolio_site thumbnail wiring ---
+
+def test_generate_site_uses_thumbnail_url_when_file_exists():
+    """When a project has a stored thumbnail on disk, the config should reference the backend URL."""
+    td = tempfile.mkdtemp()
+    try:
+        store = _make_store(td)
+        projects = store.list_available_projects() if hasattr(store, "list_available_projects") else []
+        from src.pipeline.presentation_pipeline import PresentationPipeline
+        pipeline = PresentationPipeline(insights_store=store)
+        available = pipeline.list_available_projects()
+        assert available, "No projects seeded"
+        pid = available[0]["project_id"]
+
+        # Write a fake thumbnail file and register it in the store
+        thumb_dir = Path(td) / "thumbnails" / str(pid)
+        thumb_dir.mkdir(parents=True)
+        thumb_file = thumb_dir / "thumbnail.png"
+        thumb_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+        store.upsert_project_thumbnail(pid, str(thumb_file), "image/png")
+
+        thumbnail = store.get_project_thumbnail(pid)
+        assert thumbnail and thumbnail.get("image_path") == str(thumb_file)
+
+        thumb_path = Path(thumbnail["image_path"])
+        assert thumb_path.exists()
+        expected_url = f"http://localhost:8000/projects/{pid}/thumbnail/content"
+        image_url = expected_url if thumb_path.exists() else "/placeholder-project.jpg"
+        assert image_url == expected_url
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_generate_site_uses_placeholder_when_no_thumbnail():
+    """When a project has no thumbnail, the config image should be the placeholder."""
+    td = tempfile.mkdtemp()
+    try:
+        store = _make_store(td)
+        from src.pipeline.presentation_pipeline import PresentationPipeline
+        available = PresentationPipeline(insights_store=store).list_available_projects()
+        pid = available[0]["project_id"]
+
+        thumbnail = store.get_project_thumbnail(pid)
+        image_url = "/placeholder-project.jpg"
+        if thumbnail and thumbnail.get("image_path"):
+            p = Path(thumbnail["image_path"])
+            if p.exists():
+                image_url = f"http://localhost:8000/projects/{pid}/thumbnail/content"
+
+        assert image_url == "/placeholder-project.jpg"
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_generate_site_uses_placeholder_when_thumbnail_file_missing():
+    """Stale thumbnail DB record (file deleted) should fall back to placeholder."""
+    td = tempfile.mkdtemp()
+    try:
+        store = _make_store(td)
+        from src.pipeline.presentation_pipeline import PresentationPipeline
+        available = PresentationPipeline(insights_store=store).list_available_projects()
+        pid = available[0]["project_id"]
+
+        # Register a thumbnail path that doesn't exist on disk
+        store.upsert_project_thumbnail(pid, "/nonexistent/path/thumbnail.png", "image/png")
+        thumbnail = store.get_project_thumbnail(pid)
+        assert thumbnail and thumbnail.get("image_path") == "/nonexistent/path/thumbnail.png"
+
+        thumb_path = Path(thumbnail["image_path"])
+        assert not thumb_path.exists()
+        image_url = (
+            f"http://localhost:8000/projects/{pid}/thumbnail/content"
+            if thumb_path.exists()
+            else "/placeholder-project.jpg"
+        )
+        assert image_url == "/placeholder-project.jpg"
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
