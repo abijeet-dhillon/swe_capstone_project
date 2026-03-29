@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { filterProjects, generateResumePdf, generatePortfolioSite, type FilteredProject, type ResumeEducationInput } from './api'
+import { filterProjects, generateResumePdf, generatePortfolioSite, getProfile, type FilteredProject, type UserProfile } from './api'
 import { StatsCards } from './components/StatsCards'
 import { UploadZone } from './components/UploadZone'
 import { FilterTabs, type TabKey } from './components/FilterTabs'
@@ -116,16 +116,7 @@ const PAGE_META: Record<AppView, { title: string; subtitle: string }> = {
 }
 
 let toastId = 0
-
-const blankEducation = (): ResumeEducationInput => ({
-  school: '',
-  degree: '',
-  location: '',
-  start_date: '',
-  end_date: '',
-  is_current: false,
-  expected_graduation: '',
-})
+const USER_ID = 'default'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
@@ -146,14 +137,6 @@ function App() {
   const [cardCategory, setCardCategory] = useState<DashboardCategory>('all')
   const [resumeModalOpen, setResumeModalOpen] = useState(false)
   const [resumeProjectIds, setResumeProjectIds] = useState<number[]>([])
-  const [resumeOwnerName, setResumeOwnerName] = useState('')
-  const [resumePhone, setResumePhone] = useState('')
-  const [resumeEmail, setResumeEmail] = useState('')
-  const [resumeLinkedinUrl, setResumeLinkedinUrl] = useState('')
-  const [resumeLinkedinLabel, setResumeLinkedinLabel] = useState('')
-  const [resumeGithubUrl, setResumeGithubUrl] = useState('')
-  const [resumeGithubLabel, setResumeGithubLabel] = useState('')
-  const [resumeEducation, setResumeEducation] = useState<ResumeEducationInput[]>([blankEducation()])
   const [resumeDownloadUrl, setResumeDownloadUrl] = useState<string | null>(null)
   const [resumeFilename, setResumeFilename] = useState('resume.pdf')
   const [resumeGenerating, setResumeGenerating] = useState(false)
@@ -163,19 +146,12 @@ function App() {
 
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false)
   const [portfolioProjectIds, setPortfolioProjectIds] = useState<number[]>([])
-  const [portfolioName, setPortfolioName] = useState('')
-  const [portfolioTitle, setPortfolioTitle] = useState('Full-Stack Developer')
-  const [portfolioBio, setPortfolioBio] = useState('')
-  const [portfolioEmail, setPortfolioEmail] = useState('')
-  const [portfolioLocation, setPortfolioLocation] = useState('')
-  const [portfolioGithubUrl, setPortfolioGithubUrl] = useState('')
-  const [portfolioLinkedinUrl, setPortfolioLinkedinUrl] = useState('')
-  const [portfolioYoe, setPortfolioYoe] = useState('')
-  const [portfolioOss, setPortfolioOss] = useState('')
   const [portfolioGenerating, setPortfolioGenerating] = useState(false)
   const [portfolioError, setPortfolioError] = useState('')
   const [portfolioUrl, setPortfolioUrl] = useState<string | null>(null)
   const [portfolioHiddenSections, setPortfolioHiddenSections] = useState<string[]>([])
+  const [savedProfile, setSavedProfile] = useState<UserProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -193,6 +169,24 @@ function App() {
     loadProjects()
   }, [loadProjects])
 
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true)
+    try {
+      const profile = await getProfile(USER_ID)
+      setSavedProfile(profile)
+      return profile
+    } catch {
+      setSavedProfile(null)
+      return null
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadProfile()
+  }, [loadProfile])
+
   const addToast = useCallback((title: string, type: ToastData['type'] = 'success', subtitle?: string) => {
     setToasts((prev) => [...prev, { id: ++toastId, title, type, subtitle }])
   }, [])
@@ -204,14 +198,6 @@ function App() {
   const resetResumeModal = useCallback(() => {
     setResumeModalOpen(false)
     setResumeProjectIds([])
-    setResumeOwnerName('')
-    setResumePhone('')
-    setResumeEmail('')
-    setResumeLinkedinUrl('')
-    setResumeLinkedinLabel('')
-    setResumeGithubUrl('')
-    setResumeGithubLabel('')
-    setResumeEducation([blankEducation()])
     setResumeError('')
     setResumeGenerating(false)
     setResumeDownloadUrl((prev) => {
@@ -225,50 +211,60 @@ function App() {
     (msg: string) => {
       const isError = msg.toLowerCase().includes('fail') || msg.toLowerCase().includes('error')
       addToast(isError ? 'Upload failed' : 'Upload queued!', isError ? 'error' : 'success', msg)
-      if (!isError) loadProjects()
+      if (!isError) {
+        loadProjects()
+        void loadProfile()
+      }
     },
-    [addToast, loadProjects],
+    [addToast, loadProfile, loadProjects],
   )
 
-  const handleResumeCardClick = useCallback(() => {
+  const getMissingResumeProfileFields = useCallback((profile: UserProfile | null): string[] => {
+    if (!profile) return ['Profile']
+    const missing: string[] = []
+    if (!profile.name?.trim()) missing.push('Name')
+    if (!profile.contact?.email?.trim()) missing.push('Email')
+    const hasMeaningfulEducation = profile.education.some((entry) => (
+      Boolean(entry.school?.trim()) &&
+      Boolean(entry.degree?.trim() || entry.location?.trim() || entry.from?.trim() || entry.to?.trim() || entry.still_studying)
+    ))
+    if (!hasMeaningfulEducation) missing.push('Education')
+    return missing
+  }, [])
+
+  const handleResumeCardClick = useCallback(async () => {
     setResumeError('')
     if (projects.length === 0) {
       addToast('No projects available', 'error', 'Upload and analyze a ZIP before generating a resume.')
       setView('upload')
       return
     }
+    const profile = await loadProfile()
+    const missing = getMissingResumeProfileFields(profile)
+    if (missing.length > 0) {
+      addToast(
+        'Complete Profile first',
+        'error',
+        `Resume generation is blocked until required fields are saved. Missing: ${missing.join(', ')}.`,
+      )
+      setView('profile')
+      return
+    }
     setResumeProjectIds((prev) => (prev.length > 0 ? prev : projects.slice(0, 1).map((project) => project.project_info_id)))
     setResumeModalOpen(true)
-  }, [addToast, projects])
+  }, [addToast, getMissingResumeProfileFields, loadProfile, projects])
 
   const handleGenerateResumePdf = useCallback(async () => {
-    if (resumeProjectIds.length === 0 || !resumeOwnerName.trim()) {
-      setResumeError('Choose at least one project and enter the resume owner name.')
+    if (resumeProjectIds.length === 0) {
+      setResumeError('Choose at least one project.')
       return
     }
     setResumeGenerating(true)
     setResumeError('')
     try {
       const { blob, filename } = await generateResumePdf({
-        resume_owner_name: resumeOwnerName.trim(),
+        user_id: USER_ID,
         project_ids: resumeProjectIds,
-        phone: resumePhone.trim(),
-        email: resumeEmail.trim(),
-        linkedin_url: resumeLinkedinUrl.trim(),
-        linkedin_label: resumeLinkedinLabel.trim(),
-        github_url: resumeGithubUrl.trim(),
-        github_label: resumeGithubLabel.trim(),
-        education: resumeEducation
-          .map((entry) => ({
-            school: entry.school?.trim() || '',
-            degree: entry.degree?.trim() || '',
-            location: entry.location?.trim() || '',
-            start_date: entry.start_date?.trim() || '',
-            end_date: entry.end_date?.trim() || '',
-            is_current: Boolean(entry.is_current),
-            expected_graduation: entry.expected_graduation?.trim() || '',
-          }))
-          .filter((entry) => entry.school),
       })
       setResumeDownloadUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)
@@ -283,14 +279,6 @@ function App() {
     }
   }, [
     addToast,
-    resumeEducation,
-    resumeEmail,
-    resumeGithubLabel,
-    resumeGithubUrl,
-    resumeLinkedinLabel,
-    resumeLinkedinUrl,
-    resumeOwnerName,
-    resumePhone,
     resumeProjectIds,
   ])
 
@@ -302,37 +290,9 @@ function App() {
     )
   }, [])
 
-  const updateEducationField = useCallback(
-    (index: number, field: keyof ResumeEducationInput, value: string | boolean) => {
-      setResumeEducation((prev) =>
-        prev.map((entry, currentIndex) =>
-          currentIndex === index ? { ...entry, [field]: value } : entry,
-        ),
-      )
-    },
-    [],
-  )
-
-  const addEducationEntry = useCallback(() => {
-    setResumeEducation((prev) => [...prev, blankEducation()])
-  }, [])
-
-  const removeEducationEntry = useCallback((index: number) => {
-    setResumeEducation((prev) => (prev.length === 1 ? [blankEducation()] : prev.filter((_, currentIndex) => currentIndex !== index)))
-  }, [])
-
   const resetPortfolioModal = useCallback(() => {
     setPortfolioModalOpen(false)
     setPortfolioProjectIds([])
-    setPortfolioName('')
-    setPortfolioTitle('Full-Stack Developer')
-    setPortfolioBio('')
-    setPortfolioEmail('')
-    setPortfolioLocation('')
-    setPortfolioGithubUrl('')
-    setPortfolioLinkedinUrl('')
-    setPortfolioYoe('')
-    setPortfolioOss('')
     setPortfolioError('')
     setPortfolioGenerating(false)
     setPortfolioUrl(null)
@@ -346,9 +306,10 @@ function App() {
       setView('upload')
       return
     }
+    void loadProfile()
     setPortfolioProjectIds((prev) => (prev.length > 0 ? prev : projects.slice(0, 2).map((p) => p.project_info_id)))
     setPortfolioModalOpen(true)
-  }, [addToast, projects])
+  }, [addToast, loadProfile, projects])
 
   const togglePortfolioProject = useCallback((projectId: number) => {
     setPortfolioProjectIds((prev) =>
@@ -363,24 +324,12 @@ function App() {
       setPortfolioError('Select at least 2 projects.')
       return
     }
-    if (!portfolioName.trim()) {
-      setPortfolioError('Enter your name.')
-      return
-    }
     setPortfolioGenerating(true)
     setPortfolioError('')
     try {
       const res = await generatePortfolioSite({
-        name: portfolioName.trim(),
-        title: portfolioTitle.trim() || 'Full-Stack Developer',
-        bio: portfolioBio.trim(),
-        email: portfolioEmail.trim(),
-        location: portfolioLocation.trim(),
-        github_url: portfolioGithubUrl.trim(),
-        linkedin_url: portfolioLinkedinUrl.trim(),
-        years_experience: portfolioYoe.trim(),
+        user_id: USER_ID,
         projects_completed: String(projects.length),
-        open_source_contributions: portfolioOss.trim(),
         project_ids: portfolioProjectIds,
         hidden_sections: portfolioHiddenSections,
       })
@@ -391,7 +340,7 @@ function App() {
     } finally {
       setPortfolioGenerating(false)
     }
-  }, [addToast, portfolioBio, portfolioEmail, portfolioGithubUrl, portfolioHiddenSections, portfolioLinkedinUrl, portfolioLocation, portfolioName, portfolioOss, portfolioProjectIds, portfolioTitle, portfolioYoe, projects.length])
+  }, [addToast, portfolioHiddenSections, portfolioProjectIds, projects.length])
 
   const filteredProjects = useMemo(() => {
     let list = projects
@@ -424,8 +373,8 @@ function App() {
   const meta = PAGE_META[view]
   const resumeSelectedProjects = projects.filter((project) => resumeProjectIds.includes(project.project_info_id))
   const portfolioSelectedProjects = projects.filter((project) => portfolioProjectIds.includes(project.project_info_id))
-  const canGenerateResume = resumeProjectIds.length > 0 && Boolean(resumeOwnerName.trim())
-  const canGeneratePortfolio = portfolioProjectIds.length >= 2 && Boolean(portfolioName.trim())
+  const canGenerateResume = resumeProjectIds.length > 0
+  const canGeneratePortfolio = portfolioProjectIds.length >= 2
 
   return (
     <div className="app-layout">
@@ -608,7 +557,7 @@ function App() {
               onBusyChange={setTimelineBusy}
             />
           ) : (
-            <ProfileView onToast={addToast} />
+            <ProfileView onToast={addToast} onProfileSaved={() => { void loadProfile() }} />
           )}
         </div>
 
@@ -633,7 +582,7 @@ function App() {
                 <span className="modal-category">Resume</span>
                 <h2 id="resume-modal-title">Generate One-Page Resume</h2>
                 <p className="modal-description">
-                  Select the projects to include, fill in the details you want on the resume, then generate the PDF.
+                  Select the projects to include, then generate a resume using your saved profile data.
                 </p>
               </div>
               <button className="close" type="button" onClick={resetResumeModal} aria-label="Close">
@@ -669,188 +618,33 @@ function App() {
             <div className="modal-section">
               <div className="modal-section__heading">
                 <div>
-                  <h4>Owner</h4>
-                  <p className="modal-helper">Use the exact name you want displayed in the PDF heading.</p>
+                  <h4>Saved Profile Data</h4>
+                  <p className="modal-helper">Resume identity, contact, and education are loaded from your Profile page.</p>
                 </div>
-              </div>
-              <div className="modal-form-grid modal-form-grid--two">
-                <label className="modal-field">
-                  <span>Resume owner name</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="e.g. Jane Doe"
-                    value={resumeOwnerName}
-                    onChange={(e) => setResumeOwnerName(e.target.value)}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="modal-section">
-              <div className="modal-section__heading">
-                <div>
-                  <h4>Contact</h4>
-                  <p className="modal-helper">Optional, but useful for a resume that is ready to share immediately.</p>
-                </div>
-              </div>
-              <div className="modal-form-grid modal-form-grid--two">
-                <label className="modal-field">
-                  <span>Phone number</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="Phone number"
-                    value={resumePhone}
-                    onChange={(e) => setResumePhone(e.target.value)}
-                  />
-                </label>
-                <label className="modal-field">
-                  <span>Email address</span>
-                  <input
-                    className="input"
-                    type="email"
-                    placeholder="Email address"
-                    value={resumeEmail}
-                    onChange={(e) => setResumeEmail(e.target.value)}
-                  />
-                </label>
-                <label className="modal-field">
-                  <span>LinkedIn URL</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="LinkedIn URL"
-                    value={resumeLinkedinUrl}
-                    onChange={(e) => setResumeLinkedinUrl(e.target.value)}
-                  />
-                </label>
-                <label className="modal-field">
-                  <span>LinkedIn label</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="LinkedIn label (optional)"
-                    value={resumeLinkedinLabel}
-                    onChange={(e) => setResumeLinkedinLabel(e.target.value)}
-                  />
-                </label>
-                <label className="modal-field">
-                  <span>GitHub URL</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="GitHub URL"
-                    value={resumeGithubUrl}
-                    onChange={(e) => setResumeGithubUrl(e.target.value)}
-                  />
-                </label>
-                <label className="modal-field">
-                  <span>GitHub label</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="GitHub label (optional)"
-                    value={resumeGithubLabel}
-                    onChange={(e) => setResumeGithubLabel(e.target.value)}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="modal-section">
-              <div className="modal-section__heading">
-                <div>
-                  <h4>Education</h4>
-                  <p className="modal-helper">Add one or more schools exactly as you want them printed.</p>
-                </div>
-                <button className="action-btn" type="button" onClick={addEducationEntry}>
-                  Add Education
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    resetResumeModal()
+                    setView('profile')
+                  }}
+                >
+                  Edit Profile
                 </button>
               </div>
-              <div className="modal-education-list">
-                {resumeEducation.map((entry, index) => (
-                  <div key={index} className="modal-education-card">
-                    <div className="modal-form-grid modal-form-grid--two">
-                      <label className="modal-field">
-                        <span>School</span>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="University or school"
-                          value={entry.school ?? ''}
-                          onChange={(e) => updateEducationField(index, 'school', e.target.value)}
-                        />
-                      </label>
-                      <label className="modal-field">
-                        <span>Degree or program</span>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="Degree or program"
-                          value={entry.degree ?? ''}
-                          onChange={(e) => updateEducationField(index, 'degree', e.target.value)}
-                        />
-                      </label>
-                      <label className="modal-field">
-                        <span>Location</span>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="Location"
-                          value={entry.location ?? ''}
-                          onChange={(e) => updateEducationField(index, 'location', e.target.value)}
-                        />
-                      </label>
-                      <label className="modal-field">
-                        <span>From</span>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="Sep 2022"
-                          value={entry.start_date ?? ''}
-                          onChange={(e) => updateEducationField(index, 'start_date', e.target.value)}
-                        />
-                      </label>
-                      <label className="modal-field">
-                        <span>To</span>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="May 2026"
-                          value={entry.end_date ?? ''}
-                          disabled={Boolean(entry.is_current)}
-                          onChange={(e) => updateEducationField(index, 'end_date', e.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <label className="modal-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(entry.is_current)}
-                        onChange={(e) => updateEducationField(index, 'is_current', e.target.checked)}
-                      />
-                      <span>I am still studying here</span>
-                    </label>
-                    {entry.is_current && (
-                      <label className="modal-field">
-                        <span>Expected graduation</span>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="Expected graduation (e.g. May 2027)"
-                          value={entry.expected_graduation ?? ''}
-                          onChange={(e) => updateEducationField(index, 'expected_graduation', e.target.value)}
-                        />
-                      </label>
-                    )}
-                    <div className="modal-education-actions">
-                      <button className="reset-btn" type="button" onClick={() => removeEducationEntry(index)}>
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <div className="modal-form-grid modal-form-grid--two">
+                <label className="modal-field">
+                  <span>Name</span>
+                  <input className="input" type="text" value={savedProfile?.name ?? ''} disabled />
+                </label>
+                <label className="modal-field">
+                  <span>Email</span>
+                  <input className="input" type="text" value={savedProfile?.contact?.email ?? ''} disabled />
+                </label>
+                <label className="modal-field">
+                  <span>Education entries</span>
+                  <input className="input" type="text" value={String(savedProfile?.education?.length ?? 0)} disabled />
+                </label>
               </div>
             </div>
 
@@ -862,7 +656,7 @@ function App() {
               <div className="modal-footer__summary">
                 <strong>{resumeSelectedProjects.length}</strong>
                 <span>{resumeSelectedProjects.length === 1 ? 'project selected' : 'projects selected'}</span>
-                {!canGenerateResume && <span className="modal-footer__hint">Select a project and enter the resume owner name.</span>}
+                {!canGenerateResume && <span className="modal-footer__hint">Select at least one project.</span>}
               </div>
               <div className="modal-footer__actions">
                 <button className="reset-btn" type="button" onClick={resetResumeModal}>
@@ -899,7 +693,7 @@ function App() {
                 <span className="modal-category">Portfolio</span>
                 <h2 id="portfolio-modal-title">Generate Web Portfolio</h2>
                 <p className="modal-description">
-                  Pick 2 to 4 projects, add the profile details you want displayed, then generate your portfolio website.
+                  Pick 2 to 4 projects, then generate your portfolio website from saved profile data.
                 </p>
               </div>
               <button className="close" type="button" onClick={resetPortfolioModal} aria-label="Close">
@@ -939,39 +733,36 @@ function App() {
             <div className="modal-section">
               <div className="modal-section__heading">
                 <div>
-                  <h4>Profile</h4>
-                  <p className="modal-helper">These details become the hero section of your generated site.</p>
+                  <h4>Saved Profile Data</h4>
+                  <p className="modal-helper">Portfolio title, about me, links, and experience are loaded from Profile.</p>
                 </div>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    resetPortfolioModal()
+                    setView('profile')
+                  }}
+                >
+                  Edit Profile
+                </button>
               </div>
               <div className="modal-form-grid modal-form-grid--two">
                 <label className="modal-field">
                   <span>Name</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="e.g. Jane Doe"
-                    value={portfolioName}
-                    onChange={(e) => setPortfolioName(e.target.value)}
-                  />
+                  <input className="input" type="text" value={savedProfile?.name ?? ''} disabled />
                 </label>
                 <label className="modal-field">
                   <span>Title</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="e.g. Full-Stack Developer"
-                    value={portfolioTitle}
-                    onChange={(e) => setPortfolioTitle(e.target.value)}
-                  />
+                  <input className="input" type="text" value={savedProfile?.portfolio?.title ?? ''} disabled />
                 </label>
                 <label className="modal-field modal-field--full">
                   <span>About me</span>
                   <textarea
                     className="input"
-                    placeholder="Write a short bio about yourself..."
-                    value={portfolioBio}
-                    onChange={(e) => setPortfolioBio(e.target.value)}
+                    value={savedProfile?.portfolio?.about_me ?? ''}
                     rows={3}
+                    disabled
                   />
                 </label>
               </div>
@@ -981,33 +772,29 @@ function App() {
               <div className="modal-section__heading">
                 <div>
                   <h4>Links & highlights</h4>
-                  <p className="modal-helper">These fields are optional and can make the generated portfolio feel more complete.</p>
+                  <p className="modal-helper">Update these fields in Profile. They are reused here automatically.</p>
                 </div>
               </div>
               <div className="modal-form-grid modal-form-grid--two">
                 <label className="modal-field">
                   <span>Email address</span>
-                  <input className="input" type="email" placeholder="Email address" value={portfolioEmail} onChange={(e) => setPortfolioEmail(e.target.value)} />
-                </label>
-                <label className="modal-field">
-                  <span>Location</span>
-                  <input className="input" type="text" placeholder="Location (e.g. Vancouver, BC)" value={portfolioLocation} onChange={(e) => setPortfolioLocation(e.target.value)} />
+                  <input className="input" type="email" value={savedProfile?.contact?.email ?? ''} disabled />
                 </label>
                 <label className="modal-field">
                   <span>GitHub URL</span>
-                  <input className="input" type="text" placeholder="GitHub URL" value={portfolioGithubUrl} onChange={(e) => setPortfolioGithubUrl(e.target.value)} />
+                  <input className="input" type="text" value={savedProfile?.contact?.github_url ?? ''} disabled />
                 </label>
                 <label className="modal-field">
                   <span>LinkedIn URL</span>
-                  <input className="input" type="text" placeholder="LinkedIn URL" value={portfolioLinkedinUrl} onChange={(e) => setPortfolioLinkedinUrl(e.target.value)} />
+                  <input className="input" type="text" value={savedProfile?.contact?.linkedin_url ?? ''} disabled />
                 </label>
                 <label className="modal-field">
                   <span>Years of experience</span>
-                  <input className="input" type="text" placeholder="e.g. 4+" value={portfolioYoe} onChange={(e) => setPortfolioYoe(e.target.value)} />
+                  <input className="input" type="text" value={savedProfile?.portfolio?.years_of_experience ?? ''} disabled />
                 </label>
                 <label className="modal-field">
                   <span>Open source contributions</span>
-                  <input className="input" type="text" placeholder="e.g. 50+" value={portfolioOss} onChange={(e) => setPortfolioOss(e.target.value)} />
+                  <input className="input" type="text" value={savedProfile?.portfolio?.open_source_contribution ?? ''} disabled />
                 </label>
               </div>
             </div>
@@ -1043,6 +830,10 @@ function App() {
               </div>
             </div>
 
+            {profileLoading && (
+              <p className="modal-helper">Refreshing profile…</p>
+            )}
+
             {portfolioError && (
               <p className="filter-error">{portfolioError}</p>
             )}
@@ -1051,7 +842,7 @@ function App() {
               <div className="modal-footer__summary">
                 <strong>{portfolioSelectedProjects.length}</strong>
                 <span>{portfolioSelectedProjects.length === 1 ? 'project selected' : 'projects selected'}</span>
-                {!canGeneratePortfolio && <span className="modal-footer__hint">Select at least two projects and enter your name.</span>}
+                {!canGeneratePortfolio && <span className="modal-footer__hint">Select at least two projects.</span>}
               </div>
               <div className="modal-footer__actions">
                 <button className="reset-btn" type="button" onClick={resetPortfolioModal}>

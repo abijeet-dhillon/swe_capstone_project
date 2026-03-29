@@ -5,6 +5,7 @@ import { Hero } from "./hero";
 import { About } from "./about";
 import { Skills } from "./skills";
 import { ActivityHeatmap } from "./activity-heatmap";
+import { SkillsProgressionTimeline } from "./skills-progression-timeline";
 import { TopShowcase } from "./top-showcase";
 import { ProjectsGrid } from "./projects-grid";
 import { Footer } from "./footer";
@@ -85,6 +86,9 @@ export function DashboardShell({ profile }: { profile: DeveloperProfile }) {
 
       {visible("about") && <About profile={profile} />}
       {visible("skills") && filteredSkills.length > 0 && <Skills skills={filteredSkills} />}
+      {profile.skillsTimeline && profile.skillsTimeline.length > 0 && (
+        <SkillsProgressionTimeline timeline={profile.skillsTimeline} />
+      )}
       {visible("heatmap") && profile.heatmap && <ActivityHeatmap heatmap={profile.heatmap} />}
       {visible("showcase") && filteredShowcase.length > 0 && (
         <TopShowcase projects={filteredShowcase} />

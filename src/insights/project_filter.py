@@ -327,34 +327,36 @@ class ProjectFilterEngine:
         return query, params
 
     def _add_tag_filters(self, query: str, filter_config: ProjectFilter, params: List[Any]) -> str:
-        """Add filtering for tags (languages, frameworks, skills)."""
+        """Add filtering for tags (languages, frameworks, skills) using tags_json on project_info."""
         tag_conditions = []
-        
+
         if filter_config.languages:
             tag_conditions.append(("language", filter_config.languages))
         if filter_config.frameworks:
             tag_conditions.append(("framework", filter_config.frameworks))
         if filter_config.skills:
             tag_conditions.append(("skill", filter_config.skills))
-        
+
         if tag_conditions:
             query += """ AND pi.id IN (
-                SELECT DISTINCT se.project_info_id
-                FROM skill_evidence se
-                JOIN tags t ON se.tag_id = t.id
-                WHERE (
+                SELECT pi2.id
+                FROM project_info pi2, json_each(pi2.tags_json) je
+                WHERE pi2.tags_json IS NOT NULL AND (
             """
-            
+
             or_clauses = []
             for tag_type, tag_names in tag_conditions:
                 placeholders = ",".join("?" * len(tag_names))
-                or_clauses.append(f"(t.tag_type = ? AND t.name IN ({placeholders}))")
+                or_clauses.append(
+                    f"(json_extract(je.value, '$.tag_type') = ? "
+                    f"AND LOWER(json_extract(je.value, '$.name')) IN ({placeholders}))"
+                )
                 params.append(tag_type)
-                params.extend(tag_names)
-            
+                params.extend([name.lower() for name in tag_names])
+
             query += " OR ".join(or_clauses)
             query += "))"
-        
+
         return query
 
     def _build_sort_clause(self, sort_by: SortBy) -> str:
@@ -475,24 +477,18 @@ class ProjectFilterEngine:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     strftime('%Y-%m', pi.created_at) as month,
                     COUNT(*) as project_count,
                     SUM(pi.total_lines) as total_lines
-                FROM project_info pi
-                WHERE pi.id IN (
-                    SELECT DISTINCT pi.id
-                    FROM project_info pi
-                    JOIN file_info fi ON fi.project_info_id = pi.id
-                    JOIN skill_evidence se ON se.file_info_id = fi.id
-                    JOIN tags t ON t.id = se.tag_id
-                    WHERE t.name = ? COLLATE NOCASE
-                )
+                FROM project_info pi, json_each(pi.tags_json) je
+                WHERE pi.tags_json IS NOT NULL
+                  AND LOWER(json_extract(je.value, '$.name')) = LOWER(?)
                 GROUP BY month
                 ORDER BY month DESC
                 LIMIT 24
             """, (skill,))
-            
+
             return [{"month": row[0], "project_count": row[1], "total_lines": row[2] or 0} for row in cursor.fetchall()]
 
     def get_skill_progression(self) -> Dict[str, Any]:
@@ -500,21 +496,19 @@ class ProjectFilterEngine:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("""
-                SELECT 
-                    t.name as skill,
+                SELECT
+                    json_extract(je.value, '$.name') as skill,
                     COUNT(DISTINCT pi.id) as projects_count,
                     MIN(strftime('%Y-%m-%d', pi.created_at)) as first_seen,
                     MAX(strftime('%Y-%m-%d', pi.created_at)) as last_seen,
                     SUM(pi.total_lines) as total_lines
-                FROM tags t
-                JOIN skill_evidence se ON se.file_info_id = fi.id
-                JOIN file_info fi ON se.file_info_id = fi.id
-                JOIN project_info pi ON fi.project_info_id = pi.id
-                WHERE t.tag_type = 'skill'
-                GROUP BY t.name
+                FROM project_info pi, json_each(pi.tags_json) je
+                WHERE pi.tags_json IS NOT NULL
+                  AND json_extract(je.value, '$.tag_type') = 'skill'
+                GROUP BY skill
                 ORDER BY projects_count DESC, total_lines DESC
             """)
-            
+
             return {row[0]: {
                 "projects_count": row[1],
                 "first_seen": row[2],

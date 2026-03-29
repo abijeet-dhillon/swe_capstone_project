@@ -44,6 +44,9 @@ def temp_db(tmp_path):
                 total_commits INTEGER DEFAULT 0,
                 total_contributors INTEGER DEFAULT 0,
                 is_git_repo INTEGER DEFAULT 0,
+                tags_json TEXT,
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (project_id) REFERENCES projects(id)
             );
             
@@ -95,16 +98,21 @@ def sample_projects(temp_db):
             projects_data
         )
         
-        # Insert project_info
+        # Insert project_info with tags_json
         project_info_data = [
-            (1, 50, 2500, 120, 3, 1),   # Python API
-            (2, 80, 5000, 200, 2, 1),   # React Dashboard
-            (3, 30, 1500, 50, 1, 1),    # ML Model
-            (4, 100, 8000, 300, 5, 1),  # Java Backend
-            (5, 5, 50, 5, 1, 0),        # Small Script
+            (1, 50, 2500, 120, 3, 1,
+             json.dumps([{"tag_type": "language", "name": "Python"}, {"tag_type": "framework", "name": "FastAPI"}, {"tag_type": "skill", "name": "REST API"}])),
+            (2, 80, 5000, 200, 2, 1,
+             json.dumps([{"tag_type": "language", "name": "JavaScript"}, {"tag_type": "framework", "name": "React"}])),
+            (3, 30, 1500, 50, 1, 1,
+             json.dumps([{"tag_type": "language", "name": "Python"}, {"tag_type": "skill", "name": "Machine Learning"}])),
+            (4, 100, 8000, 300, 5, 1,
+             json.dumps([{"tag_type": "language", "name": "Java"}, {"tag_type": "framework", "name": "Spring"}, {"tag_type": "skill", "name": "REST API"}])),
+            (5, 5, 50, 5, 1, 0,
+             json.dumps([{"tag_type": "language", "name": "Python"}])),
         ]
         conn.executemany(
-            "INSERT INTO project_info (project_id, total_files, total_lines, total_commits, total_contributors, is_git_repo) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO project_info (project_id, total_files, total_lines, total_commits, total_contributors, is_git_repo, tags_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
             project_info_data
         )
         
