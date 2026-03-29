@@ -657,6 +657,18 @@ export function updateProfile(userId: string, data: ProfileUpdateRequest): Promi
   })
 }
 
+// ─── LinkedIn Types ─────────────────────────────────────────────────
+
+export type LinkedInPreview = {
+  project_id: number
+  project_name: string
+  text: string
+  char_count: number
+  exceeds_limit: boolean
+  hashtags: string[]
+  preview: string
+}
+
 // ─── Thumbnail Types ────────────────────────────────────────────────
 
 export type ThumbnailUploadResponse = {
@@ -667,6 +679,19 @@ export type ThumbnailUploadResponse = {
   size_bytes: number
 }
 
+// LinkedIn
+export function getLinkedInPreview(
+  projectId: number,
+  opts: { includeHashtags?: boolean; includeEmojis?: boolean } = {},
+): Promise<LinkedInPreview> {
+  const params = new URLSearchParams()
+  if (opts.includeHashtags !== undefined) params.set('include_hashtags', String(opts.includeHashtags))
+  if (opts.includeEmojis !== undefined) params.set('include_emojis', String(opts.includeEmojis))
+  const qs = params.toString()
+  return apiFetch(`/linkedin/preview/${projectId}${qs ? `?${qs}` : ''}`)
+}
+
+// Thumbnails
 export async function hasProjectThumbnail(projectId: number): Promise<boolean> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/thumbnail`)
   return res.ok
