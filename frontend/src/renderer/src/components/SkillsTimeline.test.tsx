@@ -322,4 +322,29 @@ describe('SkillsTimeline', () => {
     rerender(<SkillsTimeline refreshNonce={1} />)
     await waitFor(() => expect(mocked.listSkillsCatalog).toHaveBeenCalledTimes(2))
   })
+
+  it('strips absolute tmp server paths from the rendered timeline files', async () => {
+    mocked.getChronologicalSkillsByProjectId.mockResolvedValueOnce({
+      project_id: 7,
+      project_name: 'Alpha',
+      zip_hash: 'ziphash01',
+      total_events: 1,
+      categories: ['code'],
+      timeline: [
+        {
+          file: '/tmp/unzipped_gkq228s5/test-data/docs/User_walkthrough.docx',
+          timestamp: '2026-02-02T10:00:00',
+          category: 'code',
+          skills: ['writing'],
+          metadata: {},
+        },
+      ],
+    })
+
+    render(<SkillsTimeline />)
+    await selectAlphaAndLoad()
+
+    expect(screen.getByText('test-data/docs/User_walkthrough.docx')).toBeInTheDocument()
+    expect(screen.queryByText('/tmp/unzipped_gkq228s5/test-data/docs/User_walkthrough.docx')).not.toBeInTheDocument()
+  })
 })

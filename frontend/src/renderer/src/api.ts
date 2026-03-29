@@ -552,3 +552,35 @@ export function updateProfile(userId: string, data: ProfileUpdateRequest): Promi
     body: JSON.stringify(data),
   })
 }
+
+// ─── Thumbnail Types ────────────────────────────────────────────────
+
+export type ThumbnailUploadResponse = {
+  status: string
+  project_id: number
+  thumbnail_url: string
+  mime_type: string
+  size_bytes: number
+}
+
+export async function hasProjectThumbnail(projectId: number): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/thumbnail`)
+  return res.ok
+}
+
+export async function uploadProjectThumbnail(
+  projectId: number,
+  file: File,
+): Promise<ThumbnailUploadResponse> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_BASE}/projects/${projectId}/thumbnail`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(text || `Upload failed (${res.status})`)
+  }
+  return res.json() as Promise<ThumbnailUploadResponse>
+}
