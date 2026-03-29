@@ -32,10 +32,6 @@ export function Hero({ profile }: HeroProps) {
         <p className="mt-2 text-xl font-medium text-zinc-400 sm:text-2xl">
           {profile.title}
         </p>
-        <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-zinc-400">
-          {profile.bio}
-        </p>
-
         <div className="mt-8 flex items-center justify-center gap-4">
           <a
             href={profile.resumeUrl}
