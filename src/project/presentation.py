@@ -32,7 +32,8 @@ class PortfolioItem:
     key_features: List[str] = field(default_factory=list)
     has_documentation: bool = False
     has_tests: bool = False
-    
+    summary: str = ""
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to plain dictionary"""
         return asdict(self)
@@ -181,24 +182,28 @@ def generate_portfolio_item(
     
     # Build tagline
     tagline = _build_tagline(metrics)
-    
-    # Build description
+
+    # Build description (metrics-focused: scale, quality, collaboration)
     description = _build_description(metrics)
-    
+
+    # Build summary (tech-focused: what the project is, distinct from description)
+    summary = _build_summary(metrics)
+
     # Determine project type
     project_type = _determine_project_type(metrics)
-    
+
     # Determine complexity
     complexity = _determine_complexity(metrics)
-    
+
     # Extract key features
     key_features = _extract_key_features(metrics)
-    
+
     # Create portfolio item
     portfolio = PortfolioItem(
         project_name=project_name,
         tagline=tagline,
         description=description,
+        summary=summary,
         languages=metrics.languages[:10],  # Limit to top 10
         frameworks=metrics.frameworks[:10],  # Limit to top 10
         skills=metrics.skills[:15],  # Limit to top 15
@@ -427,6 +432,39 @@ def _build_tagline(metrics: ProjectMetrics) -> str:
         type_indicator = " (well-documented)"
     
     return f"{collab_type} {lang_phrase} project{framework_phrase}{type_indicator}"
+
+
+def _build_summary(metrics: ProjectMetrics) -> str:
+    """
+    Build a concise one-sentence summary focused on *what* the project is
+    (technology stack and collaboration style), distinct from the
+    metrics-heavy description produced by _build_description.
+    """
+    collab = "collaborative" if metrics.is_collaborative else "solo"
+
+    tech_parts: List[str] = []
+    if metrics.languages:
+        tech_parts.extend(metrics.languages[:2])
+    if metrics.frameworks:
+        tech_parts.extend(metrics.frameworks[:2])
+
+    if tech_parts:
+        tech_str = " and ".join(tech_parts) if len(tech_parts) <= 2 else ", ".join(tech_parts[:2])
+        tech_phrase = f" built with {tech_str}"
+    else:
+        tech_phrase = ""
+
+    project_type = _determine_project_type(metrics).lower()
+
+    qualifiers: List[str] = []
+    if metrics.has_tests:
+        qualifiers.append("test-covered")
+    if metrics.has_documentation and metrics.doc_words > 500:
+        qualifiers.append("well-documented")
+
+    qualifier_str = ", " + " and ".join(qualifiers) if qualifiers else ""
+
+    return f"A {collab} {project_type}{tech_phrase}{qualifier_str}."
 
 
 def _build_description(metrics: ProjectMetrics) -> str:
@@ -791,15 +829,23 @@ def generate_items_from_project_id(
                 "resume_item": resume_item,
             }
     
-    # Regenerate portfolio and resume items from the stored payload
-    # Remove existing items if present to ensure fresh generation
+    # Conditionally retain existing items from the stored payload (e.g. AI-generated data).
+    # If they are not found, we fall back to fresh generation via local templates.
     project_dict = dict(project_payload)
-    project_dict.pop("portfolio_item", None)
-    project_dict.pop("resume_item", None)
+    existing_portfolio = project_dict.pop("portfolio_item", None)
+    existing_resume = project_dict.pop("resume_item", None)
     
     try:
-        portfolio_item = generate_portfolio_item(project_dict)
-        resume_item = generate_resume_item(project_dict, customization=resume_customization)
+        # Use existing portfolio item if present, otherwise build a generic one
+        portfolio_item = existing_portfolio if existing_portfolio else generate_portfolio_item(project_dict)
+        
+        # Use existing resume item if present (applying edits if any), otherwise build a generic one
+        if existing_resume:
+            resume_item = existing_resume
+            if resume_customization:
+                resume_item = apply_resume_item_customization(resume_item, resume_customization)
+        else:
+            resume_item = generate_resume_item(project_dict, customization=resume_customization)
     except Exception as e:
         raise RuntimeError(f"Failed to generate presentation items: {e}") from e
     
