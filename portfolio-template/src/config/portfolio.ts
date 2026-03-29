@@ -1,59 +1,62 @@
 import type { DeveloperProfile } from "@/types/portfolio";
 
 export const portfolio: DeveloperProfile = {
-  name: "Kaiden Merchant",
-  title: "Software Engineer",
-  bio: "I am a Software Engineer dedicated to building scalable, user-centric applications that solve real-world problems. With a core focus on Python and React, I enjoy bridging the gap between complex backend logic and seamless frontend experiences. I thrive in collaborative environments where clean code, architectural integrity, and efficient performance are the standard.",
+  name: "Sam Sikora",
+  title: "Full-Stack Developer",
+  bio: "I am a developer",
   avatarUrl: "/avatar-placeholder.jpg",
   resumeUrl: "/resume.pdf",
-  email: "kaiden@gmail.com",
-  location: "Kelowna, BC",
+  email: "",
+  location: "",
 
   socials: [
-    { platform: "GitHub", url: "kaiden@github.com", icon: "github" },
-    { platform: "LinkedIn", url: "kaiden@linkedin.com", icon: "linkedin" }
+    
   ],
 
   about: {
     description: [
-      "I am a Software Engineer dedicated to building scalable, user-centric applications that solve real-world problems. With a core focus on Python and React, I enjoy bridging the gap between complex backend logic and seamless frontend experiences. I thrive in collaborative environments where clean code, architectural integrity, and efficient performance are the standard."
+      "I am a developer"
     ],
     highlights: [
-      { label: "Years Experience", value: "2" },
-      { label: "Projects Completed", value: "100" },
-      { label: "Open Source Contributions", value: "1" }
+      { label: "Projects Completed", value: "49" }
     ],
   },
 
   skills: [
     {
       name: "Languages",
-      skills: ["java", "python"],
-    },
-    {
-      name: "Tools & Skills",
-      skills: ["java", "numpy", "object-oriented-programming", "pandas", "python"],
+      skills: ["carbon", "gdscript", "javascript", "text only", "transact-sql"],
     },
     {
       name: "Frameworks",
-      skills: ["numpy", "pandas"],
+      skills: ["jest", "node"],
+    },
+    {
+      name: "Tools & Skills",
+      skills: ["arrow-functions", "carbon", "gdscript", "javascript", "jest", "node", "react-hooks", "text only", "transact-sql"],
     }
   ],
 
   projects: [
     {
-      title: "project1",
-      description: "A comprehensive project comprising 2 source files and 13 lines of code.",
+      title: "A3-MishaGavura-48541528",
+      description: "A comprehensive project comprising 5 source files and 1,704 lines of code.",
       image: "/placeholder-project.jpg",
-      tags: ["java", "python"],
+      tags: ["javascript", "jest"],
       featured: true,
     },
     {
-      title: "ml-recommendation-engine",
-      description: "A comprehensive project comprising 1 source file and 211 lines of code.",
+      title: "SuperBugZapper",
+      description: "A comprehensive project comprising 1 source file and 201 lines of code.",
       image: "/placeholder-project.jpg",
-      tags: ["python", "numpy", "pandas", "object-oriented-programming"],
+      tags: ["javascript"],
       featured: true,
+    },
+    {
+      title: "monapure-upsell",
+      description: "A comprehensive project comprising 11 source files and 528 lines of code. The project features extensive documentation.",
+      image: "/placeholder-project.jpg",
+      tags: ["carbon", "gdscript", "javascript", "jest", "node", "arrow-functions"],
     }
   ],
 

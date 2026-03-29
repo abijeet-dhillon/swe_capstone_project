@@ -13,10 +13,32 @@ const mockUpdateProfile = vi.mocked(api.updateProfile)
 
 const baseProfile: api.UserProfile = {
   user_id: 'default',
-  first_name: 'Jane',
-  last_name: 'Smith',
-  email: 'jane@example.com',
-  github_username: 'janesmith',
+  name: 'Jane Smith',
+  contact: {
+    phone_number: '555-0000',
+    email: 'jane@example.com',
+    linkedin_url: 'https://linkedin.com/in/jane',
+    github_url: 'https://github.com/jane',
+    linkedin_label: 'LinkedIn',
+    github_label: 'GitHub',
+  },
+  education: [
+    {
+      school: 'UVic',
+      location: 'Victoria',
+      degree: 'BSc',
+      from: 'Sep 2022',
+      to: 'May 2026',
+      still_studying: false,
+    },
+  ],
+  awards: ["Dean's List"],
+  portfolio: {
+    title: 'Full-Stack Developer',
+    about_me: 'Building practical systems.',
+    years_of_experience: '3+',
+    open_source_contribution: '10+ PRs',
+  },
   git_identifier: 'jane@example.com',
 }
 
@@ -33,12 +55,11 @@ describe('ProfileView', () => {
     render(<ProfileView onToast={onToast} />)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Jane')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('Jane Smith')).toBeInTheDocument()
     })
-    expect(screen.getByDisplayValue('Smith')).toBeInTheDocument()
-    // email and git_identifier both hold 'jane@example.com' — confirm both are present
     expect(screen.getAllByDisplayValue('jane@example.com').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByDisplayValue('janesmith')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('UVic')).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Dean's List")).toBeInTheDocument()
   })
 
   it('shows not-found message when user config is absent', async () => {
@@ -53,19 +74,19 @@ describe('ProfileView', () => {
 
   it('calls updateProfile and fires success toast on save', async () => {
     mockGetProfile.mockResolvedValue(baseProfile)
-    mockUpdateProfile.mockResolvedValue({ ...baseProfile, first_name: 'Alice' })
+    mockUpdateProfile.mockResolvedValue(baseProfile)
 
     render(<ProfileView onToast={onToast} />)
 
-    await waitFor(() => screen.getByDisplayValue('Jane'))
+    await waitFor(() => screen.getByDisplayValue('Jane Smith'))
 
-    fireEvent.change(screen.getByLabelText('First Name'), { target: { value: 'Alice' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Alice Cooper' } })
     fireEvent.click(screen.getByRole('button', { name: /save profile/i }))
 
     await waitFor(() => {
       expect(mockUpdateProfile).toHaveBeenCalledWith(
         'default',
-        expect.objectContaining({ first_name: 'Alice' }),
+        expect.objectContaining({ name: 'Alice Cooper' }),
       )
     })
     expect(onToast).toHaveBeenCalledWith('Profile saved', 'success', expect.any(String))
@@ -77,7 +98,7 @@ describe('ProfileView', () => {
 
     render(<ProfileView onToast={onToast} />)
 
-    await waitFor(() => screen.getByDisplayValue('Jane'))
+    await waitFor(() => screen.getByDisplayValue('Jane Smith'))
 
     fireEvent.click(screen.getByRole('button', { name: /save profile/i }))
 

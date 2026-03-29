@@ -5,8 +5,6 @@ Tests the ProjectFilterEngine, filter configurations, and preset management.
 import pytest
 import sqlite3
 import json
-from datetime import datetime
-from pathlib import Path
 
 from src.insights.project_filter import (
     ProjectFilterEngine,
@@ -15,66 +13,15 @@ from src.insights.project_filter import (
     SuccessMetrics,
     SortBy,
     ProjectType,
-    FilterPreset,
 )
+from src.insights.storage import ProjectInsightsStore
 
 
 @pytest.fixture
 def temp_db(tmp_path):
-    """Create a temporary database with required schema."""
+    """Create a temporary database using the real insights schema migrations."""
     db_path = tmp_path / "test_filter.db"
-    
-    with sqlite3.connect(str(db_path)) as conn:
-        # Create required tables
-        conn.executescript("""
-            CREATE TABLE projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_name TEXT NOT NULL,
-                slug TEXT,
-                root_path TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            
-            CREATE TABLE project_info (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                total_files INTEGER DEFAULT 0,
-                total_lines INTEGER DEFAULT 0,
-                total_commits INTEGER DEFAULT 0,
-                total_contributors INTEGER DEFAULT 0,
-                is_git_repo INTEGER DEFAULT 0,
-                FOREIGN KEY (project_id) REFERENCES projects(id)
-            );
-            
-            CREATE TABLE portfolio_insights (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_info_id INTEGER NOT NULL,
-                tagline TEXT,
-                description TEXT,
-                project_type TEXT,
-                complexity TEXT,
-                is_collaborative INTEGER DEFAULT 0,
-                summary TEXT,
-                FOREIGN KEY (project_info_id) REFERENCES project_info(id)
-            );
-            
-            CREATE TABLE tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                tag_type TEXT NOT NULL
-            );
-            
-            CREATE TABLE skill_evidence (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_info_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                FOREIGN KEY (project_info_id) REFERENCES project_info(id),
-                FOREIGN KEY (tag_id) REFERENCES tags(id)
-            );
-        """)
-        conn.commit()
-    
+    ProjectInsightsStore(db_path=str(db_path), encryption_key=b"test-key")
     return str(db_path)
 
 
@@ -82,73 +29,99 @@ def temp_db(tmp_path):
 def sample_projects(temp_db):
     """Populate database with sample projects for testing."""
     with sqlite3.connect(temp_db) as conn:
+        ingest_data = (
+            1,
+            "zip",
+            "/tmp/sample.zip",
+            "sample.zip",
+            "sample-hash",
+            5,
+            1000,
+            500,
+            "full",
+            "completed",
+            "2025-01-01T00:00:00",
+            "2025-01-01T00:01:00",
+            "2025-01-01T00:01:00",
+            "2025-01-01T00:01:00",
+        )
+        conn.execute(
+            """
+            INSERT INTO ingest (
+                id, source_type, source_path, source_name, source_hash,
+                file_count, total_uncompressed_bytes, total_compressed_bytes,
+                run_type, status, started_at, finished_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ingest_data,
+        )
+
         # Insert projects
         projects_data = [
-            ("Python API", "python-api", "/path/1", "2025-01-15T10:00:00", "2025-01-15T10:00:00"),
-            ("React Dashboard", "react-dash", "/path/2", "2025-06-20T10:00:00", "2025-06-20T10:00:00"),
-            ("ML Model", "ml-model", "/path/3", "2024-12-10T10:00:00", "2024-12-10T10:00:00"),
-            ("Java Backend", "java-backend", "/path/4", "2025-03-05T10:00:00", "2025-03-05T10:00:00"),
-            ("Small Script", "small-script", "/path/5", "2025-07-01T10:00:00", "2025-07-01T10:00:00"),
+            (1, "sample-hash", "python-api", "Python API", "python-api", "/path/1", "2025-01-15T10:00:00", "2025-01-15T10:00:00"),
+            (2, "sample-hash", "react-dash", "React Dashboard", "react-dash", "/path/2", "2025-06-20T10:00:00", "2025-06-20T10:00:00"),
+            (3, "sample-hash", "ml-model", "ML Model", "ml-model", "/path/3", "2024-12-10T10:00:00", "2024-12-10T10:00:00"),
+            (4, "sample-hash", "java-backend", "Java Backend", "java-backend", "/path/4", "2025-03-05T10:00:00", "2025-03-05T10:00:00"),
+            (5, "sample-hash", "small-script", "Small Script", "small-script", "/path/5", "2025-07-01T10:00:00", "2025-07-01T10:00:00"),
         ]
         conn.executemany(
-            "INSERT INTO projects (project_name, slug, root_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            """
+            INSERT INTO projects (
+                id, source_hash, project_key, project_name, slug, root_path, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
             projects_data
         )
-        
-        # Insert project_info
+
+        # Insert project snapshots (latest ingest for a single source_hash)
         project_info_data = [
-            (1, 50, 2500, 120, 3, 1),   # Python API
-            (2, 80, 5000, 200, 2, 1),   # React Dashboard
-            (3, 30, 1500, 50, 1, 1),    # ML Model
-            (4, 100, 8000, 300, 5, 1),  # Java Backend
-            (5, 5, 50, 5, 1, 0),        # Small Script
+            (1, 1, 1, "Python API", 0, 50, 2500, 120, 3, 1,
+             json.dumps([{"tag_type": "language", "name": "Python"}, {"tag_type": "framework", "name": "FastAPI"}, {"tag_type": "skill", "name": "REST API"}]),
+             "2025-01-15T10:00:00", "2025-01-15T10:00:00"),
+            (2, 2, 1, "React Dashboard", 0, 80, 5000, 200, 2, 1,
+             json.dumps([{"tag_type": "language", "name": "JavaScript"}, {"tag_type": "framework", "name": "React"}]),
+             "2025-06-20T10:00:00", "2025-06-20T10:00:00"),
+            (3, 3, 1, "ML Model", 0, 30, 1500, 50, 1, 1,
+             json.dumps([{"tag_type": "language", "name": "Python"}, {"tag_type": "skill", "name": "Machine Learning"}]),
+             "2024-12-10T10:00:00", "2024-12-10T10:00:00"),
+            (4, 4, 1, "Java Backend", 0, 100, 8000, 300, 5, 1,
+             json.dumps([{"tag_type": "language", "name": "Java"}, {"tag_type": "framework", "name": "Spring"}, {"tag_type": "skill", "name": "REST API"}]),
+             "2025-03-05T10:00:00", "2025-03-05T10:00:00"),
+            (5, 5, 1, "Small Script", 0, 5, 50, 5, 1, 0,
+             json.dumps([{"tag_type": "language", "name": "Python"}]),
+             "2025-07-01T10:00:00", "2025-07-01T10:00:00"),
         ]
         conn.executemany(
-            "INSERT INTO project_info (project_id, total_files, total_lines, total_commits, total_contributors, is_git_repo) VALUES (?, ?, ?, ?, ?, ?)",
+            """
+            INSERT INTO project_info (
+                id, project_id, ingest_id, project_name, is_deleted,
+                total_files, total_lines, total_commits, total_contributors, is_git_repo,
+                tags_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
             project_info_data
         )
-        
+
         # Insert portfolio insights
         portfolio_data = [
-            (1, "REST API for ecommerce", "Full-featured REST API", "backend", "moderate", 1, "Python API with FastAPI"),
-            (2, "Admin dashboard", "React dashboard for analytics", "frontend", "moderate", 0, "React dashboard with charts"),
-            (3, "ML recommendation", "Machine learning model", "data-science", "simple", 0, "Python ML model"),
-            (4, "Enterprise backend", "Java Spring backend", "backend", "complex", 1, "Large Java backend system"),
-            (5, "Utility script", "Simple automation script", "script", "simple", 0, "Small Python script"),
+            (1, "2025-01-15T10:00:00", "REST API for ecommerce", "Full-featured REST API", "backend", "moderate", 1, "Python API with FastAPI"),
+            (2, "2025-06-20T10:00:00", "Admin dashboard", "React dashboard for analytics", "frontend", "moderate", 0, "React dashboard with charts"),
+            (3, "2024-12-10T10:00:00", "ML recommendation", "Machine learning model", "data-science", "simple", 0, "Python ML model"),
+            (4, "2025-03-05T10:00:00", "Enterprise backend", "Java Spring backend", "backend", "complex", 1, "Large Java backend system"),
+            (5, "2025-07-01T10:00:00", "Utility script", "Simple automation script", "script", "simple", 0, "Small Python script"),
         ]
         conn.executemany(
-            "INSERT INTO portfolio_insights (project_info_id, tagline, description, project_type, complexity, is_collaborative, summary) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            """
+            INSERT INTO portfolio_insights (
+                project_info_id, generated_at, tagline, description, project_type,
+                complexity, is_collaborative, summary
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
             portfolio_data
         )
-        
-        # Insert tags
-        tags_data = [
-            ("Python", "language"),
-            ("JavaScript", "language"),
-            ("Java", "language"),
-            ("React", "framework"),
-            ("FastAPI", "framework"),
-            ("Spring", "framework"),
-            ("REST API", "skill"),
-            ("Machine Learning", "skill"),
-        ]
-        conn.executemany("INSERT INTO tags (name, tag_type) VALUES (?, ?)", tags_data)
-        
-        # Link projects to tags
-        skill_evidence_data = [
-            (1, 1), (1, 5), (1, 7),  # Python API: Python, FastAPI, REST API
-            (2, 2), (2, 4),          # React Dashboard: JavaScript, React
-            (3, 1), (3, 8),          # ML Model: Python, Machine Learning
-            (4, 3), (4, 6), (4, 7),  # Java Backend: Java, Spring, REST API
-            (5, 1),                  # Small Script: Python
-        ]
-        conn.executemany(
-            "INSERT INTO skill_evidence (project_info_id, tag_id) VALUES (?, ?)",
-            skill_evidence_data
-        )
-        
+
         conn.commit()
-    
+
     return temp_db
 
 

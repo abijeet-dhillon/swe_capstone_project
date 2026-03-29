@@ -37,7 +37,7 @@ class LLMAnalyzer:
         api_key: Optional[str] = None,
         model: str = DEFAULT_MODEL,
         temperature: float = 0.7,
-        max_tokens: int = 1500
+        max_tokens: int = 4096
     ):
         """
         Initialize the LLM Analyzer

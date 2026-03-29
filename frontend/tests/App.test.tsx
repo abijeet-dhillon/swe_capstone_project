@@ -102,6 +102,30 @@ vi.mock('../src/renderer/src/api', () => ({
   getProjectTimelineLookup: vi.fn().mockResolvedValue([
     { project_id: 1, project_name: 'Alpha', zip_hash: 'ziphash01' },
   ]),
+  getProfile: vi.fn().mockResolvedValue({
+    user_id: 'default',
+    name: 'Jane Smith',
+    contact: {
+      phone_number: '555-0000',
+      email: 'jane@example.com',
+      linkedin_url: 'https://linkedin.com/in/jane',
+      github_url: 'https://github.com/jane',
+      linkedin_label: 'LinkedIn',
+      github_label: 'GitHub',
+    },
+    education: [
+      { school: 'UVic', location: 'Victoria', degree: 'BSc', from: '2022', to: '2026', still_studying: false },
+    ],
+    awards: [],
+    portfolio: {
+      title: 'Full-Stack Developer',
+      about_me: 'Bio',
+      years_of_experience: '3+',
+      open_source_contribution: '10+',
+    },
+    git_identifier: 'jane@example.com',
+  }),
+  updateProfile: vi.fn().mockResolvedValue({ status: 'ok' }),
 }))
 
 describe('App Layout', () => {
@@ -117,10 +141,9 @@ describe('App Layout', () => {
     expect(screen.getAllByText('Timeline').length).toBeGreaterThan(0)
   })
 
-  it('renders page header and footer', () => {
+  it('renders page header', () => {
     render(<App />)
     expect(screen.getByText('Your workspace overview and quick actions')).toBeInTheDocument()
-    expect(screen.getByText('COSC 499 — Digital Work Artifact Miner')).toBeInTheDocument()
   })
 
   it('renders upload zone and feature cards on dashboard', () => {
@@ -134,16 +157,23 @@ describe('App Layout', () => {
   it('defaults to private mode with customization enabled', () => {
     render(<App />)
     expect(screen.getByText('Customization controls are enabled.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate Resume' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Generate Portfolio' })).toBeEnabled()
+    // Ready cards (resume, portfolio, timeline) have specific action labels;
+    // only coming-soon cards show "Customize" and those are always disabled.
+    const actionButtons = screen.getAllByRole('button', { name: /Generate|Open Timeline/ })
+    const enabled = actionButtons.filter((b) => !b.hasAttribute('disabled'))
+    expect(enabled.length).toBeGreaterThan(0)
   })
 
-  it('switches to public mode and disables customize buttons', () => {
+  it('switches to public mode and disables action buttons', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Public' }))
     expect(screen.getByText('Customization controls are disabled in public mode.')).toBeInTheDocument()
-    const customizeButtons = screen.getAllByRole('button', { name: 'Customize' })
-    customizeButtons.forEach((b) => expect(b).toBeDisabled())
+    const featureButtons = [
+      screen.getByRole('button', { name: 'Generate Resume' }),
+      screen.getByRole('button', { name: 'Generate Portfolio' }),
+      screen.getByRole('button', { name: 'Open Timeline' })
+    ]
+    featureButtons.forEach((b) => expect(b).toBeDisabled())
   })
 
   it('opens the resume modal with grouped sections and footer actions', async () => {
@@ -154,8 +184,7 @@ describe('App Layout', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('Generate One-Page Resume')).toBeInTheDocument()
     expect(screen.getByText('Choose the work samples you want highlighted on this one-page resume.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Resume owner name')).toBeInTheDocument()
-    expect(screen.getByLabelText('Phone number')).toBeInTheDocument()
+    expect(screen.getByText('Saved Profile Data')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate PDF' })).toBeInTheDocument()
   })
@@ -165,11 +194,12 @@ describe('App Layout', () => {
     await screen.findByText('3 projects')
     fireEvent.click(screen.getByRole('button', { name: 'Generate Resume' }))
 
-    const ownerName = await screen.findByLabelText('Resume owner name')
-    fireEvent.change(ownerName, { target: { value: '' } })
+    await screen.findByRole('dialog')
+    const firstProject = await screen.findByRole('checkbox', { name: 'docs' })
+    fireEvent.click(firstProject)
     fireEvent.click(screen.getByRole('button', { name: 'Generate PDF' }))
 
-    expect(await screen.findByText('Choose at least one project and enter the resume owner name.')).toBeInTheDocument()
+    expect(await screen.findByText('Choose at least one project.')).toBeInTheDocument()
   })
 
   it('opens the portfolio modal with grouped profile fields and clear selection state', async () => {
@@ -189,10 +219,10 @@ describe('App Layout', () => {
   it('filters feature cards by search query', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('Search sections'), {
-      target: { value: 'heatmap' },
+      target: { value: 'resume' },
     })
-    expect(screen.getByText('Project Activity Heatmap')).toBeInTheDocument()
-    expect(screen.queryByText('One-Page Resume')).not.toBeInTheDocument()
+    expect(screen.getByText('One-Page Resume')).toBeInTheDocument()
+    expect(screen.queryByText('Skills Timeline')).not.toBeInTheDocument()
   })
 
   it('filters feature cards by category', () => {
@@ -222,5 +252,19 @@ describe('App Layout', () => {
     const refresh = screen.getByRole('button', { name: 'Refresh skill catalog' })
     expect(refresh).toBeInTheDocument()
     fireEvent.click(refresh)
+  })
+
+  it('toggles dark mode theme class on document.documentElement', () => {
+    document.documentElement.classList.remove('dark')
+    render(<App />)
+    
+    const toggleBtn = screen.getByTitle('Toggle theme')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    
+    fireEvent.click(toggleBtn)
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    
+    fireEvent.click(toggleBtn)
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })

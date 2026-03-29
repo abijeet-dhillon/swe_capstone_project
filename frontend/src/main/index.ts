@@ -63,6 +63,24 @@ ipcMain.handle('prepare-zip-for-upload', async (_event, filePath: string) => {
   return copyToUploads(filePath)
 })
 
+// Persist dropped zip bytes when Electron cannot provide File.path.
+ipcMain.handle(
+  'prepare-dropped-zip-for-upload',
+  async (_event, payload: { fileName?: string; bytes?: Uint8Array | number[] }) => {
+    const fileName = String(payload?.fileName || '').trim()
+    const lowered = fileName.toLowerCase()
+    if (!fileName || !lowered.endsWith('.zip')) return null
+
+    const rawBytes = payload?.bytes
+    if (!rawBytes) return null
+
+    const bytes = rawBytes instanceof Uint8Array ? rawBytes : Uint8Array.from(rawBytes)
+    if (bytes.length === 0) return null
+
+    return copyBytesToUploads(fileName, bytes)
+  },
+)
+
 function copyToUploads(srcPath: string): { containerPath: string; fileName: string } {
   const uploadsDir = getUploadsDir()
   const baseName = path.basename(srcPath)
@@ -71,6 +89,15 @@ function copyToUploads(srcPath: string): { containerPath: string; fileName: stri
   const destPath = path.join(uploadsDir, destName)
   fs.copyFileSync(srcPath, destPath)
   // The Docker container sees this as /uploads/<file>
+  return { containerPath: `/uploads/${destName}`, fileName: baseName }
+}
+
+function copyBytesToUploads(fileName: string, bytes: Uint8Array): { containerPath: string; fileName: string } {
+  const uploadsDir = getUploadsDir()
+  const baseName = path.basename(fileName)
+  const destName = `${Date.now()}_${baseName}`
+  const destPath = path.join(uploadsDir, destName)
+  fs.writeFileSync(destPath, Buffer.from(bytes))
   return { containerPath: `/uploads/${destName}`, fileName: baseName }
 }
 
