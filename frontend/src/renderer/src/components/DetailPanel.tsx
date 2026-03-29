@@ -204,7 +204,7 @@ export function DetailPanel({
               <>
                 {aiLoading ? (
                   <div className="detail-panel__loading">Loading AI Analysis...</div>
-                ) : aiAnalysis ? (
+                ) : aiAnalysis?.has_llm_data ? (
                   <>
                     {aiAnalysis.top_summary && (
                       <div className="detail-panel__section">

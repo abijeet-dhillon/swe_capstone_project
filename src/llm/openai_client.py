@@ -70,26 +70,37 @@ class OpenAIClient:
         if not text or not text.strip():
             raise ValueError("Text to summarize cannot be empty")
         
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant that creates concise, accurate summaries of documents. "
+                           "Focus on key points, main ideas, and important details."
+            },
+            {
+                "role": "user",
+                "content": f"Please provide a concise summary of the following text:\n\n{text}"
+            }
+        ]
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that creates concise, accurate summaries of documents. "
-                                   "Focus on key points, main ideas, and important details."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Please provide a concise summary of the following text:\n\n{text}"
-                    }
-                ],
-                max_tokens=max_tokens,
-                temperature=0.5
-            )
-            
+            response = self._create_chat(model, messages, max_tokens)
             summary = response.choices[0].message.content
             return summary.strip()
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to generate summary: {str(e)}")
+
+    def _create_chat(self, model: str, messages: list, max_tokens: int = 500):
+        """Try chat completion with graceful fallback for token param compatibility."""
+        try:
+            return self.client.chat.completions.create(
+                model=model, messages=messages, max_tokens=max_tokens, temperature=0.5,
+            )
+        except Exception:
+            pass
+        try:
+            return self.client.chat.completions.create(
+                model=model, messages=messages, max_completion_tokens=max_tokens,
+            )
+        except Exception:
+            pass
+        return self.client.chat.completions.create(model=model, messages=messages)

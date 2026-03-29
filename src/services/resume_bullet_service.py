@@ -36,24 +36,20 @@ def generate_resume_bullets_with_llm(
     client = OpenAIClient()
     prompt = _build_prompt(project_name, project_data, doc_summaries)
 
-    response = client.client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional resume writer specialising in software engineering roles. "
-                    "Given structured information about a software project, generate exactly 3 concise, "
-                    "impactful resume bullet points. Each bullet must start with a strong past-tense "
-                    "action verb, include specific technical details from the project, and be suitable "
-                    "for a CV. Return ONLY a JSON array of exactly 3 strings — no markdown, no extra text."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=400,
-        temperature=0.5,
-    )
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a professional resume writer specialising in software engineering roles. "
+                "Given structured information about a software project, generate exactly 3 concise, "
+                "impactful resume bullet points. Each bullet must start with a strong past-tense "
+                "action verb, include specific technical details from the project, and be suitable "
+                "for a CV. Return ONLY a JSON array of exactly 3 strings — no markdown, no extra text."
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+    response = _create_chat(client.client, model, messages)
 
     raw = response.choices[0].message.content.strip()
     return _parse_bullets(raw)
@@ -62,6 +58,23 @@ def generate_resume_bullets_with_llm(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _create_chat(client, model: str, messages: list):
+    """Try chat completion with graceful fallback for token param compatibility."""
+    try:
+        return client.chat.completions.create(
+            model=model, messages=messages, max_tokens=400, temperature=0.5,
+        )
+    except Exception:
+        pass
+    try:
+        return client.chat.completions.create(
+            model=model, messages=messages, max_completion_tokens=400,
+        )
+    except Exception:
+        pass
+    return client.chat.completions.create(model=model, messages=messages)
+
 
 def _build_prompt(
     project_name: str,

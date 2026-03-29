@@ -233,6 +233,7 @@ export type TopSummary = {
 }
 
 export type AIAnalysisData = {
+  has_llm_data: boolean
   portfolio_summary: string | null
   portfolio_description: string | null
   portfolio_tagline: string | null
@@ -440,7 +441,11 @@ export async function getAIAnalysis(projectId: number): Promise<AIAnalysisData> 
 
   const matchingSummary = topSummaries.find((s) => s.name === projectName) ?? topSummaries[0] ?? null
 
+  // LLM data is present when the backend flags has_ai_analysis on the portfolio item
+  const hasLlmData = Boolean(portfolio.has_ai_analysis)
+
   return {
+    has_llm_data: hasLlmData,
     portfolio_summary: (portfolio.summary ?? null) as string | null,
     portfolio_description: (portfolio.description ?? null) as string | null,
     portfolio_tagline: (portfolio.tagline ?? null) as string | null,
