@@ -197,11 +197,29 @@ def test_pdf_bundle_copies_to_portfolio_public():
         db_path = os.path.join(td, "app.db")
         store, project_ids = _seed_store(db_path)
         role_store = ProjectRoleStore(db_path=db_path)
+        config_manager = UserConfigManager(db_path=db_path)
+        config_manager.create_config("default", "/tmp/demo.zip", False)
+        config_manager.update_config(
+            "default",
+            name="Test User",
+            email="test@example.com",
+            education=[
+                {
+                    "school": "University of Victoria",
+                    "degree": "BSc Computer Science",
+                    "location": "Victoria, BC",
+                    "from": "Sep 2022",
+                    "to": "May 2027",
+                    "still_studying": True,
+                }
+            ],
+        )
+
         app.dependency_overrides[deps.get_store] = lambda: store
         app.dependency_overrides[deps.get_role_store] = lambda: role_store
+        app.dependency_overrides[deps.get_config_manager] = lambda: config_manager
         client = TestClient(app)
 
-        dest_dir = Path(td) / "portfolio" / "public"
         copied: list[bytes] = []
 
         def fake_generate(report, output_path, **_):
@@ -220,7 +238,7 @@ def test_pdf_bundle_copies_to_portfolio_public():
             resp = client.post(
                 "/resume/pdf",
                 json={
-                    "resume_owner_name": "Test User",
+                    "user_id": "default",
                     "project_ids": project_ids,
                 },
             )
@@ -230,10 +248,8 @@ def test_pdf_bundle_copies_to_portfolio_public():
             app.dependency_overrides.clear()
 
         assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/pdf"
         assert len(copied) == 1, "Expected _copy_to_portfolio_public to be called once"
         assert copied[0] == b"%PDF-1.4 bundle"
-        detail = resp.json()["detail"]
-        assert "missing_fields" in detail
-        assert set(detail["missing_fields"]) >= {"name", "contact.email", "education"}
     finally:
         shutil.rmtree(td, ignore_errors=True)
