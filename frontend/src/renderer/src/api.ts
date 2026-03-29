@@ -214,6 +214,40 @@ export type ProjectTimelineLookup = {
   zip_hash: string
 }
 
+// ─── AI Analysis Types ────────────────────────────────────────────
+
+export type TopSummary = {
+  rank: number
+  name: string
+  score: number
+  criteria: string
+  summary: string
+  user_contrib_score: number | null
+  metrics: {
+    commits: number
+    loc: number
+    recency_days: number
+    languages: string[]
+    duration_days: number
+  }
+}
+
+export type AIAnalysisData = {
+  portfolio_summary: string | null
+  portfolio_description: string | null
+  portfolio_tagline: string | null
+  key_features: string[]
+  resume_bullets: string[]
+  top_summary: TopSummary | null
+  languages: string[]
+  frameworks: string[]
+  skills: string[]
+  has_documentation: boolean
+  has_tests: boolean
+  total_files: number
+  total_lines: number
+}
+
 // ─── Consent Types ─────────────────────────────────────────────────
 
 export type ConsentRequest = {
@@ -392,6 +426,45 @@ export function uploadProject(req: UploadRequest): Promise<UploadResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
   })
+}
+
+// AI Analysis
+export async function getAIAnalysis(projectId: number): Promise<AIAnalysisData> {
+  const raw: Record<string, unknown> = await apiFetch(`/projects/${projectId}`)
+  const portfolio = (raw.portfolio_item ?? {}) as Record<string, unknown>
+  const resume = (raw.resume_item ?? {}) as Record<string, unknown>
+  const globalInsights = (raw.global_insights ?? {}) as Record<string, unknown>
+  const ranking = (globalInsights.project_ranking ?? {}) as Record<string, unknown>
+  const topSummaries = (ranking.top_summaries ?? []) as Record<string, unknown>[]
+  const projectName = (raw.project_name ?? '') as string
+
+  const matchingSummary = topSummaries.find((s) => s.name === projectName) ?? topSummaries[0] ?? null
+
+  return {
+    portfolio_summary: (portfolio.summary ?? null) as string | null,
+    portfolio_description: (portfolio.description ?? null) as string | null,
+    portfolio_tagline: (portfolio.tagline ?? null) as string | null,
+    key_features: (portfolio.key_features ?? []) as string[],
+    resume_bullets: (resume.bullets ?? []) as string[],
+    top_summary: matchingSummary
+      ? {
+          rank: (matchingSummary.rank ?? 0) as number,
+          name: (matchingSummary.name ?? '') as string,
+          score: (matchingSummary.score ?? 0) as number,
+          criteria: (matchingSummary.criteria ?? '') as string,
+          summary: (matchingSummary.summary ?? '') as string,
+          user_contrib_score: (matchingSummary.user_contrib_score ?? null) as number | null,
+          metrics: (matchingSummary.metrics ?? {}) as TopSummary['metrics'],
+        }
+      : null,
+    languages: (portfolio.languages ?? []) as string[],
+    frameworks: (portfolio.frameworks ?? []) as string[],
+    skills: (portfolio.skills ?? []) as string[],
+    has_documentation: (portfolio.has_documentation ?? false) as boolean,
+    has_tests: (portfolio.has_tests ?? false) as boolean,
+    total_files: (portfolio.total_lines !== undefined ? 0 : 0) as number,
+    total_lines: (portfolio.total_lines ?? 0) as number,
+  }
 }
 
 // Portfolio
