@@ -106,12 +106,14 @@ cp env.template .env
 Environment variables observed in code/docs:
 
 - `OPENAI_API_KEY`: used by OpenAI client code (`src/llm/openai_client.py`, `src/services/*`, `src/llm_analyzer.py`).
+- `OPENAI_MODEL`: gpt-5.2 ( this model works best and has the most applicable token limit.
 - `DATABASE_URL`: backend DB path override; defaults to `sqlite:///data/app.db`.
 - `PIPELINE_USER_ID`: default user id for pipeline CLI consent/config storage.
 - `INSIGHTS_ENCRYPTION_KEY`: serializer key in insights storage (legacy encrypted blob compatibility).
 - `THUMBNAIL_STORAGE_ROOT`: thumbnail directory root (default `data/thumbnails`).
 - `THUMBNAIL_MAX_BYTES`: max thumbnail upload size in bytes (default 5 MiB).
 - `USE_REAL_OPENAI`: enables real OpenAI client in `src/llm_analyzer.py` (otherwise it uses an offline stub path).
+
 
 Variables present in `env.template` but not directly referenced in runtime code paths scanned (`OPENAI_MODEL`, `OPENAI_TEMPERATURE`, `OPENAI_MAX_TOKENS`) are listed in Section 12 for confirmation.
 
