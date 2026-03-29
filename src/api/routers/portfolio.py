@@ -674,7 +674,11 @@ def _build_heatmap_data(store: ProjectInsightsStore) -> Optional[Dict[str, Any]]
         payload = store.load_project_insight_by_id(pid)
         if not payload:
             continue
-        timeline = (payload.get("git_analysis") or {}).get("timeline") or []
+        timeline = (
+            (payload.get("global_insights") or {})
+            .get("chronological_skills", {})
+            .get("timeline") or []
+        ) or (payload.get("git_analysis") or {}).get("timeline") or []
         if timeline:
             per_project_maps.append(_heatmap_from_timeline(timeline))
         else:
