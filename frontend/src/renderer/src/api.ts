@@ -280,6 +280,7 @@ export type PortfolioSiteRequest = {
   projects_completed?: string
   open_source_contributions?: string
   project_ids: number[]
+  hidden_sections?: string[]
 }
 
 export type PortfolioSiteResponse = {

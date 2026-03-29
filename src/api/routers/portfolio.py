@@ -627,6 +627,7 @@ class PortfolioSiteRequest(BaseModel):
     projects_completed: str = ""
     open_source_contributions: str = ""
     project_ids: List[int] = Field(..., min_length=2, max_length=4)
+    hidden_sections: List[str] = Field(default_factory=list)
 
 
 def _build_heatmap_data(store: ProjectInsightsStore) -> Optional[Dict[str, Any]]:
@@ -720,6 +721,7 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     projects = profile.get("projects") or []
     heatmap: Optional[Dict[str, Any]] = profile.get("heatmap")
     showcase: Optional[List[Dict[str, Any]]] = profile.get("showcase")
+    hidden_sections: List[str] = profile.get("hiddenSections") or []
 
     socials_str = ",\n    ".join(
         f'{{ platform: {_js(s["platform"])}, url: {_js(s["url"])}, icon: {_js(s["icon"])} }}'
@@ -847,6 +849,7 @@ export const portfolio: DeveloperProfile = {{
   ],
 
   experience: [],{heatmap_str}{showcase_str}
+  hiddenSections: {json.dumps(hidden_sections)},
 }};
 '''
 
@@ -1009,6 +1012,8 @@ def generate_portfolio_site(
         profile["heatmap"] = heatmap_data
     if showcase_data:
         profile["showcase"] = showcase_data
+    if req.hidden_sections:
+        profile["hiddenSections"] = req.hidden_sections
 
     config_path = PORTFOLIO_TEMPLATE_DIR / "src" / "config" / "portfolio.ts"
     config_path.parent.mkdir(parents=True, exist_ok=True)

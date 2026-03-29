@@ -11,7 +11,6 @@ import SkillsTimeline from './components/SkillsTimeline'
 import { ProfileView } from './components/ProfileView'
 
 type AppView = 'dashboard' | 'upload' | 'projects' | 'timeline' | 'profile'
-type DashboardMode = 'private' | 'public'
 type DashboardCategory = 'all' | 'resume' | 'portfolio' | 'timeline' | 'heatmap' | 'showcase'
 
 type DashboardCard = {
@@ -143,7 +142,6 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('all')
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [toasts, setToasts] = useState<ToastData[]>([])
-  const [mode, setMode] = useState<DashboardMode>('private')
   const [cardQuery, setCardQuery] = useState('')
   const [cardCategory, setCardCategory] = useState<DashboardCategory>('all')
   const [resumeModalOpen, setResumeModalOpen] = useState(false)
@@ -177,6 +175,7 @@ function App() {
   const [portfolioGenerating, setPortfolioGenerating] = useState(false)
   const [portfolioError, setPortfolioError] = useState('')
   const [portfolioUrl, setPortfolioUrl] = useState<string | null>(null)
+  const [portfolioHiddenSections, setPortfolioHiddenSections] = useState<string[]>([])
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -337,6 +336,7 @@ function App() {
     setPortfolioError('')
     setPortfolioGenerating(false)
     setPortfolioUrl(null)
+    setPortfolioHiddenSections([])
   }, [])
 
   const handlePortfolioCardClick = useCallback(() => {
@@ -382,6 +382,7 @@ function App() {
         projects_completed: String(projects.length),
         open_source_contributions: portfolioOss.trim(),
         project_ids: portfolioProjectIds,
+        hidden_sections: portfolioHiddenSections,
       })
       setPortfolioUrl(res.url)
       addToast('Portfolio ready', 'success', res.message || 'Your portfolio is live at localhost:3000')
@@ -390,7 +391,7 @@ function App() {
     } finally {
       setPortfolioGenerating(false)
     }
-  }, [addToast, portfolioBio, portfolioEmail, portfolioGithubUrl, portfolioLinkedinUrl, portfolioLocation, portfolioName, portfolioOss, portfolioProjectIds, portfolioTitle, portfolioYoe, projects.length])
+  }, [addToast, portfolioBio, portfolioEmail, portfolioGithubUrl, portfolioHiddenSections, portfolioLinkedinUrl, portfolioLocation, portfolioName, portfolioOss, portfolioProjectIds, portfolioTitle, portfolioYoe, projects.length])
 
   const filteredProjects = useMemo(() => {
     let list = projects
@@ -510,27 +511,6 @@ function App() {
                 <div className="features-header">
                   <div className="features-header__left">
                     <h3>Quick Actions</h3>
-                    <div className="mode-toggle" role="group" aria-label="Mode Toggle">
-                      <button
-                        className={`mode-btn ${mode === 'private' ? 'is-active' : ''}`}
-                        onClick={() => setMode('private')}
-                        aria-pressed={mode === 'private'}
-                      >
-                        Private
-                      </button>
-                      <button
-                        className={`mode-btn ${mode === 'public' ? 'is-active' : ''}`}
-                        onClick={() => setMode('public')}
-                        aria-pressed={mode === 'public'}
-                      >
-                        Public
-                      </button>
-                    </div>
-                    <span className="mode-hint">
-                      {mode === 'private'
-                        ? 'Customization controls are enabled.'
-                        : 'Customization controls are disabled in public mode.'}
-                    </span>
                   </div>
                   <div className="features-header__right">
                     <input
@@ -575,7 +555,7 @@ function App() {
                         <p>{card.description}</p>
                         <button
                           className="action-btn"
-                          disabled={mode === 'public' || card.status === 'coming-soon'}
+                          disabled={card.status === 'coming-soon'}
                           onClick={() => {
                             if (card.id === 'timeline') {
                               setView('timeline')
@@ -1029,6 +1009,37 @@ function App() {
                   <span>Open source contributions</span>
                   <input className="input" type="text" placeholder="e.g. 50+" value={portfolioOss} onChange={(e) => setPortfolioOss(e.target.value)} />
                 </label>
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <div className="modal-section__heading">
+                <div>
+                  <h4>Section Visibility</h4>
+                  <p className="modal-helper">Choose which sections appear on the generated portfolio. Unchecked sections will be hidden from visitors.</p>
+                </div>
+              </div>
+              <div className="modal-visibility-grid">
+                {[
+                  { id: 'about', label: 'About Me' },
+                  { id: 'skills', label: 'Skills' },
+                  { id: 'heatmap', label: 'Activity Heatmap' },
+                  { id: 'showcase', label: 'Top Projects' },
+                  { id: 'projects', label: 'Projects Grid' },
+                ].map((section) => (
+                  <label key={section.id} className={`modal-visibility-option ${portfolioHiddenSections.includes(section.id) ? 'is-hidden' : 'is-visible'}`}>
+                    <input
+                      type="checkbox"
+                      checked={!portfolioHiddenSections.includes(section.id)}
+                      onChange={() =>
+                        setPortfolioHiddenSections((prev) =>
+                          prev.includes(section.id) ? prev.filter((s) => s !== section.id) : [...prev, section.id]
+                        )
+                      }
+                    />
+                    <span>{section.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
 

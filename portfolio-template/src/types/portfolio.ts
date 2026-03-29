@@ -28,6 +28,33 @@ export interface SkillCategory {
   skills: string[];
 }
 
+export interface HeatmapData {
+  weeks: Record<string, number>;
+  total_activity: number;
+  date_range: { start: string; end: string };
+}
+
+export interface ShowcaseProject {
+  project_id: number;
+  rank: number;
+  project_title: string;
+  score: number;
+  summary?: string;
+  key_skills: string[];
+  key_metrics: { total_contributors: number };
+  evolution: {
+    total_commits: number;
+    duration_days: number;
+    contributors: string[];
+    first_commit_at?: string;
+    last_commit_at?: string;
+  };
+}
+
+export interface PortfolioCustomization {
+  hiddenSections: string[];
+}
+
 export interface DeveloperProfile {
   name: string;
   title: string;
@@ -44,4 +71,7 @@ export interface DeveloperProfile {
   skills: SkillCategory[];
   projects: Project[];
   experience: Experience[];
+  heatmap?: HeatmapData;
+  showcase?: ShowcaseProject[];
+  hiddenSections?: string[];
 }

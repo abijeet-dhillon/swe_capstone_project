@@ -255,3 +255,50 @@ def test_generate_site_uses_placeholder_when_thumbnail_file_missing():
         assert image_url == "/placeholder-project.jpg"
     finally:
         shutil.rmtree(td, ignore_errors=True)
+
+
+# --- hiddenSections in _build_portfolio_ts ---
+
+def test_ts_emits_empty_hidden_sections_by_default():
+    ts = _build_portfolio_ts({**_BASE})
+    assert "hiddenSections: []" in ts
+
+
+def test_ts_emits_hidden_sections_when_provided():
+    ts = _build_portfolio_ts({**_BASE, "hiddenSections": ["heatmap", "about"]})
+    assert '"heatmap"' in ts
+    assert '"about"' in ts
+    assert "hiddenSections:" in ts
+
+
+def test_ts_hidden_sections_is_valid_js_array():
+    ts = _build_portfolio_ts({**_BASE, "hiddenSections": ["skills"]})
+    assert 'hiddenSections: ["skills"]' in ts
+
+
+def test_ts_hidden_sections_preserves_order():
+    sections = ["showcase", "projects", "heatmap"]
+    ts = _build_portfolio_ts({**_BASE, "hiddenSections": sections})
+    assert '["showcase", "projects", "heatmap"]' in ts
+
+
+def test_ts_hidden_sections_empty_list_explicit():
+    ts = _build_portfolio_ts({**_BASE, "hiddenSections": []})
+    assert "hiddenSections: []" in ts
+
+
+# --- PortfolioSiteRequest hidden_sections field ---
+
+def test_portfolio_site_request_accepts_hidden_sections():
+    from src.api.routers.portfolio import PortfolioSiteRequest
+    req = PortfolioSiteRequest(
+        name="Test", project_ids=[1, 2],
+        hidden_sections=["heatmap", "about"],
+    )
+    assert req.hidden_sections == ["heatmap", "about"]
+
+
+def test_portfolio_site_request_defaults_hidden_sections_empty():
+    from src.api.routers.portfolio import PortfolioSiteRequest
+    req = PortfolioSiteRequest(name="Test", project_ids=[1, 2])
+    assert req.hidden_sections == []
