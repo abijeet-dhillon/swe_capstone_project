@@ -810,6 +810,7 @@ function App() {
                 {[
                   { id: 'about', label: 'About Me' },
                   { id: 'skills', label: 'Skills' },
+                  { id: 'skillsTimeline', label: 'Skills Progression' },
                   { id: 'heatmap', label: 'Activity Heatmap' },
                   { id: 'showcase', label: 'Top Projects' },
                   { id: 'projects', label: 'Projects Grid' },

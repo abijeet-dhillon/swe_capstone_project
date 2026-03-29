@@ -12,7 +12,7 @@ import { Footer } from "./footer";
 import { SearchFilterBar } from "./search-filter-bar";
 import type { DeveloperProfile } from "@/types/portfolio";
 
-type SectionId = "about" | "skills" | "heatmap" | "showcase" | "projects";
+type SectionId = "about" | "skills" | "skillsTimeline" | "heatmap" | "showcase" | "projects";
 
 export function DashboardShell({ profile }: { profile: DeveloperProfile }) {
   const [search, setSearch] = useState("");
@@ -86,7 +86,7 @@ export function DashboardShell({ profile }: { profile: DeveloperProfile }) {
 
       {visible("about") && <About profile={profile} />}
       {visible("skills") && filteredSkills.length > 0 && <Skills skills={filteredSkills} />}
-      {profile.skillsTimeline && profile.skillsTimeline.length > 0 && (
+      {visible("skillsTimeline") && profile.skillsTimeline && profile.skillsTimeline.length > 0 && (
         <SkillsProgressionTimeline timeline={profile.skillsTimeline} />
       )}
       {visible("heatmap") && profile.heatmap && <ActivityHeatmap heatmap={profile.heatmap} />}
