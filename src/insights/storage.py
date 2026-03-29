@@ -3148,12 +3148,13 @@ class ProjectInsightsStore:
             features = []
         bullets = conn.execute(
             f"""
-            SELECT bullet_text FROM {RESUME_BULLETS_TABLE}
+            SELECT bullet_text, source FROM {RESUME_BULLETS_TABLE}
             WHERE portfolio_insight_id = ?
             ORDER BY display_order ASC;
             """,
             (insight_id,),
         ).fetchall()
+        has_ai_bullets = any(row[1] == "manual" for row in bullets)
         portfolio_item = {
             "project_name": project_name,
             "tagline": tagline,
@@ -3170,6 +3171,7 @@ class ProjectInsightsStore:
             "summary": summary,
             "has_documentation": project_metrics.get("has_documentation", False),
             "has_tests": project_metrics.get("has_tests", False),
+            "has_ai_analysis": has_ai_bullets,
         }
         resume_item = {
             "project_name": project_name,
