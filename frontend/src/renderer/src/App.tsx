@@ -641,6 +641,16 @@ function App() {
                   <h4>Saved Profile Data</h4>
                   <p className="modal-helper">Resume identity, contact, and education are loaded from your Profile page.</p>
                 </div>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    resetResumeModal()
+                    setView('profile')
+                  }}
+                >
+                  Edit Profile
+                </button>
               </div>
               <div className="modal-form-grid modal-form-grid--two">
                 <label className="modal-field">
@@ -655,18 +665,6 @@ function App() {
                   <span>Education entries</span>
                   <input className="input" type="text" value={String(savedProfile?.education?.length ?? 0)} disabled />
                 </label>
-                <div className="modal-field" style={{ justifyContent: 'flex-end' }}>
-                  <button
-                    type="button"
-                    className="action-btn"
-                    onClick={() => {
-                      resetResumeModal()
-                      setView('profile')
-                    }}
-                  >
-                    Edit Profile
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -758,6 +756,16 @@ function App() {
                   <h4>Saved Profile Data</h4>
                   <p className="modal-helper">Portfolio title, about me, links, and experience are loaded from Profile.</p>
                 </div>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    resetPortfolioModal()
+                    setView('profile')
+                  }}
+                >
+                  Edit Profile
+                </button>
               </div>
               <div className="modal-form-grid modal-form-grid--two">
                 <label className="modal-field">
@@ -808,18 +816,6 @@ function App() {
                   <span>Open source contributions</span>
                   <input className="input" type="text" value={savedProfile?.portfolio?.open_source_contribution ?? ''} disabled />
                 </label>
-                <div className="modal-field" style={{ justifyContent: 'flex-end' }}>
-                  <button
-                    type="button"
-                    className="action-btn"
-                    onClick={() => {
-                      resetPortfolioModal()
-                      setView('profile')
-                    }}
-                  >
-                    Edit Profile
-                  </button>
-                </div>
               </div>
             </div>
 

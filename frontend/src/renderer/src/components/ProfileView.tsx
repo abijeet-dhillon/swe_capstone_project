@@ -344,7 +344,7 @@ export function ProfileView({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <button type="submit" className="action-btn" disabled={saveStatus === 'saving'} style={{ minWidth: '9rem' }}>
+        <button type="submit" className="action-btn" disabled={saveStatus === 'saving'}>
           {saveStatus === 'saving' ? 'Saving…' : 'Save Profile'}
         </button>
         {saveStatus === 'success' && <span className="pill ready" style={{ fontSize: '0.8rem' }}>Saved</span>}
