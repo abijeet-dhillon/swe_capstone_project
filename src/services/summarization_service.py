@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from llm.openai_client import OpenAIClient
+from llm.openai_client import DEFAULT_MODEL, OpenAIClient
 from parsers.document_parser import DocumentParser
 
 # Load environment variables (e.g., OPENAI_API_KEY from .env)
@@ -34,7 +34,7 @@ class SummarizationService:
         self, 
         file_path: str, 
         max_summary_tokens: int = 500,
-        model: str = "gpt-5.2"
+        model: str = DEFAULT_MODEL
     ) -> Dict[str, Any]:
         """
         Parse and summarize a document.
