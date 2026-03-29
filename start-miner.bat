@@ -10,9 +10,24 @@ echo.
 
 IF NOT EXIST ".env" (
     echo Notice: No .env file found. Copying env.template to .env...
-    copy env.template .env
-    echo IMPORTANT: If you want to test the optional OpenAI features, please open the newly created '.env' file and add your OPENAI_API_KEY now.
-    pause
+    copy env.template .env >nul
+)
+
+FINDSTR /C:"OPENAI_API_KEY=sk-" ".env" >nul
+IF ERRORLEVEL 1 (
+    echo.
+    echo Notice: No active OpenAI API key detected in .env.
+    echo IMPORTANT: If you want to test the optional LLM features, paste your OpenAI API key below.
+    set /p OPENAI_KEY="API Key (leave blank to skip): "
+    
+    setlocal EnableDelayedExpansion
+    IF NOT "!OPENAI_KEY!"=="" (
+        powershell -Command "$c = Get-Content .env; if ($c -match '^OPENAI_API_KEY=') { $c -replace '^OPENAI_API_KEY=.*', 'OPENAI_API_KEY=!OPENAI_KEY!' | Set-Content .env } else { Add-Content .env 'OPENAI_API_KEY=!OPENAI_KEY!' }"
+        echo API Key successfully saved to .env!
+    ) ELSE (
+        echo Starting without OpenAI key. The app will use local fallbacks.
+    )
+    endlocal
     echo.
 )
 

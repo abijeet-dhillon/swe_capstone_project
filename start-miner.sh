@@ -13,9 +13,21 @@ echo -e "${YELLOW}Please keep this terminal window open to keep the processes ru
 if [ ! -f ".env" ]; then
     echo -e "\n${YELLOW}Notice: No .env file found. Copying env.template to .env...${NC}"
     cp env.template .env
-    echo -e "${RED}IMPORTANT: If you want to test the optional OpenAI features, please open the newly created '.env' file in this folder and add your OPENAI_API_KEY now.${NC}"
-    read -p "Press [Enter] to continue starting the app... "
-    echo ""
+fi
+
+# Prompt for OpenAI API Key if it's missing or still a placeholder
+if ! grep -q "^OPENAI_API_KEY=sk-" .env 2>/dev/null; then
+    echo -e "\n${YELLOW}Notice: No active OpenAI API key detected in .env.${NC}"
+    echo -e "${RED}IMPORTANT: If you want to test the optional LLM features, paste your OpenAI API key below.${NC}"
+    read -p "API Key (leave blank to skip): " OPENAI_KEY
+    
+    if [ ! -z "$OPENAI_KEY" ]; then
+        # Safely replace the placeholder or append the key in .env
+        awk -v key="$OPENAI_KEY" 'BEGIN{found=0} /^OPENAI_API_KEY=/{print "OPENAI_API_KEY="key; found=1; next} {print} END{if(!found) print "OPENAI_API_KEY="key}' .env > .env.tmp && mv .env.tmp .env
+        echo -e "${GREEN}API Key successfully saved to .env!${NC}\n"
+    else
+        echo -e "Starting without OpenAI key. The app will use local fallbacks.\n"
+    fi
 fi
 
 # Cleanup function to run when the app closes
