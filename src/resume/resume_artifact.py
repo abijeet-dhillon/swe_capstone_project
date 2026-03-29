@@ -49,6 +49,13 @@ def _clean_text(value: Any) -> str:
         return value.strip()
     return str(value).strip()
 
+
+def _ensure_https(url: str) -> str:
+    if url and not url.startswith(("http://", "https://")):
+        return "https://" + url
+    return url
+
+
 def _to_int(value: Any) -> int:
     try:
         return int(value or 0)
@@ -81,9 +88,9 @@ def _select_explicit_identity(report: Dict[str, Any]) -> Dict[str, str]:
         "name": _clean_text(owner.get("name")),
         "email": _clean_text(owner.get("email")),
         "phone": _clean_text(owner.get("phone")),
-        "linkedin_url": _clean_text(owner.get("linkedin_url")),
+        "linkedin_url": _ensure_https(_clean_text(owner.get("linkedin_url"))),
         "linkedin_label": _clean_text(owner.get("linkedin_label") or ("LinkedIn" if _clean_text(owner.get("linkedin_url")) else "")),
-        "github_url": _clean_text(owner.get("github_url")),
+        "github_url": _ensure_https(_clean_text(owner.get("github_url"))),
         "github_label": _clean_text(owner.get("github_label") or ("GitHub" if _clean_text(owner.get("github_url")) else "")),
     }
 

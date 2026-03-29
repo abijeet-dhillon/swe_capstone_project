@@ -640,6 +640,12 @@ def _clean_text(value: Any) -> str:
     return str(value).strip()
 
 
+def _ensure_https(url: str) -> str:
+    if url and not url.startswith(("http://", "https://")):
+        return "https://" + url
+    return url
+
+
 def _default_name(config: Optional[UserConfig]) -> str:
     if config is None:
         return ""
@@ -1118,9 +1124,9 @@ def generate_portfolio_site(
 
     socials: List[Dict[str, str]] = []
     if resolved_github_url:
-        socials.append({"platform": "GitHub", "url": resolved_github_url, "icon": "github"})
+        socials.append({"platform": "GitHub", "url": _ensure_https(resolved_github_url), "icon": "github"})
     if resolved_linkedin_url:
-        socials.append({"platform": "LinkedIn", "url": resolved_linkedin_url, "icon": "linkedin"})
+        socials.append({"platform": "LinkedIn", "url": _ensure_https(resolved_linkedin_url), "icon": "linkedin"})
 
     highlights: List[Dict[str, str]] = []
     if resolved_years_experience:
