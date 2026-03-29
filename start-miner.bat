@@ -10,7 +10,7 @@ echo.
 
 echo [1/3] Starting Python Backend via Docker...
 REM Start docker desktop containers in the background
-docker compose up -d backend
+docker compose up --build -d backend
 
 echo Waiting 5 seconds for backend to initialize...
 timeout /t 5 /nobreak >nul

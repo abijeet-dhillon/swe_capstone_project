@@ -31,7 +31,7 @@ trap 'cleanup' SIGINT SIGTERM EXIT
 
 # --- STEP 1: START BACKEND ---
 echo -e "\n${GREEN}[1/3] Starting Python Backend via Docker...${NC}"
-docker compose up -d backend
+docker compose up --build -d backend
 
 # Wait a few seconds to ensure FastAPI is fully booted
 echo "Waiting for backend to be ready on port 8000..."
