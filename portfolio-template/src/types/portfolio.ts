@@ -28,6 +28,40 @@ export interface SkillCategory {
   skills: string[];
 }
 
+export interface HeatmapData {
+  weeks: Record<string, number>;
+  total_weeks: number;
+  total_activity: number;
+  date_range: { start: string; end: string };
+}
+
+export interface ShowcaseProject {
+  rank: number;
+  project_id: number;
+  project_title: string;
+  score: number;
+  summary: string;
+  key_skills: string[];
+  key_metrics: {
+    total_files: number;
+    total_lines: number;
+    total_commits: number;
+    total_contributors: number;
+    doc_files: number;
+    image_files: number;
+    video_files: number;
+    test_files: number;
+  };
+  evolution: {
+    first_commit_at: string | null;
+    last_commit_at: string | null;
+    duration_days: number;
+    total_commits: number;
+    contributors: string[];
+    activity_mix: Record<string, number>;
+  };
+}
+
 /** A single skill with its progression metadata derived from the timeline. */
 export interface SkillProgressionItem {
   skill: string;
@@ -66,41 +100,10 @@ export interface DeveloperProfile {
   projects: Project[];
   experience: Experience[];
   /** Optional: heatmap of weekly activity */
-  heatmap?: {
-    weeks: Record<string, number>;
-    total_weeks: number;
-    total_activity: number;
-    date_range: { start: string; end: string };
-  };
+  heatmap?: HeatmapData;
   /** Optional: top showcase projects */
   showcase?: ShowcaseProject[];
   /** Optional: chronological skill progression for the portfolio timeline section */
   skillsTimeline?: SkillTimelineEntry[];
-}
-
-export interface ShowcaseProject {
-  rank: number;
-  project_id: number;
-  project_title: string;
-  score: number;
-  summary: string;
-  key_skills: string[];
-  key_metrics: {
-    total_files: number;
-    total_lines: number;
-    total_commits: number;
-    total_contributors: number;
-    doc_files: number;
-    image_files: number;
-    video_files: number;
-    test_files: number;
-  };
-  evolution: {
-    first_commit_at: string | null;
-    last_commit_at: string | null;
-    duration_days: number;
-    total_commits: number;
-    contributors: string[];
-    activity_mix: Record<string, number>;
-  };
+  hiddenSections?: string[];
 }

@@ -629,6 +629,7 @@ class PortfolioSiteRequest(BaseModel):
     projects_completed: str = ""
     open_source_contributions: str = ""
     project_ids: List[int] = Field(..., min_length=2, max_length=4)
+    hidden_sections: List[str] = Field(default_factory=list)
 
 
 def _clean_text(value: Any) -> str:
@@ -877,6 +878,7 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     projects = profile.get("projects") or []
     heatmap: Optional[Dict[str, Any]] = profile.get("heatmap")
     showcase: Optional[List[Dict[str, Any]]] = profile.get("showcase")
+    hidden_sections: List[str] = profile.get("hiddenSections") or []
     skills_timeline: Optional[List[Dict[str, Any]]] = profile.get("skillsTimeline")
 
     socials_str = ",\n    ".join(
@@ -1032,6 +1034,7 @@ export const portfolio: DeveloperProfile = {{
   ],
 
   experience: [],{heatmap_str}{showcase_str}{skills_timeline_str}
+  hiddenSections: {json.dumps(hidden_sections)},
 }};
 '''
 
@@ -1218,6 +1221,8 @@ def generate_portfolio_site(
         profile["heatmap"] = heatmap_data
     if showcase_data:
         profile["showcase"] = showcase_data
+    if req.hidden_sections:
+        profile["hiddenSections"] = req.hidden_sections
     if skills_timeline_data:
         profile["skillsTimeline"] = skills_timeline_data
 

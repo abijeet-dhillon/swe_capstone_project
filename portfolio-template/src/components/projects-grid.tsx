@@ -18,15 +18,21 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
           subtitle="A selection of things I have built"
         />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {projects.map((project) => (
-            <ProjectCard
-              key={project.title}
-              project={project}
-              featured={project.featured}
-            />
-          ))}
-        </div>
+        {projects.length === 0 ? (
+          <p className="text-center text-sm text-zinc-500">
+            No projects match your search or filter.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.title}
+                project={project}
+                featured={project.featured}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
