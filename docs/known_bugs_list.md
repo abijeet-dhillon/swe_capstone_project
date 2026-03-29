@@ -57,3 +57,13 @@
 **Likely type:** validation gap  
 **Priority:** low  
 **Evidence:** `frontend/src/renderer/src/components/UploadZone.tsx` (`handleManualSubmit` calls `pickFile` without zip extension check; lines ~189-194), same file declares `.zip` acceptance in other flows and UI text (“Accepts .zip files only”; line ~243).
+
+### Bug 6: Non-AI runs still populate the AI analysis view with local output
+
+**Area:** Analysis results display / AI analysis tab  
+**Issue:** The dedicated “AI Analysis” tab is populated from general project payload fields (portfolio/resume/ranking) even when LLM is disabled, so the tab title overstates what generated the content.  
+**When it occurs:** User disables AI-enhanced analysis (`llm_consent = false`) and then opens analysis output that is labeled as AI.  
+**User-visible impact:** Users may incorrectly assume the shown analysis was LLM-generated when it is actually local fallback output.  
+**Likely type:** backend-frontend mismatch  
+**Priority:** low  
+**Evidence:** In `feat/llm-analysis-tab`, `frontend/src/renderer/src/components/DetailPanel.tsx` adds an explicit `AI Analysis` tab and labels like “AI Summary” (lines ~93-105 and ~228-233). That tab calls `getAIAnalysis()` (`frontend/src/renderer/src/api.ts` lines ~431-468), which reads from `/projects/{id}` payload fields `portfolio_item.summary`, `resume_item.bullets`, and `global_insights.project_ranking.top_summaries` (lines ~433-449), not from `llm_summaries`. Backend upload computes `use_llm` (`src/api/routers/projects.py` line ~446) but does not return it in the upload response payload (lines ~493-501), so UI cannot distinguish mode. Pipeline only creates `llm_summaries` when `use_llm` is true (`src/pipeline/orchestrator.py` lines ~368-372), while ranking summaries are always generated in step 7 and persisted (`src/pipeline/orchestrator.py` lines ~374-377, `src/project/top_summary.py` lines ~172-218, `src/insights/storage.py` lines ~2668-2680).
