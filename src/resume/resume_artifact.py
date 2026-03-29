@@ -117,6 +117,38 @@ def _build_education(report: Dict[str, Any]) -> List[Dict[str, str]]:
         )
     return education_entries
 
+
+def _build_awards(report: Dict[str, Any]) -> List[Dict[str, Any]]:
+    owner = _as_dict(report.get("resume_owner"))
+    raw_awards = report.get("awards")
+    if not isinstance(raw_awards, list):
+        raw_awards = owner.get("awards")
+    if not isinstance(raw_awards, list):
+        return []
+
+    awards: List[Dict[str, Any]] = []
+    for raw_entry in raw_awards:
+        if isinstance(raw_entry, str):
+            name = _clean_text(raw_entry)
+            if name:
+                awards.append({"name": name, "date": "", "organization": "", "bullets": []})
+            continue
+        entry = _as_dict(raw_entry)
+        name = _clean_text(entry.get("name"))
+        date = _clean_text(entry.get("date"))
+        organization = _clean_text(entry.get("organization"))
+        bullets = [_clean_text(item) for item in _as_list(entry.get("bullets")) if _clean_text(item)]
+        if name or date or organization or bullets:
+            awards.append(
+                {
+                    "name": name,
+                    "date": date,
+                    "organization": organization,
+                    "bullets": bullets,
+                }
+            )
+    return awards
+
 def _collect_skills(projects: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]:
     counts: Counter[str] = Counter()
     original_by_key: Dict[str, str] = {}
@@ -246,7 +278,7 @@ def build_resume_context(report: Dict[str, Any]) -> Dict[str, Any]:
         "education": _build_education(report),
         "skills": _collect_skills(projects),
         "projects": _build_projects(report, projects),
-        "awards": [],
+        "awards": _build_awards(report),
     }
     return escape_latex_data(context)
 

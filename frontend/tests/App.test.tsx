@@ -102,6 +102,30 @@ vi.mock('../src/renderer/src/api', () => ({
   getProjectTimelineLookup: vi.fn().mockResolvedValue([
     { project_id: 1, project_name: 'Alpha', zip_hash: 'ziphash01' },
   ]),
+  getProfile: vi.fn().mockResolvedValue({
+    user_id: 'default',
+    name: 'Jane Smith',
+    contact: {
+      phone_number: '555-0000',
+      email: 'jane@example.com',
+      linkedin_url: 'https://linkedin.com/in/jane',
+      github_url: 'https://github.com/jane',
+      linkedin_label: 'LinkedIn',
+      github_label: 'GitHub',
+    },
+    education: [
+      { school: 'UVic', location: 'Victoria', degree: 'BSc', from: '2022', to: '2026', still_studying: false },
+    ],
+    awards: [],
+    portfolio: {
+      title: 'Full-Stack Developer',
+      about_me: 'Bio',
+      years_of_experience: '3+',
+      open_source_contribution: '10+',
+    },
+    git_identifier: 'jane@example.com',
+  }),
+  updateProfile: vi.fn().mockResolvedValue({ status: 'ok' }),
 }))
 
 describe('App Layout', () => {
@@ -157,8 +181,7 @@ describe('App Layout', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('Generate One-Page Resume')).toBeInTheDocument()
     expect(screen.getByText('Choose the work samples you want highlighted on this one-page resume.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Resume owner name')).toBeInTheDocument()
-    expect(screen.getByLabelText('Phone number')).toBeInTheDocument()
+    expect(screen.getByText('Saved Profile Data')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate PDF' })).toBeInTheDocument()
   })
@@ -168,11 +191,12 @@ describe('App Layout', () => {
     await screen.findByText('3 projects')
     fireEvent.click(screen.getByRole('button', { name: 'Generate Resume' }))
 
-    const ownerName = await screen.findByLabelText('Resume owner name')
-    fireEvent.change(ownerName, { target: { value: '' } })
+    await screen.findByRole('dialog')
+    const firstProject = await screen.findByRole('checkbox', { name: 'docs' })
+    fireEvent.click(firstProject)
     fireEvent.click(screen.getByRole('button', { name: 'Generate PDF' }))
 
-    expect(await screen.findByText('Choose at least one project and enter the resume owner name.')).toBeInTheDocument()
+    expect(await screen.findByText('Choose at least one project.')).toBeInTheDocument()
   })
 
   it('opens the portfolio modal with grouped profile fields and clear selection state', async () => {

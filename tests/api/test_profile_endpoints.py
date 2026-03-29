@@ -3,7 +3,6 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.api import deps
@@ -27,21 +26,48 @@ def profile_client(seed: bool = True, extra_fields: dict | None = None):
         shutil.rmtree(td, ignore_errors=True)
 
 
-def test_get_profile_returns_all_fields():
-    with profile_client(extra_fields={"first_name": "Jane", "last_name": "Smith", "email": "j@x.com", "github_username": "jsmith", "git_identifier": "j@x.com"}) as (client, _):
+def test_get_profile_returns_structured_fields():
+    with profile_client(
+        extra_fields={
+            "name": "Jane Smith",
+            "email": "j@x.com",
+            "phone_number": "123",
+            "linkedin_url": "https://linkedin.com/in/jane",
+            "github_url": "https://github.com/jane",
+            "education": [
+                {
+                    "school": "UVic",
+                    "degree": "BSc",
+                    "location": "Victoria",
+                    "from": "Sep 2022",
+                    "to": "May 2026",
+                    "still_studying": False,
+                }
+            ],
+            "awards": ["Dean's List"],
+            "portfolio_title": "Full-Stack Developer",
+        }
+    ) as (client, _):
         r = client.get("/profile/u")
         assert r.status_code == 200
         d = r.json()
-        assert d["first_name"] == "Jane" and d["last_name"] == "Smith"
-        assert d["email"] == "j@x.com" and d["github_username"] == "jsmith"
+        assert d["name"] == "Jane Smith"
+        assert d["contact"]["email"] == "j@x.com"
+        assert d["contact"]["github_url"] == "https://github.com/jane"
+        assert d["education"][0]["school"] == "UVic"
+        assert d["awards"] == ["Dean's List"]
+        assert d["portfolio"]["title"] == "Full-Stack Developer"
 
 
-def test_get_profile_nulls_when_unset():
+def test_get_profile_defaults_when_unset():
     with profile_client() as (client, _):
         r = client.get("/profile/u")
         assert r.status_code == 200
         d = r.json()
-        assert all(d[k] is None for k in ("first_name", "last_name", "email", "github_username"))
+        assert d["name"] is None
+        assert d["contact"]["email"] is None
+        assert d["education"] == []
+        assert d["awards"] == []
 
 
 def test_get_profile_404_unknown_user():
@@ -49,21 +75,40 @@ def test_get_profile_404_unknown_user():
         assert client.get("/profile/nobody").status_code == 404
 
 
-def test_patch_profile_updates_fields():
+def test_patch_profile_updates_structured_fields():
     with profile_client() as (client, manager):
-        r = client.patch("/profile/u", json={"first_name": "Alice", "email": "a@x.com"})
+        r = client.patch(
+            "/profile/u",
+            json={
+                "name": "Alice Cooper",
+                "contact": {"email": "alice@example.com", "phone_number": "999"},
+                "education": [{"school": "UVic", "degree": "BSc", "from": "2022", "to": "2026"}],
+                "awards": ["Scholarship Winner"],
+                "portfolio": {"title": "Developer", "about_me": "Building tools"},
+            },
+        )
         assert r.status_code == 200
         stored = manager.load_config("u", silent=True)
-        assert stored.first_name == "Alice" and stored.email == "a@x.com"
+        assert stored is not None
+        assert stored.name == "Alice Cooper"
+        assert stored.email == "alice@example.com"
+        assert stored.phone_number == "999"
+        assert stored.education and stored.education[0]["school"] == "UVic"
+        assert stored.awards == ["Scholarship Winner"]
+        assert stored.portfolio_title == "Developer"
 
 
-def test_patch_profile_partial_leaves_others_unchanged():
-    with profile_client(extra_fields={"first_name": "Bob", "last_name": "Jones"}) as (client, manager):
-        client.patch("/profile/u", json={"github_username": "bjones"})
+def test_patch_profile_partial_leaves_other_values():
+    with profile_client(extra_fields={"name": "Bob", "email": "bob@example.com"}) as (client, manager):
+        r = client.patch("/profile/u", json={"contact": {"github_url": "https://github.com/bob"}})
+        assert r.status_code == 200
         stored = manager.load_config("u", silent=True)
-        assert stored.first_name == "Bob" and stored.last_name == "Jones" and stored.github_username == "bjones"
+        assert stored is not None
+        assert stored.name == "Bob"
+        assert stored.email == "bob@example.com"
+        assert stored.github_url == "https://github.com/bob"
 
 
 def test_patch_profile_404_unknown_user():
     with profile_client(seed=False) as (client, _):
-        assert client.patch("/profile/nobody", json={"first_name": "Ghost"}).status_code == 404
+        assert client.patch("/profile/nobody", json={"name": "Ghost"}).status_code == 404

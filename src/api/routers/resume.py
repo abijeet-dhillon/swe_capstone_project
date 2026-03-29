@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_role_store, get_store
+from src.api.deps import get_config_manager, get_role_store, get_store
+from src.config.config_manager import UserConfig, UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
@@ -48,7 +49,8 @@ class ResumeEditPayload(BaseModel):
 
 
 class ResumePdfPayload(BaseModel):
-    resume_owner_name: str = Field(..., min_length=1)
+    user_id: str = Field(default="default", min_length=1)
+    resume_owner_name: Optional[str] = None
 
 
 class EducationPayload(BaseModel):
@@ -62,15 +64,138 @@ class EducationPayload(BaseModel):
 
 
 class ResumeProfilePayload(BaseModel):
-    resume_owner_name: str = Field(..., min_length=1)
+    user_id: str = Field(default="default", min_length=1)
+    resume_owner_name: Optional[str] = None
     project_ids: List[int] = Field(..., min_length=1)
-    phone: str = Field(default="")
-    email: str = Field(default="")
-    linkedin_url: str = Field(default="")
-    linkedin_label: str = Field(default="")
-    github_url: str = Field(default="")
-    github_label: str = Field(default="")
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    linkedin_label: Optional[str] = None
+    github_url: Optional[str] = None
+    github_label: Optional[str] = None
     education: List[EducationPayload] = Field(default_factory=list)
+    awards: List[str] = Field(default_factory=list)
+
+
+def _clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
+def _profile_name(config: UserConfig) -> str:
+    if _clean_text(config.name):
+        return _clean_text(config.name)
+    first = _clean_text(config.first_name)
+    last = _clean_text(config.last_name)
+    combined = " ".join(part for part in (first, last) if part)
+    if combined:
+        return combined
+    return _clean_text(config.resume_owner_name)
+
+
+def _profile_education_entries(config: UserConfig) -> List[Dict[str, Any]]:
+    entries: List[Dict[str, Any]] = []
+    if not isinstance(config.education, list):
+        return entries
+    for raw_entry in config.education:
+        if not isinstance(raw_entry, dict):
+            continue
+        school = _clean_text(raw_entry.get("school"))
+        degree = _clean_text(raw_entry.get("degree"))
+        location = _clean_text(raw_entry.get("location"))
+        start_date = _clean_text(raw_entry.get("from") or raw_entry.get("start_date"))
+        end_or_expected = _clean_text(raw_entry.get("to") or raw_entry.get("end_date") or raw_entry.get("expected_graduation"))
+        is_current = bool(raw_entry.get("still_studying") or raw_entry.get("is_current"))
+        if not any([school, degree, location, start_date, end_or_expected, is_current]):
+            continue
+        entries.append(
+            {
+                "school": school,
+                "degree": degree,
+                "location": location,
+                "start_date": start_date,
+                "end_date": "" if is_current else end_or_expected,
+                "is_current": is_current,
+                "expected_graduation": end_or_expected if is_current else "",
+            }
+        )
+    return entries
+
+
+def _has_meaningful_education_entry(entry: Dict[str, Any]) -> bool:
+    school = _clean_text(entry.get("school"))
+    if not school:
+        return False
+    return any(
+        [
+            _clean_text(entry.get("degree")),
+            _clean_text(entry.get("location")),
+            _clean_text(entry.get("start_date")),
+            _clean_text(entry.get("end_date")),
+            _clean_text(entry.get("expected_graduation")),
+            bool(entry.get("is_current")),
+        ]
+    )
+
+
+def _resume_profile_missing_fields(config: Optional[UserConfig]) -> List[str]:
+    if config is None:
+        return ["profile"]
+
+    missing: List[str] = []
+    if not _profile_name(config):
+        missing.append("name")
+    if not _clean_text(config.email):
+        missing.append("contact.email")
+
+    education_entries = _profile_education_entries(config)
+    if not any(_has_meaningful_education_entry(entry) for entry in education_entries):
+        missing.append("education")
+
+    return missing
+
+
+def _build_resume_owner(
+    config: UserConfig,
+    payload: ResumeProfilePayload,
+) -> Dict[str, Any]:
+    profile_name = _profile_name(config)
+    profile_education = _profile_education_entries(config)
+    profile_awards = [item for item in (config.awards or []) if isinstance(item, (str, dict))]
+
+    owner = {
+        "name": _clean_text(payload.resume_owner_name) or profile_name,
+        "phone": _clean_text(payload.phone) or _clean_text(config.phone_number),
+        "email": _clean_text(payload.email) or _clean_text(config.email),
+        "linkedin_url": _clean_text(payload.linkedin_url) or _clean_text(config.linkedin_url),
+        "linkedin_label": _clean_text(payload.linkedin_label) or _clean_text(config.linkedin_label),
+        "github_url": _clean_text(payload.github_url) or _clean_text(config.github_url),
+        "github_label": _clean_text(payload.github_label) or _clean_text(config.github_label),
+        "education": profile_education,
+    }
+    if payload.education:
+        owner["education"] = [
+            {
+                "school": entry.school.strip(),
+                "degree": entry.degree.strip(),
+                "location": entry.location.strip(),
+                "start_date": entry.start_date.strip(),
+                "end_date": entry.end_date.strip(),
+                "is_current": bool(entry.is_current),
+                "expected_graduation": entry.expected_graduation.strip(),
+            }
+            for entry in payload.education
+            if entry.school.strip()
+        ]
+
+    if payload.awards:
+        owner["awards"] = [award.strip() for award in payload.awards if isinstance(award, str) and award.strip()]
+    else:
+        owner["awards"] = profile_awards
+    return owner
 
 
 @router.get("/{project_id}")
@@ -109,7 +234,25 @@ def generate_resume_pdf(
     project_id: int,
     payload: ResumePdfPayload,
     store: ProjectInsightsStore = Depends(get_store),
+    manager: UserConfigManager = Depends(get_config_manager),
 ):
+    user_id = payload.user_id.strip() if isinstance(payload.user_id, str) else ""
+    if not user_id:
+        raise HTTPException(status_code=422, detail="user_id is required")
+
+    config = manager.load_config(user_id, silent=True)
+    missing_fields = _resume_profile_missing_fields(config)
+    if missing_fields:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Resume profile is incomplete. Fill out Profile before generating a resume.",
+                "missing_fields": missing_fields,
+            },
+        )
+    if not config:
+        raise HTTPException(status_code=404, detail="User configuration not found")
+
     generated = generate_items_from_project_id(project_id, store=store, regenerate=True)
     project_payload = dict(generated.get("project_payload") or {})
     if not project_payload:
@@ -123,7 +266,14 @@ def generate_resume_pdf(
     project_name = (project_payload.get("project_name") or resume_item.get("project_name") or f"project-{project_id}").strip()
     project_payload["resume_item"] = resume_item
     report = {
-        "resume_owner": {"name": payload.resume_owner_name.strip()},
+        "resume_owner": _build_resume_owner(
+            config,
+            ResumeProfilePayload(
+                user_id=user_id,
+                resume_owner_name=payload.resume_owner_name,
+                project_ids=[project_id],
+            ),
+        ),
         "projects": {project_name: project_payload},
     }
 
@@ -146,7 +296,26 @@ def generate_resume_pdf(
 def generate_resume_pdf_bundle(
     payload: ResumeProfilePayload,
     store: ProjectInsightsStore = Depends(get_store),
+    manager: UserConfigManager = Depends(get_config_manager),
 ):
+    user_id = payload.user_id.strip() if isinstance(payload.user_id, str) else ""
+    if not user_id:
+        raise HTTPException(status_code=422, detail="user_id is required")
+
+    config = manager.load_config(user_id, silent=True)
+    missing_fields = _resume_profile_missing_fields(config)
+    if missing_fields:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Resume profile is incomplete. Fill out Profile before generating a resume.",
+                "missing_fields": missing_fields,
+            },
+        )
+
+    if not config:
+        raise HTTPException(status_code=404, detail="User configuration not found")
+
     selected_ids = [int(project_id) for project_id in payload.project_ids if int(project_id) > 0]
     if not selected_ids:
         raise HTTPException(status_code=422, detail="At least one project_id is required")
@@ -172,30 +341,10 @@ def generate_resume_pdf_bundle(
         project_payload["resume_item"] = resume_item
         ordered_projects[project_name] = project_payload
 
-    owner = {
-        "name": payload.resume_owner_name.strip(),
-        "phone": payload.phone.strip(),
-        "email": payload.email.strip(),
-        "linkedin_url": payload.linkedin_url.strip(),
-        "linkedin_label": payload.linkedin_label.strip(),
-        "github_url": payload.github_url.strip(),
-        "github_label": payload.github_label.strip(),
-        "education": [
-            {
-                "school": entry.school.strip(),
-                "degree": entry.degree.strip(),
-                "location": entry.location.strip(),
-                "start_date": entry.start_date.strip(),
-                "end_date": entry.end_date.strip(),
-                "is_current": bool(entry.is_current),
-                "expected_graduation": entry.expected_graduation.strip(),
-            }
-            for entry in payload.education
-            if entry.school.strip()
-        ],
-    }
+    owner = _build_resume_owner(config, payload)
     report = {
         "resume_owner": owner,
+        "awards": owner.get("awards", []),
         "projects": ordered_projects,
         "selected_project_names": list(ordered_projects.keys()),
     }
