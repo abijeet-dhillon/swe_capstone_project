@@ -906,7 +906,10 @@ def generate_portfolio_site(
     Generate a portfolio website from user profile info and selected projects.
 
     Writes the portfolio config, starts the Next.js dev server, and returns
-    the URL where the user can view their portfolio.
+    the URL where the user can view their portfolio.  The Resume button on the
+    generated site serves ``portfolio-template/public/resume.pdf``, which is
+    written by ``POST /resume/pdf`` whenever the user generates a resume in the
+    frontend — so generate your resume first and the button will work.
     """
     socials: List[Dict[str, str]] = []
     if req.github_url:

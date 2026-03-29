@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os, shutil, tempfile
 from pathlib import Path
+from unittest.mock import patch
 from src.api.routers.portfolio import _build_heatmap_data, _build_portfolio_ts, _build_showcase_data
 from src.insights.storage import ProjectInsightsStore
 from tests.insights.utils import build_pipeline_payload
@@ -131,6 +132,10 @@ def test_ts_embeds_showcase():
     assert "showcase:" in ts and '"P"' in ts and "rank: 1" in ts
 
 
+def test_ts_has_resume_url_slash_resume_pdf():
+    """The generated portfolio.ts always includes resumeUrl: '/resume.pdf'."""
+    ts = _build_portfolio_ts(_BASE)
+    assert '"/resume.pdf"' in ts or "resumeUrl" in ts
 # --- thumbnail image field in _build_portfolio_ts ---
 
 def test_ts_project_uses_placeholder_when_no_image():

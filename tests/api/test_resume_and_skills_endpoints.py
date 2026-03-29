@@ -4,8 +4,8 @@ import sys
 import tempfile
 from pathlib import Path
 import inspect
+from unittest.mock import patch
 import httpx
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -135,4 +135,94 @@ def test_skills_and_resume_endpoints():
         assert updated_portfolio["key_features"] == ["P1", "P2"]
     finally:
         app.dependency_overrides.clear()
+        shutil.rmtree(td, ignore_errors=True)
+
+
+# --- _copy_to_portfolio_public ---
+
+def test_copy_to_portfolio_public_writes_file():
+    """Copies the PDF to the portfolio public directory."""
+    from src.api.routers.resume import _copy_to_portfolio_public
+
+    td = tempfile.mkdtemp()
+    try:
+        src = Path(td) / "source.pdf"
+        src.write_bytes(b"%PDF-1.4 test")
+        dest_dir = Path(td) / "portfolio" / "public"
+
+        with patch("src.api.routers.resume._PORTFOLIO_PUBLIC_DIR", dest_dir), \
+             patch("src.api.routers.resume._PORTFOLIO_RESUME_PATH", dest_dir / "resume.pdf"):
+            _copy_to_portfolio_public(src)
+
+        assert (dest_dir / "resume.pdf").exists()
+        assert (dest_dir / "resume.pdf").read_bytes() == b"%PDF-1.4 test"
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_copy_to_portfolio_public_overwrites_previous():
+    """A second copy replaces the previous resume.pdf."""
+    from src.api.routers.resume import _copy_to_portfolio_public
+
+    td = tempfile.mkdtemp()
+    try:
+        dest_dir = Path(td) / "portfolio" / "public"
+        dest_dir.mkdir(parents=True)
+        (dest_dir / "resume.pdf").write_bytes(b"old content")
+
+        src = Path(td) / "new.pdf"
+        src.write_bytes(b"%PDF-1.4 new")
+
+        with patch("src.api.routers.resume._PORTFOLIO_PUBLIC_DIR", dest_dir), \
+             patch("src.api.routers.resume._PORTFOLIO_RESUME_PATH", dest_dir / "resume.pdf"):
+            _copy_to_portfolio_public(src)
+
+        assert (dest_dir / "resume.pdf").read_bytes() == b"%PDF-1.4 new"
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_pdf_bundle_copies_to_portfolio_public():
+    """POST /resume/pdf copies the compiled PDF to the portfolio public directory."""
+    td = tempfile.mkdtemp()
+    try:
+        db_path = os.path.join(td, "app.db")
+        store, project_ids = _seed_store(db_path)
+        role_store = ProjectRoleStore(db_path=db_path)
+        app.dependency_overrides[deps.get_store] = lambda: store
+        app.dependency_overrides[deps.get_role_store] = lambda: role_store
+        client = TestClient(app)
+
+        dest_dir = Path(td) / "portfolio" / "public"
+        copied: list[bytes] = []
+
+        def fake_generate(report, output_path, **_):
+            Path(output_path).write_bytes(b"%PDF-1.4 bundle")
+            return Path(output_path)
+
+        def fake_copy(src: Path) -> None:
+            copied.append(src.read_bytes())
+
+        from src.api.routers import resume as resume_router
+        original_gen = resume_router.generate_resume_pdf_artifact
+        original_copy = resume_router._copy_to_portfolio_public
+        resume_router.generate_resume_pdf_artifact = fake_generate
+        resume_router._copy_to_portfolio_public = fake_copy
+        try:
+            resp = client.post(
+                "/resume/pdf",
+                json={
+                    "resume_owner_name": "Test User",
+                    "project_ids": project_ids,
+                },
+            )
+        finally:
+            resume_router.generate_resume_pdf_artifact = original_gen
+            resume_router._copy_to_portfolio_public = original_copy
+            app.dependency_overrides.clear()
+
+        assert resp.status_code == 200
+        assert len(copied) == 1, "Expected _copy_to_portfolio_public to be called once"
+        assert copied[0] == b"%PDF-1.4 bundle"
+    finally:
         shutil.rmtree(td, ignore_errors=True)
