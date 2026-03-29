@@ -20,7 +20,8 @@ from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_role_store, get_store
+from src.api.deps import get_config_manager, get_role_store, get_store
+from src.config.config_manager import UserConfig, UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
@@ -616,8 +617,9 @@ PORTFOLIO_TEMPLATE_DIR = Path(__file__).resolve().parents[3] / "portfolio-templa
 
 
 class PortfolioSiteRequest(BaseModel):
-    name: str
-    title: str = "Full-Stack Developer"
+    user_id: str = "default"
+    name: str = ""
+    title: str = ""
     bio: str = ""
     email: str = ""
     location: str = ""
@@ -627,6 +629,27 @@ class PortfolioSiteRequest(BaseModel):
     projects_completed: str = ""
     open_source_contributions: str = ""
     project_ids: List[int] = Field(..., min_length=2, max_length=4)
+
+
+def _clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
+def _default_name(config: Optional[UserConfig]) -> str:
+    if config is None:
+        return ""
+    if _clean_text(config.name):
+        return _clean_text(config.name)
+    first = _clean_text(config.first_name)
+    last = _clean_text(config.last_name)
+    combined = " ".join(part for part in (first, last) if part)
+    if combined:
+        return combined
+    return _clean_text(config.resume_owner_name)
 
 
 def _build_heatmap_data(store: ProjectInsightsStore) -> Optional[Dict[str, Any]]:
@@ -900,6 +923,7 @@ def _ensure_dev_server() -> bool:
 def generate_portfolio_site(
     req: PortfolioSiteRequest,
     store: ProjectInsightsStore = Depends(get_store),
+    manager: UserConfigManager = Depends(get_config_manager),
 ):
     """
     Generate a portfolio website from user profile info and selected projects.
@@ -907,19 +931,35 @@ def generate_portfolio_site(
     Writes the portfolio config, starts the Next.js dev server, and returns
     the URL where the user can view their portfolio.
     """
+    user_id = _clean_text(req.user_id) or "default"
+    config = manager.load_config(user_id, silent=True)
+
+    resolved_name = _clean_text(req.name) or _default_name(config) or "Developer"
+    resolved_title = _clean_text(req.title) or _clean_text(getattr(config, "portfolio_title", None)) or "Full-Stack Developer"
+    resolved_bio = _clean_text(req.bio) or _clean_text(getattr(config, "portfolio_about_me", None))
+    resolved_email = _clean_text(req.email) or _clean_text(getattr(config, "email", None))
+    resolved_location = _clean_text(req.location)
+    resolved_github_url = _clean_text(req.github_url) or _clean_text(getattr(config, "github_url", None))
+    resolved_linkedin_url = _clean_text(req.linkedin_url) or _clean_text(getattr(config, "linkedin_url", None))
+    resolved_years_experience = _clean_text(req.years_experience) or _clean_text(getattr(config, "portfolio_years_of_experience", None))
+    resolved_open_source = _clean_text(req.open_source_contributions) or _clean_text(
+        getattr(config, "portfolio_open_source_contribution", None)
+    )
+    resolved_projects_completed = _clean_text(req.projects_completed)
+
     socials: List[Dict[str, str]] = []
-    if req.github_url:
-        socials.append({"platform": "GitHub", "url": req.github_url, "icon": "github"})
-    if req.linkedin_url:
-        socials.append({"platform": "LinkedIn", "url": req.linkedin_url, "icon": "linkedin"})
+    if resolved_github_url:
+        socials.append({"platform": "GitHub", "url": resolved_github_url, "icon": "github"})
+    if resolved_linkedin_url:
+        socials.append({"platform": "LinkedIn", "url": resolved_linkedin_url, "icon": "linkedin"})
 
     highlights: List[Dict[str, str]] = []
-    if req.years_experience:
-        highlights.append({"label": "Years Experience", "value": req.years_experience})
-    if req.projects_completed:
-        highlights.append({"label": "Projects Completed", "value": req.projects_completed})
-    if req.open_source_contributions:
-        highlights.append({"label": "Open Source Contributions", "value": req.open_source_contributions})
+    if resolved_years_experience:
+        highlights.append({"label": "Years Experience", "value": resolved_years_experience})
+    if resolved_projects_completed:
+        highlights.append({"label": "Projects Completed", "value": resolved_projects_completed})
+    if resolved_open_source:
+        highlights.append({"label": "Open Source Contributions", "value": resolved_open_source})
 
     all_skills: Dict[str, set] = {}
     ts_projects: List[Dict[str, Any]] = []
@@ -980,14 +1020,14 @@ def generate_portfolio_site(
         logger.warning("Could not build showcase data: %s", exc)
 
     profile: Dict[str, Any] = {
-        "name": req.name,
-        "title": req.title,
-        "bio": req.bio,
-        "email": req.email,
-        "location": req.location,
+        "name": resolved_name,
+        "title": resolved_title,
+        "bio": resolved_bio,
+        "email": resolved_email,
+        "location": resolved_location,
         "socials": socials,
         "about": {
-            "description": [req.bio] if req.bio else [],
+            "description": [resolved_bio] if resolved_bio else [],
             "highlights": highlights,
         },
         "skills": skill_categories,

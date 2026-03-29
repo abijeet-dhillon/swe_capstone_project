@@ -14,6 +14,7 @@ sys.path.insert(0, str(project_root))
 
 from src.api import deps
 from src.api.app import app
+from src.config.config_manager import UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
@@ -45,9 +46,29 @@ def test_skills_and_resume_endpoints():
         store, project_ids = _seed_store(db_path)
         project_id = project_ids[0]
         role_store = ProjectRoleStore(db_path=db_path)
+        config_manager = UserConfigManager(db_path=db_path)
+        config_manager.create_config("default", "/tmp/demo.zip", False)
+        config_manager.update_config(
+            "default",
+            name="Student Name",
+            email="student@example.com",
+            education=[
+                {
+                    "school": "University of Victoria",
+                    "degree": "BSc Computer Science",
+                    "location": "Victoria, BC",
+                    "from": "Sep 2022",
+                    "to": "May 2027",
+                    "still_studying": True,
+                }
+            ],
+            linkedin_url="https://linkedin.com/in/student",
+            github_url="https://github.com/student",
+        )
 
         app.dependency_overrides[deps.get_store] = lambda: store
         app.dependency_overrides[deps.get_role_store] = lambda: role_store
+        app.dependency_overrides[deps.get_config_manager] = lambda: config_manager
         client = TestClient(app)
 
         # GET /skills
@@ -82,21 +103,8 @@ def test_skills_and_resume_endpoints():
             resp = client.post(
                 "/resume/pdf",
                 json={
-                    "resume_owner_name": "Student Name",
+                    "user_id": "default",
                     "project_ids": project_ids,
-                    "phone": "555-111-2222",
-                    "email": "student@example.com",
-                    "linkedin_url": "https://linkedin.com/in/student",
-                    "github_url": "https://github.com/student",
-                    "education": [
-                        {
-                            "school": "University of Victoria",
-                            "degree": "BSc Computer Science",
-                            "start_date": "Sep 2022",
-                            "is_current": True,
-                            "expected_graduation": "May 2027",
-                        }
-                    ],
                 },
             )
         finally:
@@ -133,6 +141,36 @@ def test_skills_and_resume_endpoints():
         assert updated_portfolio["tagline"] == "High-impact data project"
         assert updated_portfolio["is_collaborative"] is True
         assert updated_portfolio["key_features"] == ["P1", "P2"]
+    finally:
+        app.dependency_overrides.clear()
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def test_resume_pdf_rejects_incomplete_profile():
+    td = tempfile.mkdtemp()
+    try:
+        db_path = os.path.join(td, "app.db")
+        store, project_ids = _seed_store(db_path)
+        role_store = ProjectRoleStore(db_path=db_path)
+        config_manager = UserConfigManager(db_path=db_path)
+        config_manager.create_config("default", "/tmp/demo.zip", False)
+
+        app.dependency_overrides[deps.get_store] = lambda: store
+        app.dependency_overrides[deps.get_role_store] = lambda: role_store
+        app.dependency_overrides[deps.get_config_manager] = lambda: config_manager
+        client = TestClient(app)
+
+        resp = client.post(
+            "/resume/pdf",
+            json={
+                "user_id": "default",
+                "project_ids": project_ids[:1],
+            },
+        )
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert "missing_fields" in detail
+        assert set(detail["missing_fields"]) >= {"name", "contact.email", "education"}
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(td, ignore_errors=True)
