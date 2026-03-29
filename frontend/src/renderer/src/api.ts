@@ -84,6 +84,21 @@ export type ProjectDetail = {
   thumbnail?: { image_path: string; mime_type: string } | null
 }
 
+export type ProjectEditRequest = {
+  project_name?: string
+  tagline?: string
+  description?: string
+  project_type?: string
+  complexity?: string
+  summary?: string
+}
+
+export type ProjectMutationResponse = {
+  status: string
+  project_id: number
+  project?: Record<string, unknown>
+}
+
 // ─── Portfolio Types ───────────────────────────────────────────────
 
 export type PortfolioTemplate = {
@@ -242,7 +257,8 @@ export type ResumeEducationInput = {
 }
 
 export type ResumePdfRequest = {
-  resume_owner_name: string
+  user_id?: string
+  resume_owner_name?: string
   project_ids: number[]
   phone?: string
   email?: string
@@ -251,10 +267,12 @@ export type ResumePdfRequest = {
   github_url?: string
   github_label?: string
   education?: ResumeEducationInput[]
+  awards?: string[]
 }
 
 export type PortfolioSiteRequest = {
-  name: string
+  user_id?: string
+  name?: string
   title?: string
   bio?: string
   email?: string
@@ -280,6 +298,32 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
+    let parsed: unknown = null
+    try {
+      parsed = text ? JSON.parse(text) : null
+    } catch {
+      parsed = null
+    }
+    const detail = typeof parsed === 'object' && parsed !== null && 'detail' in parsed
+      ? (parsed as { detail: unknown }).detail
+      : null
+    if (typeof detail === 'string' && detail.trim()) {
+      throw new Error(detail)
+    }
+    if (typeof detail === 'object' && detail !== null) {
+      const detailMessage = 'message' in detail && typeof (detail as { message?: unknown }).message === 'string'
+        ? (detail as { message: string }).message
+        : ''
+      if (detailMessage) {
+        const missing = 'missing_fields' in detail && Array.isArray((detail as { missing_fields?: unknown }).missing_fields)
+          ? (detail as { missing_fields: unknown[] }).missing_fields
+            .map((item) => String(item))
+            .filter(Boolean)
+          : []
+        const suffix = missing.length > 0 ? ` Missing: ${missing.join(', ')}` : ''
+        throw new Error(`${detailMessage}${suffix}`)
+      }
+    }
     throw new Error(text || res.statusText)
   }
   return res.json()
@@ -325,6 +369,20 @@ export async function getProjectDetail(projectId: number): Promise<ProjectDetail
     summary: (portfolio.summary ?? undefined) as string | undefined,
     user_role: (raw.user_role ?? undefined) as string | undefined,
   }
+}
+
+export function updateProject(projectId: number, payload: ProjectEditRequest): Promise<ProjectMutationResponse> {
+  return apiFetch(`/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function removeProject(projectId: number): Promise<ProjectMutationResponse> {
+  return apiFetch(`/projects/${projectId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function uploadProject(req: UploadRequest): Promise<UploadResponse> {
@@ -396,6 +454,32 @@ export async function generateResumePdf(
   })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
+    let parsed: unknown = null
+    try {
+      parsed = text ? JSON.parse(text) : null
+    } catch {
+      parsed = null
+    }
+    const detail = typeof parsed === 'object' && parsed !== null && 'detail' in parsed
+      ? (parsed as { detail: unknown }).detail
+      : null
+    if (typeof detail === 'string' && detail.trim()) {
+      throw new Error(detail)
+    }
+    if (typeof detail === 'object' && detail !== null) {
+      const detailMessage = 'message' in detail && typeof (detail as { message?: unknown }).message === 'string'
+        ? (detail as { message: string }).message
+        : ''
+      if (detailMessage) {
+        const missing = 'missing_fields' in detail && Array.isArray((detail as { missing_fields?: unknown }).missing_fields)
+          ? (detail as { missing_fields: unknown[] }).missing_fields
+            .map((item) => String(item))
+            .filter(Boolean)
+          : []
+        const suffix = missing.length > 0 ? ` Missing: ${missing.join(', ')}` : ''
+        throw new Error(`${detailMessage}${suffix}`)
+      }
+    }
     throw new Error(text || res.statusText)
   }
   const blob = await res.blob()
@@ -480,14 +564,63 @@ export async function getProjectTimelineLookup(): Promise<ProjectTimelineLookup[
 
 export type UserProfile = {
   user_id: string
-  first_name: string | null
-  last_name: string | null
-  email: string | null
-  github_username: string | null
+  name: string | null
+  contact: {
+    phone_number: string | null
+    email: string | null
+    linkedin_url: string | null
+    github_url: string | null
+    linkedin_label: string | null
+    github_label: string | null
+  }
+  education: Array<{
+    school: string
+    location: string
+    degree: string
+    from: string
+    to: string
+    still_studying: boolean
+  }>
+  awards: string[]
+  portfolio: {
+    title: string | null
+    about_me: string | null
+    years_of_experience: string | null
+    open_source_contribution: string | null
+  }
   git_identifier: string | null
+  // Backward-compatible fields still returned by backend
+  first_name?: string | null
+  last_name?: string | null
+  email?: string | null
+  github_username?: string | null
 }
 
 export type ProfileUpdateRequest = {
+  name?: string
+  contact?: {
+    phone_number?: string
+    email?: string
+    linkedin_url?: string
+    github_url?: string
+    linkedin_label?: string
+    github_label?: string
+  }
+  education?: Array<{
+    school?: string
+    location?: string
+    degree?: string
+    from?: string
+    to?: string
+    still_studying?: boolean
+  }>
+  awards?: string[]
+  portfolio?: {
+    title?: string
+    about_me?: string
+    years_of_experience?: string
+    open_source_contribution?: string
+  }
   first_name?: string
   last_name?: string
   email?: string
@@ -522,4 +655,61 @@ export function updateProfile(userId: string, data: ProfileUpdateRequest): Promi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+}
+
+// ─── LinkedIn Types ─────────────────────────────────────────────────
+
+export type LinkedInPreview = {
+  project_id: number
+  project_name: string
+  text: string
+  char_count: number
+  exceeds_limit: boolean
+  hashtags: string[]
+  preview: string
+}
+
+// ─── Thumbnail Types ────────────────────────────────────────────────
+
+export type ThumbnailUploadResponse = {
+  status: string
+  project_id: number
+  thumbnail_url: string
+  mime_type: string
+  size_bytes: number
+}
+
+// LinkedIn
+export function getLinkedInPreview(
+  projectId: number,
+  opts: { includeHashtags?: boolean; includeEmojis?: boolean } = {},
+): Promise<LinkedInPreview> {
+  const params = new URLSearchParams()
+  if (opts.includeHashtags !== undefined) params.set('include_hashtags', String(opts.includeHashtags))
+  if (opts.includeEmojis !== undefined) params.set('include_emojis', String(opts.includeEmojis))
+  const qs = params.toString()
+  return apiFetch(`/linkedin/preview/${projectId}${qs ? `?${qs}` : ''}`)
+}
+
+// Thumbnails
+export async function hasProjectThumbnail(projectId: number): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/thumbnail`)
+  return res.ok
+}
+
+export async function uploadProjectThumbnail(
+  projectId: number,
+  file: File,
+): Promise<ThumbnailUploadResponse> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_BASE}/projects/${projectId}/thumbnail`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(text || `Upload failed (${res.status})`)
+  }
+  return res.json() as Promise<ThumbnailUploadResponse>
 }

@@ -285,9 +285,10 @@ def get_chronological_projects(
             
             try:
                 payload = store.load_project_insight(zip_hash, project_name)
+                display_name = payload.get("project_name", project_name) if isinstance(payload, dict) else project_name
                 
                 all_projects.append({
-                    "project_name": project_name,
+                    "project_name": display_name,
                     "zip_hash": zip_hash,
                     "zip_path": zip_path,
                     "created_at": created_at,

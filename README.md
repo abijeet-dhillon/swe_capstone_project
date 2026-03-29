@@ -4,6 +4,18 @@ Team 14 — COSC 499 Capstone Project
 
 Privacy-first pipeline that scans approved folders (code, docs, media), normalizes artifacts locally, and produces portfolio-ready insights with optional OpenAI-powered summarization.
 
+## 🚀 Quick Start for Grading (TAs/Professors)
+
+To test the application automatically without running multiple manual commands:
+1. Ensure **Docker Desktop** is running.
+2. Clone this repository (if you haven't already).
+3. **Mac/Linux:** Open terminal in the project root and run `./start-miner.sh`
+4. **Windows:** Double-click the `start-miner.bat` file in the project directory.
+
+*The script will automatically install all NPM dependencies for both the frontend and portfolio generator, start the Docker backend, and launch the standalone app window.*
+
+---
+
 ## Milestone 2 TA Quick Start
 
 This section is the fastest path for TAs to set up, run, and verify Milestone #2 requirements.

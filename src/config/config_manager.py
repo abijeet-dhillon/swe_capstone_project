@@ -16,9 +16,9 @@ Typical usage from the repo root:
 import json
 import os
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 DB_PATH = "data/app.db"
 TABLE_NAME = "user_configurations"
@@ -41,6 +41,18 @@ class UserConfig:
     last_name: Optional[str] = None
     email: Optional[str] = None
     github_username: Optional[str] = None
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    linkedin_label: Optional[str] = None
+    github_label: Optional[str] = None
+    education: List[Dict[str, Any]] = field(default_factory=list)
+    awards: List[Any] = field(default_factory=list)
+    portfolio_title: Optional[str] = None
+    portfolio_about_me: Optional[str] = None
+    portfolio_years_of_experience: Optional[str] = None
+    portfolio_open_source_contribution: Optional[str] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -57,7 +69,50 @@ class UserConfig:
             "last_name": self.last_name,
             "email": self.email,
             "github_username": self.github_username,
+            "name": self.name,
+            "phone_number": self.phone_number,
+            "linkedin_url": self.linkedin_url,
+            "github_url": self.github_url,
+            "linkedin_label": self.linkedin_label,
+            "github_label": self.github_label,
+            "education": self.education,
+            "awards": self.awards,
+            "portfolio_title": self.portfolio_title,
+            "portfolio_about_me": self.portfolio_about_me,
+            "portfolio_years_of_experience": self.portfolio_years_of_experience,
+            "portfolio_open_source_contribution": self.portfolio_open_source_contribution,
         }
+
+
+def _clean_optional_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        value = str(value)
+    trimmed = value.strip()
+    return trimmed if trimmed else None
+
+
+def _serialize_json_list(value: Any) -> str:
+    if isinstance(value, list):
+        return json.dumps(value, ensure_ascii=False)
+    return "[]"
+
+
+def _deserialize_json_list(raw_value: Any) -> List[Any]:
+    if raw_value is None:
+        return []
+    if isinstance(raw_value, list):
+        return raw_value
+    if not isinstance(raw_value, str):
+        return []
+    if not raw_value.strip():
+        return []
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else []
 
 
 class UserConfigManager:
@@ -84,7 +139,25 @@ class UserConfigManager:
                     llm_consent_asked INTEGER NOT NULL DEFAULT 0,
                     data_access_consent INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT
+                    updated_at TEXT,
+                    git_identifier TEXT,
+                    resume_owner_name TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    email TEXT,
+                    github_username TEXT,
+                    name TEXT,
+                    phone_number TEXT,
+                    linkedin_url TEXT,
+                    github_url TEXT,
+                    linkedin_label TEXT,
+                    github_label TEXT,
+                    education_json TEXT NOT NULL DEFAULT '[]',
+                    awards_json TEXT NOT NULL DEFAULT '[]',
+                    portfolio_title TEXT,
+                    portfolio_about_me TEXT,
+                    portfolio_years_of_experience TEXT,
+                    portfolio_open_source_contribution TEXT
                 );
                 """
             )
@@ -114,6 +187,38 @@ class UserConfigManager:
                 conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN email TEXT;")
             if "github_username" not in cols:
                 conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN github_username TEXT;")
+            if "name" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN name TEXT;")
+            if "phone_number" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN phone_number TEXT;")
+            if "linkedin_url" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN linkedin_url TEXT;")
+            if "github_url" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN github_url TEXT;")
+            if "linkedin_label" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN linkedin_label TEXT;")
+            if "github_label" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN github_label TEXT;")
+            if "education_json" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN education_json TEXT NOT NULL DEFAULT '[]';"
+                )
+            if "awards_json" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN awards_json TEXT NOT NULL DEFAULT '[]';"
+                )
+            if "portfolio_title" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN portfolio_title TEXT;")
+            if "portfolio_about_me" not in cols:
+                conn.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN portfolio_about_me TEXT;")
+            if "portfolio_years_of_experience" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN portfolio_years_of_experience TEXT;"
+                )
+            if "portfolio_open_source_contribution" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN portfolio_open_source_contribution TEXT;"
+                )
             conn.commit()
 
     def _persist_config(self, config: UserConfig) -> bool:
@@ -126,9 +231,13 @@ class UserConfigManager:
                         user_id, zip_file, llm_consent, llm_consent_asked,
                         data_access_consent, created_at, updated_at,
                         git_identifier, resume_owner_name,
-                        first_name, last_name, email, github_username
+                        first_name, last_name, email, github_username,
+                        name, phone_number, linkedin_url, github_url,
+                        linkedin_label, github_label, education_json, awards_json,
+                        portfolio_title, portfolio_about_me,
+                        portfolio_years_of_experience, portfolio_open_source_contribution
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET
                         zip_file = excluded.zip_file,
                         llm_consent = excluded.llm_consent,
@@ -140,7 +249,19 @@ class UserConfigManager:
                         first_name = excluded.first_name,
                         last_name = excluded.last_name,
                         email = excluded.email,
-                        github_username = excluded.github_username;
+                        github_username = excluded.github_username,
+                        name = excluded.name,
+                        phone_number = excluded.phone_number,
+                        linkedin_url = excluded.linkedin_url,
+                        github_url = excluded.github_url,
+                        linkedin_label = excluded.linkedin_label,
+                        github_label = excluded.github_label,
+                        education_json = excluded.education_json,
+                        awards_json = excluded.awards_json,
+                        portfolio_title = excluded.portfolio_title,
+                        portfolio_about_me = excluded.portfolio_about_me,
+                        portfolio_years_of_experience = excluded.portfolio_years_of_experience,
+                        portfolio_open_source_contribution = excluded.portfolio_open_source_contribution;
                     """,
                     (
                         config.user_id,
@@ -156,6 +277,18 @@ class UserConfigManager:
                         config.last_name,
                         config.email,
                         config.github_username,
+                        config.name,
+                        config.phone_number,
+                        config.linkedin_url,
+                        config.github_url,
+                        config.linkedin_label,
+                        config.github_label,
+                        _serialize_json_list(config.education),
+                        _serialize_json_list(config.awards),
+                        config.portfolio_title,
+                        config.portfolio_about_me,
+                        config.portfolio_years_of_experience,
+                        config.portfolio_open_source_contribution,
                     ),
                 )
                 conn.commit()
@@ -172,6 +305,18 @@ class UserConfigManager:
         llm_consent_asked: bool = False,
         data_access_consent: bool = False,
         resume_owner_name: Optional[str] = None,
+        name: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        github_url: Optional[str] = None,
+        linkedin_label: Optional[str] = None,
+        github_label: Optional[str] = None,
+        education: Optional[List[Dict[str, Any]]] = None,
+        awards: Optional[List[Any]] = None,
+        portfolio_title: Optional[str] = None,
+        portfolio_about_me: Optional[str] = None,
+        portfolio_years_of_experience: Optional[str] = None,
+        portfolio_open_source_contribution: Optional[str] = None,
     ) -> bool:
         """Insert a brand-new config row for the given user."""
         if self.load_config(user_id, silent=True):
@@ -187,7 +332,19 @@ class UserConfigManager:
             data_access_consent=data_access_consent,
             created_at=timestamp,
             updated_at=None,
-            resume_owner_name=resume_owner_name.strip() if isinstance(resume_owner_name, str) and resume_owner_name.strip() else None,
+            resume_owner_name=_clean_optional_text(resume_owner_name),
+            name=_clean_optional_text(name),
+            phone_number=_clean_optional_text(phone_number),
+            linkedin_url=_clean_optional_text(linkedin_url),
+            github_url=_clean_optional_text(github_url),
+            linkedin_label=_clean_optional_text(linkedin_label),
+            github_label=_clean_optional_text(github_label),
+            education=education if isinstance(education, list) else [],
+            awards=awards if isinstance(awards, list) else [],
+            portfolio_title=_clean_optional_text(portfolio_title),
+            portfolio_about_me=_clean_optional_text(portfolio_about_me),
+            portfolio_years_of_experience=_clean_optional_text(portfolio_years_of_experience),
+            portfolio_open_source_contribution=_clean_optional_text(portfolio_open_source_contribution),
         )
         return self._persist_config(config)
 
@@ -204,6 +361,18 @@ class UserConfigManager:
         last_name: Optional[str] = None,
         email: Optional[str] = None,
         github_username: Optional[str] = None,
+        name: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        github_url: Optional[str] = None,
+        linkedin_label: Optional[str] = None,
+        github_label: Optional[str] = None,
+        education: Optional[List[Dict[str, Any]]] = None,
+        awards: Optional[List[Any]] = None,
+        portfolio_title: Optional[str] = None,
+        portfolio_about_me: Optional[str] = None,
+        portfolio_years_of_experience: Optional[str] = None,
+        portfolio_open_source_contribution: Optional[str] = None,
     ) -> bool:
         """Update an existing config row."""
         existing = self.load_config(user_id, silent=True)
@@ -216,21 +385,45 @@ class UserConfigManager:
         if llm_consent is not None:
             existing.llm_consent = llm_consent
         if git_identifier is not None:
-            existing.git_identifier = git_identifier
+            existing.git_identifier = _clean_optional_text(git_identifier)
         if resume_owner_name is not None:
-            existing.resume_owner_name = resume_owner_name.strip() or None
+            existing.resume_owner_name = _clean_optional_text(resume_owner_name)
         if llm_consent_asked is not None:
             existing.llm_consent_asked = llm_consent_asked
         if data_access_consent is not None:
             existing.data_access_consent = data_access_consent
         if first_name is not None:
-            existing.first_name = first_name
+            existing.first_name = _clean_optional_text(first_name)
         if last_name is not None:
-            existing.last_name = last_name
+            existing.last_name = _clean_optional_text(last_name)
         if email is not None:
-            existing.email = email
+            existing.email = _clean_optional_text(email)
         if github_username is not None:
-            existing.github_username = github_username
+            existing.github_username = _clean_optional_text(github_username)
+        if name is not None:
+            existing.name = _clean_optional_text(name)
+        if phone_number is not None:
+            existing.phone_number = _clean_optional_text(phone_number)
+        if linkedin_url is not None:
+            existing.linkedin_url = _clean_optional_text(linkedin_url)
+        if github_url is not None:
+            existing.github_url = _clean_optional_text(github_url)
+        if linkedin_label is not None:
+            existing.linkedin_label = _clean_optional_text(linkedin_label)
+        if github_label is not None:
+            existing.github_label = _clean_optional_text(github_label)
+        if education is not None:
+            existing.education = education if isinstance(education, list) else []
+        if awards is not None:
+            existing.awards = awards if isinstance(awards, list) else []
+        if portfolio_title is not None:
+            existing.portfolio_title = _clean_optional_text(portfolio_title)
+        if portfolio_about_me is not None:
+            existing.portfolio_about_me = _clean_optional_text(portfolio_about_me)
+        if portfolio_years_of_experience is not None:
+            existing.portfolio_years_of_experience = _clean_optional_text(portfolio_years_of_experience)
+        if portfolio_open_source_contribution is not None:
+            existing.portfolio_open_source_contribution = _clean_optional_text(portfolio_open_source_contribution)
 
         existing.updated_at = datetime.now(timezone.utc).isoformat()
         return self._persist_config(existing)
@@ -244,7 +437,10 @@ class UserConfigManager:
                     f"""
                     SELECT user_id, zip_file, llm_consent, llm_consent_asked, data_access_consent,
                            created_at, updated_at, git_identifier, resume_owner_name,
-                           first_name, last_name, email, github_username
+                           first_name, last_name, email, github_username,
+                           name, phone_number, linkedin_url, github_url, linkedin_label, github_label,
+                           education_json, awards_json,
+                           portfolio_title, portfolio_about_me, portfolio_years_of_experience, portfolio_open_source_contribution
                     FROM {TABLE_NAME}
                     WHERE user_id = ?
                     """,
@@ -273,6 +469,18 @@ class UserConfigManager:
             last_name=row[10] if len(row) > 10 else None,
             email=row[11] if len(row) > 11 else None,
             github_username=row[12] if len(row) > 12 else None,
+            name=row[13] if len(row) > 13 else None,
+            phone_number=row[14] if len(row) > 14 else None,
+            linkedin_url=row[15] if len(row) > 15 else None,
+            github_url=row[16] if len(row) > 16 else None,
+            linkedin_label=row[17] if len(row) > 17 else None,
+            github_label=row[18] if len(row) > 18 else None,
+            education=_deserialize_json_list(row[19] if len(row) > 19 else None),
+            awards=_deserialize_json_list(row[20] if len(row) > 20 else None),
+            portfolio_title=row[21] if len(row) > 21 else None,
+            portfolio_about_me=row[22] if len(row) > 22 else None,
+            portfolio_years_of_experience=row[23] if len(row) > 23 else None,
+            portfolio_open_source_contribution=row[24] if len(row) > 24 else None,
         )
 
 

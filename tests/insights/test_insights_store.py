@@ -193,3 +193,32 @@ def test_load_project_insight_by_id(temp_store):
     
     # Test with non-existent ID
     assert temp_store.load_project_insight_by_id(99999) is None
+
+
+def test_soft_delete_snapshot_excludes_readback_and_lists(temp_store):
+    payload = build_pipeline_payload()
+    temp_store.record_pipeline_run("/tmp/demo.zip", payload)
+    zip_hash = temp_store.list_recent_zipfiles(limit=1)[0]["zip_hash"]
+
+    with sqlite3.connect(temp_store.db_path) as conn:
+        row = conn.execute(
+            f"""
+            SELECT pi.id
+            FROM {PROJECT_INFO_TABLE} pi
+            JOIN projects p ON p.id = pi.project_id
+            WHERE p.project_name = ?;
+            """,
+            ("ProjectAlpha",),
+        ).fetchone()
+        project_info_id = row[0]
+
+    assert temp_store.soft_delete_project_snapshot(project_info_id) is True
+    assert temp_store.load_project_insight_by_id(project_info_id) is None
+    assert temp_store.load_project_insight(zip_hash, "ProjectAlpha") is None
+
+    names = temp_store.list_projects_for_zip(zip_hash)
+    assert "ProjectAlpha" not in names
+
+    report = temp_store.load_zip_report(zip_hash)
+    assert report is not None
+    assert "ProjectAlpha" not in report["projects"]
