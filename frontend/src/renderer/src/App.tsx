@@ -632,9 +632,6 @@ function App() {
           )}
         </div>
 
-        <footer className="app-footer">
-          <p>COSC 499 — Digital Work Artifact Miner</p>
-        </footer>
       </main>
 
       {/* ── Detail Panel ── */}
@@ -649,8 +646,8 @@ function App() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {resumeModalOpen && (
-        <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title">
-          <div className="modal-content">
+        <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="resume-modal-title" onClick={resetResumeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-header__copy">
                 <span className="modal-category">Resume</span>
@@ -915,8 +912,8 @@ function App() {
       )}
 
       {portfolioModalOpen && (
-        <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="portfolio-modal-title">
-          <div className="modal-content">
+        <div className="skill-modal" role="dialog" aria-modal="true" aria-labelledby="portfolio-modal-title" onClick={resetPortfolioModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-header__copy">
                 <span className="modal-category">Portfolio</span>

@@ -117,10 +117,9 @@ describe('App Layout', () => {
     expect(screen.getAllByText('Timeline').length).toBeGreaterThan(0)
   })
 
-  it('renders page header and footer', () => {
+  it('renders page header', () => {
     render(<App />)
     expect(screen.getByText('Your workspace overview and quick actions')).toBeInTheDocument()
-    expect(screen.getByText('COSC 499 — Digital Work Artifact Miner')).toBeInTheDocument()
   })
 
   it('renders upload zone and feature cards on dashboard', () => {
