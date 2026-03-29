@@ -100,7 +100,7 @@
 .timeline-dot {
   position: absolute;
   left: 0;
-  top: 6px;
+  top: 24px;
   width: 16px;
   height: 16px;
   background: var(--bg-primary);
