@@ -15,30 +15,20 @@
 **When it occurs:** Any project query where total matches exceed 50.  
 **User-visible impact:** Users can see “X found” totals above 50 but cannot access records beyond the first 50 results.  
 **Likely type:** incomplete feature implementation  
-**Priority:** medium  
+**Priority:** low  
 **Evidence:** `frontend/src/renderer/src/ProjectsView.tsx` (fixed `limit: 50, offset: 0` in `buildFilter`; line ~113; toolbar has no pagination controls; lines ~293-347), `src/api/routers/filter.py` (request model supports `limit`/`offset`; lines ~98-126), `src/insights/project_filter.py` (SQL pagination implemented; lines ~316-325).
 
-### Bug 2: Public mode does not actually disable editing outside dashboard cards
-
-**Area:** Dashboard public/private mode behavior  
-**Issue:** Public mode disables quick-action buttons only; it does not disable edit/remove/mutation flows in Projects or Timeline views.  
-**When it occurs:** User switches to Public mode, then navigates to Projects or Timeline.  
-**User-visible impact:** UI states “Customization controls are disabled in public mode,” but users can still modify data via other screens, causing inconsistent behavior.  
-**Likely type:** missing UI wiring  
-**Priority:** medium  
-**Evidence:** `frontend/src/renderer/src/App.tsx` (`mode` is only used to disable dashboard card buttons; lines ~462-483 and ~525-527; Projects/Timeline routes still accessible; lines ~570-579), `frontend/src/renderer/src/ProjectsView.tsx` (Edit/Remove always available; lines ~448-470 and ~505-527), `frontend/src/renderer/src/components/SkillsTimeline.tsx` (Add/Edit/Remove controlled by project selection/busy state, not dashboard mode; lines ~467-469 and ~515-528).
-
-### Bug 3: Resume edit/customization endpoint is not surfaced in the UI
+### Bug 2: Resume edit/customization endpoint is not surfaced in the UI
 
 **Area:** Resume generation and customization flow  
 **Issue:** Backend supports editing resume bullets (`POST /resume/{id}/edit`), but frontend provides no editable bullets UI and no API wrapper for that route.  
 **When it occurs:** After resume content exists and user wants to customize bullet text before final output.  
 **User-visible impact:** Resume bullets are view-only in the app; users cannot perform documented resume bullet edits from the product UI.  
 **Likely type:** missing UI wiring  
-**Priority:** high  
+**Priority:** medium  
 **Evidence:** `README.md` (milestone includes `POST /resume/{id}/edit`; line 76), `src/api/routers/resume.py` (edit endpoint implemented; lines ~367-378), `frontend/src/renderer/src/api.ts` (resume section includes `getResume`, `generateResume`, `generateResumePdf` only, no resume edit call; lines ~432-492), `frontend/src/renderer/src/components/DetailPanel.tsx` (resume bullets rendered read-only; lines ~126-134).
 
-### Bug 4: Portfolio customization is only partially exposed from the frontend
+### Bug 3: Portfolio customization is only partially exposed from the frontend
 
 **Area:** Portfolio edit/customization flow  
 **Issue:** Frontend edit modal only updates project name/tagline/description/type/complexity/summary via `/projects/{id}` patch; portfolio-specific editable fields like `key_features` and `is_collaborative` are not editable from UI despite backend support.  
@@ -48,7 +38,7 @@
 **Priority:** medium  
 **Evidence:** `frontend/src/renderer/src/ProjectsView.tsx` (editable fields limited to six entries; lines ~35-42 and modal fields ~546-603), `frontend/src/renderer/src/api.ts` (`ProjectEditRequest` excludes `key_features`/`is_collaborative`; lines ~88-94), `src/api/routers/portfolio.py` (`POST /portfolio/{project_id}/edit` accepts `key_features` and `is_collaborative`; lines ~566-591).
 
-### Bug 5: Portfolio detail sections in frontend depend on fields omitted by default portfolio API response
+### Bug 4: Portfolio detail sections in frontend depend on fields omitted by default portfolio API response
 
 **Area:** Project detail/expanded cards (portfolio preview)  
 **Issue:** Frontend tries to render `key_features` and `evolution`, but default `GET /portfolio/{id}` response does not include those fields unless template-specific paths are used.  
@@ -58,7 +48,7 @@
 **Priority:** medium  
 **Evidence:** `frontend/src/renderer/src/api.ts` (`getPortfolio` maps `raw.key_features` and `raw.evolution`; lines ~401-421), `frontend/src/renderer/src/ProjectsView.tsx` (renders Key Features/Timeline conditionally; lines ~678-687 and ~713-724), `frontend/src/renderer/src/components/DetailPanel.tsx` (renders Key Features block; lines ~115-123), `src/api/routers/portfolio.py` (default response contains summary/description/key_skills/key_metrics but not `key_features` or `evolution`; lines ~535-543, return at ~563).
 
-### Bug 6: Manual upload path bypasses .zip validation in browser mode
+### Bug 5: Manual upload path bypasses .zip validation in browser mode
 
 **Area:** Upload/import flow (manual path entry)  
 **Issue:** Manual path submission accepts any non-empty path and skips the `.zip` extension validation enforced in drag/drop and file picker flows.  
