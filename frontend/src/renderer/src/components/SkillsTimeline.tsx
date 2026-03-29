@@ -508,7 +508,9 @@ const SkillsTimeline: React.FC<SkillsTimelineProps> = ({ refreshNonce = 0, onBus
                   <span className="timeline-category">{card.category}</span>
                 </div>
                 <h3 className="timeline-title">{card.skill}</h3>
-                <p className="timeline-description">{card.file}</p>
+                <p className="timeline-description">
+                  {card.file.replace(/^\/?tmp\/unzipped_[^/]+\//, '')}
+                </p>
                 <div className="timeline-card-actions">
                   <button
                     className="timeline-card-btn"
