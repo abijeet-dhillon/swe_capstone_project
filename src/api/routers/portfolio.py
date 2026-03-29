@@ -708,6 +708,140 @@ def _build_showcase_data(store: ProjectInsightsStore, limit: int = 3) -> Optiona
     return result or None
 
 
+def _build_skills_progression(
+    store: ProjectInsightsStore,
+    project_ids: List[int],
+    reference_date: Optional[datetime.date] = None,
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Build a chronological skills timeline for the portfolio site.
+
+    For every project in *project_ids*, gather the chronological skill events
+    (from ``global_insights.chronological_skills``).  For each skill name:
+
+    * Record the earliest timestamp it was seen (``first_seen``, YYYY-MM).
+    * Record the most-recent timestamp it was seen (``last_seen``, YYYY-MM).
+    * Compute fractional ``years_experience`` = months between first_seen and
+      *reference_date* (defaults to today), clamped to ≥ 0.
+    * Count distinct projects the skill appears in.
+
+    Skills are then bucketed by the *year* of their ``first_seen`` date.
+    Buckets are returned oldest-first, each containing a list of skill entries
+    sorted by ``years_experience`` descending (most experienced skill first).
+
+    Returns ``None`` when no timeline data is available.
+    """
+    if reference_date is None:
+        reference_date = datetime.date.today()
+
+    # skill_name → aggregated info
+    skill_info: Dict[str, Dict[str, Any]] = {}
+
+    for pid in project_ids:
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+
+        global_insights = payload.get("global_insights") or {}
+        chron_raw = global_insights.get("chronological_skills") or {}
+
+        # Apply project-level overrides when present (mirrors chronological.py logic)
+        overrides = chron_raw.get("project_overrides") or {}
+        override = overrides.get(str(pid))
+        if isinstance(override, dict) and "timeline" in override:
+            timeline_raw = override["timeline"]
+        else:
+            timeline_raw = chron_raw.get("timeline") or []
+
+        if not isinstance(timeline_raw, list):
+            continue
+
+        for event in timeline_raw:
+            if not isinstance(event, dict):
+                continue
+            timestamp = event.get("timestamp")
+            if not isinstance(timestamp, str) or not timestamp:
+                continue
+            skills_raw = event.get("skills") or []
+            if not isinstance(skills_raw, list):
+                continue
+            category = str(event.get("category") or "general")
+
+            # Normalise timestamp to YYYY-MM (keep only first 7 chars)
+            period = timestamp[:7] if len(timestamp) >= 7 else timestamp
+
+            for raw_skill in skills_raw:
+                if not isinstance(raw_skill, str) or not raw_skill.strip():
+                    continue
+                skill = raw_skill.strip().casefold()
+                info = skill_info.setdefault(
+                    skill,
+                    {
+                        "skill": skill,
+                        "category": category,
+                        "first_seen": period,
+                        "last_seen": period,
+                        "project_ids": set(),
+                    },
+                )
+                if period < info["first_seen"]:
+                    info["first_seen"] = period
+                if period > info["last_seen"]:
+                    info["last_seen"] = period
+                info["project_ids"].add(pid)
+                # Keep the category from the earliest event
+                if period == info["first_seen"]:
+                    info["category"] = category
+
+    if not skill_info:
+        return None
+
+    # Compute years_experience for each skill
+    def _months_to_years(period: str) -> float:
+        try:
+            year, month = int(period[:4]), int(period[5:7])
+            first_date = datetime.date(year, month, 1)
+            delta_days = (reference_date - first_date).days
+            return max(0.0, round(delta_days / 365.25, 1))
+        except (ValueError, IndexError):
+            return 0.0
+
+    enriched: List[Dict[str, Any]] = []
+    for info in skill_info.values():
+        enriched.append({
+            "skill": info["skill"],
+            "category": info["category"],
+            "firstSeen": info["first_seen"],
+            "lastSeen": info["last_seen"],
+            "yearsExperience": _months_to_years(info["first_seen"]),
+            "projectCount": len(info["project_ids"]),
+        })
+
+    # Bucket by year of first appearance
+    buckets: Dict[int, List[Dict[str, Any]]] = {}
+    for item in enriched:
+        try:
+            year = int(item["firstSeen"][:4])
+        except (ValueError, IndexError):
+            year = 0
+        buckets.setdefault(year, []).append(item)
+
+    timeline: List[Dict[str, Any]] = []
+    for year in sorted(buckets.keys()):
+        skills_in_year = sorted(
+            buckets[year],
+            key=lambda x: x["yearsExperience"],
+            reverse=True,
+        )
+        timeline.append({
+            "period": str(year),
+            "year": year,
+            "newSkills": skills_in_year,
+        })
+
+    return timeline or None
+
+
 def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     """Render a syntactically valid TypeScript config from the profile dict."""
 
@@ -720,6 +854,7 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
     projects = profile.get("projects") or []
     heatmap: Optional[Dict[str, Any]] = profile.get("heatmap")
     showcase: Optional[List[Dict[str, Any]]] = profile.get("showcase")
+    skills_timeline: Optional[List[Dict[str, Any]]] = profile.get("skillsTimeline")
 
     socials_str = ",\n    ".join(
         f'{{ platform: {_js(s["platform"])}, url: {_js(s["url"])}, icon: {_js(s["icon"])} }}'
@@ -814,6 +949,33 @@ def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
             )
         showcase_str = f'\n  showcase: [\n' + ",\n".join(entries) + f'\n  ],'
 
+    # Optional skillsTimeline block
+    skills_timeline_str = ""
+    if skills_timeline:
+        bucket_entries = []
+        for bucket in skills_timeline:
+            skill_entries = []
+            for sk in bucket.get("newSkills") or []:
+                skill_entries.append(
+                    f'        {{\n'
+                    f'          skill: {_js(sk.get("skill", ""))},\n'
+                    f'          category: {_js(sk.get("category", "general"))},\n'
+                    f'          firstSeen: {_js(sk.get("firstSeen", ""))},\n'
+                    f'          lastSeen: {_js(sk.get("lastSeen", ""))},\n'
+                    f'          yearsExperience: {sk.get("yearsExperience", 0)},\n'
+                    f'          projectCount: {sk.get("projectCount", 1)},\n'
+                    f'        }}'
+                )
+            skills_inner = ",\n".join(skill_entries)
+            bucket_entries.append(
+                f'    {{\n'
+                f'      period: {_js(bucket.get("period", ""))},\n'
+                f'      year: {bucket.get("year", 0)},\n'
+                f'      newSkills: [\n{skills_inner}\n      ],\n'
+                f'    }}'
+            )
+        skills_timeline_str = f'\n  skillsTimeline: [\n' + ",\n".join(bucket_entries) + f'\n  ],'
+
     return f'''import type {{ DeveloperProfile }} from "@/types/portfolio";
 
 export const portfolio: DeveloperProfile = {{
@@ -846,7 +1008,7 @@ export const portfolio: DeveloperProfile = {{
 {projects_str}
   ],
 
-  experience: [],{heatmap_str}{showcase_str}
+  experience: [],{heatmap_str}{showcase_str}{skills_timeline_str}
 }};
 '''
 
@@ -991,6 +1153,13 @@ def generate_portfolio_site(
     except Exception as exc:  # pragma: no cover
         logger.warning("Could not build showcase data: %s", exc)
 
+    # --- Skills progression timeline ------------------------------------------
+    skills_timeline_data: Optional[List[Dict[str, Any]]] = None
+    try:
+        skills_timeline_data = _build_skills_progression(store, req.project_ids)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not build skills progression: %s", exc)
+
     profile: Dict[str, Any] = {
         "name": req.name,
         "title": req.title,
@@ -1009,6 +1178,8 @@ def generate_portfolio_site(
         profile["heatmap"] = heatmap_data
     if showcase_data:
         profile["showcase"] = showcase_data
+    if skills_timeline_data:
+        profile["skillsTimeline"] = skills_timeline_data
 
     config_path = PORTFOLIO_TEMPLATE_DIR / "src" / "config" / "portfolio.ts"
     config_path.parent.mkdir(parents=True, exist_ok=True)

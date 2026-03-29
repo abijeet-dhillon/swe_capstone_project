@@ -2,6 +2,7 @@ import { portfolio } from "@/config/portfolio";
 import { Hero } from "@/components/hero";
 import { About } from "@/components/about";
 import { Skills } from "@/components/skills";
+import { SkillsProgressionTimeline } from "@/components/skills-progression-timeline";
 import { ProjectsGrid } from "@/components/projects-grid";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { TopShowcase } from "@/components/top-showcase";
@@ -13,6 +14,9 @@ export default function Home() {
       <Hero profile={portfolio} />
       <About profile={portfolio} />
       <Skills skills={portfolio.skills} />
+      {portfolio.skillsTimeline && portfolio.skillsTimeline.length > 0 && (
+        <SkillsProgressionTimeline timeline={portfolio.skillsTimeline} />
+      )}
       {portfolio.heatmap && <ActivityHeatmap heatmap={portfolio.heatmap} />}
       {portfolio.showcase && portfolio.showcase.length > 0 && (
         <TopShowcase projects={portfolio.showcase} />
