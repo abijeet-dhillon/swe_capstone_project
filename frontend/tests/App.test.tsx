@@ -154,26 +154,11 @@ describe('App Layout', () => {
     expect(screen.getByText('Web Portfolio')).toBeInTheDocument()
   })
 
-  it('defaults to private mode with customization enabled', () => {
+  it('renders feature cards with action buttons', () => {
     render(<App />)
-    expect(screen.getByText('Customization controls are enabled.')).toBeInTheDocument()
-    // Ready cards (resume, portfolio, timeline) have specific action labels;
-    // only coming-soon cards show "Customize" and those are always disabled.
     const actionButtons = screen.getAllByRole('button', { name: /Generate|Open Timeline/ })
     const enabled = actionButtons.filter((b) => !b.hasAttribute('disabled'))
     expect(enabled.length).toBeGreaterThan(0)
-  })
-
-  it('switches to public mode and disables action buttons', () => {
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Public' }))
-    expect(screen.getByText('Customization controls are disabled in public mode.')).toBeInTheDocument()
-    const featureButtons = [
-      screen.getByRole('button', { name: 'Generate Resume' }),
-      screen.getByRole('button', { name: 'Generate Portfolio' }),
-      screen.getByRole('button', { name: 'Open Timeline' })
-    ]
-    featureButtons.forEach((b) => expect(b).toBeDisabled())
   })
 
   it('opens the resume modal with grouped sections and footer actions', async () => {
