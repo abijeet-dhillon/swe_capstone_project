@@ -174,6 +174,11 @@ This script path starts:
 - `portfolio-template` dev server
 - Electron frontend app
 
+`start-miner` behavior note:
+
+- If `.env` does not exist, `start-miner` automatically copies `env.template` to `.env`.
+- For the `./start-miner.sh` / `start-miner.bat` flow, you do not need to run `cp env.template .env` manually first.
+
 ### Backend only (Docker)
 
 ```bash
