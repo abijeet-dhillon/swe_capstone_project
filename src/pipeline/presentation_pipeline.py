@@ -187,7 +187,7 @@ class PresentationPipeline:
         
         # Build base query
         query = """
-            SELECT pi.id, p.project_name, p.slug, i.source_hash, i.source_path,
+            SELECT pi.id, COALESCE(pi.project_name, p.project_name), p.slug, i.source_hash, i.source_path,
                    (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'code') AS code_files,
                    (SELECT COUNT(*) FROM file_info fi WHERE fi.project_info_id = pi.id AND fi.category = 'documentation') AS doc_files,
                    pi.is_git_repo, pi.created_at, pi.updated_at, pi.languages_json, pi.frameworks_json
@@ -200,6 +200,7 @@ class PresentationPipeline:
                 ORDER BY i2.id DESC
                 LIMIT 1
             )
+            AND pi.is_deleted = 0
             AND (? IS NULL OR i.source_path = ?)
             AND (? IS NULL OR i.source_hash = ?)
             ORDER BY pi.updated_at DESC;
@@ -289,7 +290,9 @@ class PresentationPipeline:
                 SELECT pi.id FROM project_info pi
                 JOIN projects p ON p.id = pi.project_id
                 JOIN ingest i ON i.id = pi.ingest_id
-                WHERE i.source_hash = ? AND p.project_name = ?
+                WHERE i.source_hash = ?
+                  AND pi.is_deleted = 0
+                  AND (COALESCE(pi.project_name, p.project_name) = ? OR p.project_name = ?)
                   AND i.id = (
                     SELECT id FROM ingest i2
                     WHERE i2.source_hash = i.source_hash
@@ -297,7 +300,7 @@ class PresentationPipeline:
                     LIMIT 1
                 );
                 """,
-                (zip_hash, project_name)
+                (zip_hash, project_name, project_name)
             ).fetchone()
         return row[0] if row else None
     
@@ -310,7 +313,7 @@ class PresentationPipeline:
                 FROM project_info pi
                 JOIN projects p ON p.id = pi.project_id
                 JOIN ingest s ON s.id = pi.ingest_id
-                WHERE pi.id = ?;
+                WHERE pi.id = ? AND pi.is_deleted = 0;
                 """,
                 (project_id,)
             ).fetchone()
@@ -325,13 +328,14 @@ class PresentationPipeline:
                 JOIN projects p ON p.id = pi.project_id
                 JOIN ingest s ON s.id = pi.ingest_id
                 WHERE s.source_hash = ?
+                  AND pi.is_deleted = 0
                   AND s.id = (
                     SELECT id FROM ingest s2
                     WHERE s2.source_hash = s.source_hash
                     ORDER BY s2.id DESC
                     LIMIT 1
                 )
-                ORDER BY p.project_name ASC;
+                ORDER BY COALESCE(pi.project_name, p.project_name) ASC;
                 """,
                 (zip_hash,)
             ).fetchall()
@@ -349,6 +353,7 @@ class PresentationPipeline:
                 ORDER BY s2.id DESC
                 LIMIT 1
             )
+            AND pi.is_deleted = 0
             ORDER BY pi.updated_at DESC
         """
         if limit:

@@ -3,20 +3,30 @@ Portfolio API router.
 
 Provides GET /portfolio/{project_id} with optional ?template=industry or ?template=academic
 to tailor the response for professional (impact, deliverables) vs academic (rigor, artifacts)
-contexts. Also supports edit, generate, and template listing endpoints.
+contexts. Also supports edit, generate, template listing, and site generation endpoints.
 """
 from __future__ import annotations
 
+import datetime
+import json
+import logging
+import os
+import shutil
+import signal
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_role_store, get_store
+from src.api.deps import get_config_manager, get_role_store, get_store
+from src.config.config_manager import UserConfig, UserConfigManager
 from src.insights.storage import ProjectInsightsStore
 from src.insights.user_role_store import ProjectRoleStore
 from src.pipeline.presentation_pipeline import PresentationPipeline
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -278,6 +288,222 @@ def get_template_detail(template_id: PortfolioTemplate):
     return _get_template_config(template_id)
 
 
+def _score_project(payload: Dict[str, Any]) -> float:
+    """Derive a simple ranking score from stored project metrics."""
+    metrics = payload.get("project_metrics") or {}
+    commits = int(metrics.get("total_commits") or 0)
+    loc = int(metrics.get("total_lines") or 0)
+    code_frac = float(metrics.get("code_frac") or 0.0)
+    return 0.5 * commits + 0.4 * (loc ** 0.5) + 0.1 * (code_frac * 100)
+
+
+def _build_evolution(git: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract commit-activity data that illustrates a project's evolution over time."""
+    return {
+        "first_commit_at": git.get("first_commit_at"),
+        "last_commit_at": git.get("last_commit_at"),
+        "duration_days": git.get("duration_days") or metrics.get("duration_days", 0),
+        "total_commits": git.get("total_commits") or metrics.get("total_commits", 0),
+        "contributors": git.get("contributors") or [],
+        "activity_mix": git.get("activity_mix") or {},
+    }
+
+
+@router.get("/top")
+def get_top_projects(
+    limit: int = Query(default=3, ge=1, le=10, description="Number of top projects to return (1–10)"),
+    mode: str = Query(default="private", description="'public' strips customization fields; 'private' includes them"),
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Return the top-ranked projects ordered by a composite score (commits + LOC).
+
+    - **limit**: how many projects to return (default 3, max 10).
+    - **mode=public**: read-only view — omits editable customization fields.
+    - **mode=private**: full view including tagline, description, key_features, etc.
+
+    Each entry includes an ``evolution`` block with first/last commit dates,
+    duration, total commits, contributors, and activity mix — illustrating the
+    process and progression of changes over the project's lifetime.
+    """
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+
+    if not all_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+
+    scored: List[Dict[str, Any]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
+
+    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
+
+    is_public = mode.strip().lower() == "public"
+    result: List[Dict[str, Any]] = []
+    for rank, entry in enumerate(ranked, start=1):
+        pid = entry["project_id"]
+        payload = entry["payload"]
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        git = payload.get("git_analysis") or {}
+
+        project: Dict[str, Any] = {
+            "rank": rank,
+            "project_id": pid,
+            "project_title": payload.get("project_name"),
+            "score": round(entry["score"], 2),
+            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
+            "key_metrics": _build_key_metrics(project_metrics),
+            "evolution": _build_evolution(git, project_metrics),
+        }
+
+        if not is_public:
+            project["tagline"] = portfolio_item.get("tagline")
+            project["description"] = portfolio_item.get("description")
+            project["summary"] = portfolio_item.get("summary")
+            project["key_features"] = portfolio_item.get("key_features") or []
+            project["project_type"] = portfolio_item.get("project_type")
+            project["complexity"] = portfolio_item.get("complexity")
+            project["is_collaborative"] = portfolio_item.get("is_collaborative", False)
+        else:
+            project["summary"] = portfolio_item.get("summary") or portfolio_item.get("description")
+
+        result.append(project)
+
+    return {"total": len(result), "limit": limit, "mode": mode.strip().lower(), "projects": result}
+
+
+def _iso_week_key(iso_date: str) -> Optional[str]:
+    """Return the ISO-8601 week start (Monday) for a date string, or None if unparseable."""
+    raw = iso_date.split("T")[0] if "T" in iso_date else iso_date
+    try:
+        d = datetime.date.fromisoformat(raw)
+    except ValueError:
+        return None
+    # Monday of the ISO week
+    monday = d - datetime.timedelta(days=d.weekday())
+    return monday.isoformat()
+
+
+def _weeks_from_range(start_iso: str, end_iso: str) -> List[str]:
+    """Generate all Monday-week keys between two ISO date strings (inclusive)."""
+    try:
+        start = datetime.date.fromisoformat(start_iso.split("T")[0])
+        end = datetime.date.fromisoformat(end_iso.split("T")[0])
+    except ValueError:
+        return []
+    start = start - datetime.timedelta(days=start.weekday())
+    weeks = []
+    cur = start
+    while cur <= end:
+        weeks.append(cur.isoformat())
+        cur += datetime.timedelta(weeks=1)
+    return weeks
+
+
+def _heatmap_from_timeline(timeline: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Count activity events per ISO week from a chronological skills timeline."""
+    counts: Dict[str, int] = {}
+    for event in timeline:
+        ts = event.get("timestamp", "")
+        week = _iso_week_key(ts) if ts else None
+        if week:
+            counts[week] = counts.get(week, 0) + 1
+    return counts
+
+
+def _heatmap_from_range(start_iso: Optional[str], end_iso: Optional[str], total: int) -> Dict[str, int]:
+    """
+    Synthesize a weekly heatmap when no per-event timeline exists.
+    Distributes ``total`` commits evenly across weeks in [start, end].
+    """
+    if not start_iso or not end_iso or total <= 0:
+        return {}
+    weeks = _weeks_from_range(start_iso, end_iso)
+    if not weeks:
+        return {}
+    base, remainder = divmod(total, len(weeks))
+    return {week: base + (1 if i < remainder else 0) for i, week in enumerate(weeks)}
+
+
+def _merge_heatmaps(maps: List[Dict[str, int]]) -> Dict[str, int]:
+    """Sum multiple {week: count} maps into one."""
+    merged: Dict[str, int] = {}
+    for m in maps:
+        for week, count in m.items():
+            merged[week] = merged.get(week, 0) + count
+    return merged
+
+
+@router.get("/heatmap")
+def get_activity_heatmap(
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    """
+    Return a weekly commit-activity heatmap across all projects.
+
+    Each key in ``weeks`` is an ISO-8601 date (Monday of the week, e.g. ``"2025-09-01"``).
+    The value is the number of activity events (commits / file changes) recorded that week.
+
+    - If chronological-skills timeline data exists for a project, actual per-file event
+      timestamps are used (most accurate).
+    - Otherwise, total commits are distributed evenly across the project's active date range.
+
+    The response also includes ``total_weeks`` (number of active weeks), ``total_activity``
+    (sum of all counts), and the ``date_range`` covered.
+    """
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+
+    if not all_projects:
+        raise HTTPException(status_code=404, detail="No projects found")
+
+    per_project_maps: List[Dict[str, int]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        # Prefer timeline events for accuracy
+        timeline = (
+            (payload.get("global_insights") or {})
+            .get("chronological_skills", {})
+            .get("timeline") or []
+        )
+        if timeline:
+            per_project_maps.append(_heatmap_from_timeline(timeline))
+        else:
+            metrics = payload.get("project_metrics") or {}
+            per_project_maps.append(
+                _heatmap_from_range(
+                    metrics.get("duration_start"),
+                    metrics.get("duration_end"),
+                    int(metrics.get("total_commits") or 0),
+                )
+            )
+
+    merged = _merge_heatmaps(per_project_maps)
+
+    if not merged:
+        return {"weeks": {}, "total_weeks": 0, "total_activity": 0, "date_range": None}
+
+    sorted_weeks = sorted(merged)
+    return {
+        "weeks": {w: merged[w] for w in sorted_weeks},
+        "total_weeks": len(sorted_weeks),
+        "total_activity": sum(merged.values()),
+        "date_range": {"start": sorted_weeks[0], "end": sorted_weeks[-1]},
+    }
+
+
 @router.get("/{project_id}")
 def get_portfolio_showcase(
     project_id: int,
@@ -379,3 +605,651 @@ def generate_portfolio(project_id: int, store: ProjectInsightsStore = Depends(ge
     if persist_fields:
         store.update_portfolio_insights_fields(project_id, persist_fields)
     return {"project_id": project_id, "portfolio_item": portfolio}
+
+
+# ---------------------------------------------------------------------------
+# Portfolio site generation
+# ---------------------------------------------------------------------------
+
+_portfolio_dev_pid: Optional[int] = None
+
+PORTFOLIO_TEMPLATE_DIR = Path(__file__).resolve().parents[3] / "portfolio-template"
+
+
+class PortfolioSiteRequest(BaseModel):
+    user_id: str = "default"
+    name: str = ""
+    title: str = ""
+    bio: str = ""
+    email: str = ""
+    location: str = ""
+    github_url: str = ""
+    linkedin_url: str = ""
+    years_experience: str = ""
+    projects_completed: str = ""
+    open_source_contributions: str = ""
+    project_ids: List[int] = Field(..., min_length=2, max_length=4)
+    hidden_sections: List[str] = Field(default_factory=list)
+
+
+def _clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
+def _ensure_https(url: str) -> str:
+    if url and not url.startswith(("http://", "https://")):
+        return "https://" + url
+    return url
+
+
+def _default_name(config: Optional[UserConfig]) -> str:
+    if config is None:
+        return ""
+    if _clean_text(config.name):
+        return _clean_text(config.name)
+    first = _clean_text(config.first_name)
+    last = _clean_text(config.last_name)
+    combined = " ".join(part for part in (first, last) if part)
+    if combined:
+        return combined
+    return _clean_text(config.resume_owner_name)
+
+
+def _build_heatmap_data(store: ProjectInsightsStore) -> Optional[Dict[str, Any]]:
+    """Aggregate the activity heatmap across all projects in the store."""
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+    if not all_projects:
+        return None
+
+    per_project_maps: List[Dict[str, int]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        timeline = (
+            (payload.get("global_insights") or {})
+            .get("chronological_skills", {})
+            .get("timeline") or []
+        ) or (payload.get("git_analysis") or {}).get("timeline") or []
+        if timeline:
+            per_project_maps.append(_heatmap_from_timeline(timeline))
+        else:
+            metrics = payload.get("project_metrics") or {}
+            per_project_maps.append(
+                _heatmap_from_range(
+                    metrics.get("duration_start"),
+                    metrics.get("duration_end"),
+                    int(metrics.get("total_commits") or 0),
+                )
+            )
+
+    merged = _merge_heatmaps(per_project_maps)
+    if not merged:
+        return None
+
+    sorted_weeks = sorted(merged.keys())
+    return {
+        "weeks": {k: merged[k] for k in sorted_weeks},
+        "total_weeks": len(sorted_weeks),
+        "total_activity": sum(merged.values()),
+        "date_range": {"start": sorted_weeks[0], "end": sorted_weeks[-1]},
+    }
+
+
+def _build_showcase_data(store: ProjectInsightsStore, limit: int = 3) -> Optional[List[Dict[str, Any]]]:
+    """Return the top-ranked projects as showcase entries."""
+    pipeline = PresentationPipeline(insights_store=store)
+    all_projects = pipeline.list_available_projects()
+    if not all_projects:
+        return None
+
+    scored: List[Dict[str, Any]] = []
+    for item in all_projects:
+        pid = item.get("project_id")
+        if not isinstance(pid, int):
+            continue
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+        scored.append({"project_id": pid, "payload": payload, "score": _score_project(payload)})
+
+    ranked = sorted(scored, key=lambda x: x["score"], reverse=True)[:limit]
+    result: List[Dict[str, Any]] = []
+    for rank, entry in enumerate(ranked, start=1):
+        pid = entry["project_id"]
+        payload = entry["payload"]
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        git = payload.get("git_analysis") or {}
+        result.append({
+            "rank": rank,
+            "project_id": pid,
+            "project_title": payload.get("project_name"),
+            "score": round(entry["score"], 2),
+            "summary": portfolio_item.get("summary") or portfolio_item.get("description"),
+            "key_skills": portfolio_item.get("skills") or project_metrics.get("skills") or [],
+            "key_metrics": _build_key_metrics(project_metrics),
+            "evolution": _build_evolution(git, project_metrics),
+        })
+    return result or None
+
+
+def _build_skills_progression(
+    store: ProjectInsightsStore,
+    project_ids: List[int],
+    reference_date: Optional[datetime.date] = None,
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Build a chronological skills timeline for the portfolio site.
+
+    For every project in *project_ids*, gather the chronological skill events
+    (from ``global_insights.chronological_skills``).  For each skill name:
+
+    * Record the earliest timestamp it was seen (``first_seen``, YYYY-MM).
+    * Record the most-recent timestamp it was seen (``last_seen``, YYYY-MM).
+    * Compute fractional ``years_experience`` = months between first_seen and
+      *reference_date* (defaults to today), clamped to ≥ 0.
+    * Count distinct projects the skill appears in.
+
+    Skills are then bucketed by the *year* of their ``first_seen`` date.
+    Buckets are returned oldest-first, each containing a list of skill entries
+    sorted by ``years_experience`` descending (most experienced skill first).
+
+    Returns ``None`` when no timeline data is available.
+    """
+    if reference_date is None:
+        reference_date = datetime.date.today()
+
+    # skill_name → aggregated info
+    skill_info: Dict[str, Dict[str, Any]] = {}
+
+    for pid in project_ids:
+        payload = store.load_project_insight_by_id(pid)
+        if not payload:
+            continue
+
+        global_insights = payload.get("global_insights") or {}
+        chron_raw = global_insights.get("chronological_skills") or {}
+
+        # Apply project-level overrides when present (mirrors chronological.py logic)
+        overrides = chron_raw.get("project_overrides") or {}
+        override = overrides.get(str(pid))
+        if isinstance(override, dict) and "timeline" in override:
+            timeline_raw = override["timeline"]
+        else:
+            timeline_raw = chron_raw.get("timeline") or []
+
+        if not isinstance(timeline_raw, list):
+            continue
+
+        for event in timeline_raw:
+            if not isinstance(event, dict):
+                continue
+            timestamp = event.get("timestamp")
+            if not isinstance(timestamp, str) or not timestamp:
+                continue
+            skills_raw = event.get("skills") or []
+            if not isinstance(skills_raw, list):
+                continue
+            category = str(event.get("category") or "general")
+
+            # Normalise timestamp to YYYY-MM (keep only first 7 chars)
+            period = timestamp[:7] if len(timestamp) >= 7 else timestamp
+
+            for raw_skill in skills_raw:
+                if not isinstance(raw_skill, str) or not raw_skill.strip():
+                    continue
+                skill = raw_skill.strip().casefold()
+                info = skill_info.setdefault(
+                    skill,
+                    {
+                        "skill": skill,
+                        "category": category,
+                        "first_seen": period,
+                        "last_seen": period,
+                        "project_ids": set(),
+                    },
+                )
+                if period < info["first_seen"]:
+                    info["first_seen"] = period
+                if period > info["last_seen"]:
+                    info["last_seen"] = period
+                info["project_ids"].add(pid)
+                # Keep the category from the earliest event
+                if period == info["first_seen"]:
+                    info["category"] = category
+
+    if not skill_info:
+        return None
+
+    # Compute years_experience for each skill
+    def _months_to_years(period: str) -> float:
+        try:
+            year, month = int(period[:4]), int(period[5:7])
+            first_date = datetime.date(year, month, 1)
+            delta_days = (reference_date - first_date).days
+            return max(0.0, round(delta_days / 365.25, 1))
+        except (ValueError, IndexError):
+            return 0.0
+
+    enriched: List[Dict[str, Any]] = []
+    for info in skill_info.values():
+        enriched.append({
+            "skill": info["skill"],
+            "category": info["category"],
+            "firstSeen": info["first_seen"],
+            "lastSeen": info["last_seen"],
+            "yearsExperience": _months_to_years(info["first_seen"]),
+            "projectCount": len(info["project_ids"]),
+        })
+
+    # Bucket by year of first appearance
+    buckets: Dict[int, List[Dict[str, Any]]] = {}
+    for item in enriched:
+        try:
+            year = int(item["firstSeen"][:4])
+        except (ValueError, IndexError):
+            year = 0
+        buckets.setdefault(year, []).append(item)
+
+    timeline: List[Dict[str, Any]] = []
+    for year in sorted(buckets.keys()):
+        skills_in_year = sorted(
+            buckets[year],
+            key=lambda x: x["yearsExperience"],
+            reverse=True,
+        )
+        timeline.append({
+            "period": str(year),
+            "year": year,
+            "newSkills": skills_in_year,
+        })
+
+    return timeline or None
+
+
+def _build_portfolio_ts(profile: Dict[str, Any]) -> str:
+    """Render a syntactically valid TypeScript config from the profile dict."""
+
+    def _js(value: Any) -> str:
+        return json.dumps(value, ensure_ascii=False)
+
+    socials = profile.get("socials") or []
+    about = profile.get("about") or {}
+    skills = profile.get("skills") or []
+    projects = profile.get("projects") or []
+    heatmap: Optional[Dict[str, Any]] = profile.get("heatmap")
+    showcase: Optional[List[Dict[str, Any]]] = profile.get("showcase")
+    hidden_sections: List[str] = profile.get("hiddenSections") or []
+    skills_timeline: Optional[List[Dict[str, Any]]] = profile.get("skillsTimeline")
+
+    socials_str = ",\n    ".join(
+        f'{{ platform: {_js(s["platform"])}, url: {_js(s["url"])}, icon: {_js(s["icon"])} }}'
+        for s in socials
+    )
+
+    highlights_str = ",\n      ".join(
+        f'{{ label: {_js(h["label"])}, value: {_js(h["value"])} }}'
+        for h in (about.get("highlights") or [])
+    )
+
+    desc_str = ",\n      ".join(_js(d) for d in (about.get("description") or []))
+
+    skill_cats = []
+    for cat in skills:
+        items = ", ".join(_js(s) for s in cat["skills"])
+        skill_cats.append(
+            f'    {{\n      name: {_js(cat["name"])},\n      skills: [{items}],\n    }}'
+        )
+    skills_str = ",\n".join(skill_cats)
+
+    proj_entries = []
+    for p in projects:
+        tags = ", ".join(_js(t) for t in p.get("tags", []))
+        image_val = p.get("image") or "/placeholder-project.jpg"
+        entry = f'    {{\n      title: {_js(p["title"])},\n      description: {_js(p.get("description", ""))},\n      image: {_js(image_val)},\n      tags: [{tags}],'
+        if p.get("sourceUrl"):
+            entry += f'\n      sourceUrl: {_js(p["sourceUrl"])},'
+        if p.get("liveUrl"):
+            entry += f'\n      liveUrl: {_js(p["liveUrl"])},'
+        if p.get("featured"):
+            entry += "\n      featured: true,"
+        entry += "\n    }"
+        proj_entries.append(entry)
+    projects_str = ",\n".join(proj_entries)
+
+    # Optional heatmap block
+    heatmap_str = ""
+    if heatmap:
+        weeks_entries = ", ".join(
+            f'{_js(k)}: {v}' for k, v in sorted(heatmap.get("weeks", {}).items())
+        )
+        dr = heatmap.get("date_range") or {}
+        heatmap_str = (
+            f'\n  heatmap: {{\n'
+            f'    weeks: {{ {weeks_entries} }},\n'
+            f'    total_weeks: {heatmap.get("total_weeks", 0)},\n'
+            f'    total_activity: {heatmap.get("total_activity", 0)},\n'
+            f'    date_range: {{ start: {_js(dr.get("start", ""))}, end: {_js(dr.get("end", ""))} }},\n'
+            f'  }},'
+        )
+
+    # Optional showcase block
+    showcase_str = ""
+    if showcase:
+        entries = []
+        for p in showcase:
+            evo = p.get("evolution") or {}
+            km = p.get("key_metrics") or {}
+            contribs = ", ".join(_js(c) for c in (evo.get("contributors") or []))
+            mix_entries = ", ".join(
+                f'{_js(k)}: {v}' for k, v in (evo.get("activity_mix") or {}).items()
+            )
+            skills_list = ", ".join(_js(s) for s in (p.get("key_skills") or []))
+            entries.append(
+                f'    {{\n'
+                f'      rank: {p.get("rank", 0)},\n'
+                f'      project_id: {p.get("project_id", 0)},\n'
+                f'      project_title: {_js(p.get("project_title", ""))},\n'
+                f'      score: {p.get("score", 0)},\n'
+                f'      summary: {_js(p.get("summary") or "")},\n'
+                f'      key_skills: [{skills_list}],\n'
+                f'      key_metrics: {{\n'
+                f'        total_files: {km.get("total_files", 0)},\n'
+                f'        total_lines: {km.get("total_lines", 0)},\n'
+                f'        total_commits: {km.get("total_commits", 0)},\n'
+                f'        total_contributors: {km.get("total_contributors", 0)},\n'
+                f'        doc_files: {km.get("doc_files", 0)},\n'
+                f'        image_files: {km.get("image_files", 0)},\n'
+                f'        video_files: {km.get("video_files", 0)},\n'
+                f'        test_files: {km.get("test_files", 0)},\n'
+                f'      }},\n'
+                f'      evolution: {{\n'
+                f'        first_commit_at: {_js(evo.get("first_commit_at"))},\n'
+                f'        last_commit_at: {_js(evo.get("last_commit_at"))},\n'
+                f'        duration_days: {evo.get("duration_days", 0)},\n'
+                f'        total_commits: {evo.get("total_commits", 0)},\n'
+                f'        contributors: [{contribs}],\n'
+                f'        activity_mix: {{ {mix_entries} }},\n'
+                f'      }},\n'
+                f'    }}'
+            )
+        showcase_str = f'\n  showcase: [\n' + ",\n".join(entries) + f'\n  ],'
+
+    # Optional skillsTimeline block
+    skills_timeline_str = ""
+    if skills_timeline:
+        bucket_entries = []
+        for bucket in skills_timeline:
+            skill_entries = []
+            for sk in bucket.get("newSkills") or []:
+                skill_entries.append(
+                    f'        {{\n'
+                    f'          skill: {_js(sk.get("skill", ""))},\n'
+                    f'          category: {_js(sk.get("category", "general"))},\n'
+                    f'          firstSeen: {_js(sk.get("firstSeen", ""))},\n'
+                    f'          lastSeen: {_js(sk.get("lastSeen", ""))},\n'
+                    f'          yearsExperience: {sk.get("yearsExperience", 0)},\n'
+                    f'          projectCount: {sk.get("projectCount", 1)},\n'
+                    f'        }}'
+                )
+            skills_inner = ",\n".join(skill_entries)
+            bucket_entries.append(
+                f'    {{\n'
+                f'      period: {_js(bucket.get("period", ""))},\n'
+                f'      year: {bucket.get("year", 0)},\n'
+                f'      newSkills: [\n{skills_inner}\n      ],\n'
+                f'    }}'
+            )
+        skills_timeline_str = f'\n  skillsTimeline: [\n' + ",\n".join(bucket_entries) + f'\n  ],'
+
+    return f'''import type {{ DeveloperProfile }} from "@/types/portfolio";
+
+export const portfolio: DeveloperProfile = {{
+  name: {_js(profile.get("name", ""))},
+  title: {_js(profile.get("title", ""))},
+  bio: {_js(profile.get("bio", ""))},
+  avatarUrl: "/avatar-placeholder.jpg",
+  resumeUrl: "/resume.pdf",
+  email: {_js(profile.get("email", ""))},
+  location: {_js(profile.get("location", ""))},
+
+  socials: [
+    {socials_str}
+  ],
+
+  about: {{
+    description: [
+      {desc_str}
+    ],
+    highlights: [
+      {highlights_str}
+    ],
+  }},
+
+  skills: [
+{skills_str}
+  ],
+
+  projects: [
+{projects_str}
+  ],
+
+  experience: [],{heatmap_str}{showcase_str}{skills_timeline_str}
+  hiddenSections: {json.dumps(hidden_sections)},
+}};
+'''
+
+
+def _is_running_in_docker() -> bool:
+    """Detect if the process is running inside a Docker container."""
+    return os.path.exists("/.dockerenv") or os.environ.get("RUNNING_IN_DOCKER") == "1"
+
+
+def _find_npm() -> Optional[str]:
+    """Return the path to npm if available, or None."""
+    return shutil.which("npm")
+
+
+def _ensure_dev_server() -> bool:
+    """Start the Next.js dev server if it is not already running.
+
+    Returns True if the server was started or is already running,
+    False if npm is unavailable (e.g. inside Docker).
+    """
+    global _portfolio_dev_pid
+
+    if _portfolio_dev_pid is not None:
+        try:
+            os.kill(_portfolio_dev_pid, 0)
+            return True
+        except OSError:
+            _portfolio_dev_pid = None
+
+    if _is_running_in_docker():
+        logger.info("Running inside Docker — skipping portfolio dev server (run 'npm run dev' in portfolio-template/ on the host)")
+        return False
+
+    npm_path = _find_npm()
+    if not npm_path:
+        logger.warning("npm not found — cannot start portfolio dev server")
+        return False
+
+    proc = subprocess.Popen(
+        [npm_path, "run", "dev"],
+        cwd=str(PORTFOLIO_TEMPLATE_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    _portfolio_dev_pid = proc.pid
+    logger.info("Started portfolio dev server (pid=%s)", proc.pid)
+    return True
+
+
+@router.post("/generate-site")
+def generate_portfolio_site(
+    req: PortfolioSiteRequest,
+    store: ProjectInsightsStore = Depends(get_store),
+    manager: UserConfigManager = Depends(get_config_manager),
+):
+    """
+    Generate a portfolio website from user profile info and selected projects.
+
+    Writes the portfolio config, starts the Next.js dev server, and returns
+    the URL where the user can view their portfolio.  The Resume button on the
+    generated site serves ``portfolio-template/public/resume.pdf``, which is
+    written by ``POST /resume/pdf`` whenever the user generates a resume in the
+    frontend — so generate your resume first and the button will work.
+    """
+    user_id = _clean_text(req.user_id) or "default"
+    config = manager.load_config(user_id, silent=True)
+
+    resolved_name = _clean_text(req.name) or _default_name(config) or "Developer"
+    resolved_title = _clean_text(req.title) or _clean_text(getattr(config, "portfolio_title", None)) or "Full-Stack Developer"
+    resolved_bio = _clean_text(req.bio) or _clean_text(getattr(config, "portfolio_about_me", None))
+    resolved_email = _clean_text(req.email) or _clean_text(getattr(config, "email", None))
+    resolved_location = _clean_text(req.location)
+    resolved_github_url = _clean_text(req.github_url) or _clean_text(getattr(config, "github_url", None))
+    resolved_linkedin_url = _clean_text(req.linkedin_url) or _clean_text(getattr(config, "linkedin_url", None))
+    resolved_years_experience = _clean_text(req.years_experience) or _clean_text(getattr(config, "portfolio_years_of_experience", None))
+    resolved_open_source = _clean_text(req.open_source_contributions) or _clean_text(
+        getattr(config, "portfolio_open_source_contribution", None)
+    )
+    resolved_projects_completed = _clean_text(req.projects_completed)
+
+    socials: List[Dict[str, str]] = []
+    if resolved_github_url:
+        socials.append({"platform": "GitHub", "url": _ensure_https(resolved_github_url), "icon": "github"})
+    if resolved_linkedin_url:
+        socials.append({"platform": "LinkedIn", "url": _ensure_https(resolved_linkedin_url), "icon": "linkedin"})
+
+    highlights: List[Dict[str, str]] = []
+    if resolved_years_experience:
+        highlights.append({"label": "Years Experience", "value": resolved_years_experience})
+    if resolved_projects_completed:
+        highlights.append({"label": "Projects Completed", "value": resolved_projects_completed})
+    if resolved_open_source:
+        highlights.append({"label": "Open Source Contributions", "value": resolved_open_source})
+
+    all_skills: Dict[str, set] = {}
+    ts_projects: List[Dict[str, Any]] = []
+
+    for i, pid in enumerate(req.project_ids):
+        payload = store.load_project_insight_by_id(pid)
+        if payload is None:
+            raise HTTPException(status_code=404, detail=f"Project {pid} not found")
+
+        portfolio_item = payload.get("portfolio_item") or {}
+        project_metrics = payload.get("project_metrics") or {}
+        project_name = payload.get("project_name") or f"Project {pid}"
+
+        skills_list = (
+            portfolio_item.get("skills")
+            or project_metrics.get("skills")
+            or []
+        )
+        languages = portfolio_item.get("languages") or project_metrics.get("languages") or []
+        frameworks = portfolio_item.get("frameworks") or project_metrics.get("frameworks") or []
+
+        for lang in languages:
+            all_skills.setdefault("Languages", set()).add(str(lang))
+        for fw in frameworks:
+            all_skills.setdefault("Frameworks", set()).add(str(fw))
+        for sk in skills_list:
+            all_skills.setdefault("Tools & Skills", set()).add(str(sk))
+
+        tags = list(dict.fromkeys(
+            [str(s) for s in languages[:3]] + [str(s) for s in frameworks[:3]] + [str(s) for s in skills_list[:3]]
+        ))
+
+        thumbnail = store.get_project_thumbnail(pid)
+        image_url = "/placeholder-project.jpg"
+        if thumbnail and thumbnail.get("image_path"):
+            thumb_path = Path(thumbnail["image_path"])
+            if thumb_path.exists():
+                image_url = f"http://localhost:8000/projects/{pid}/thumbnail/content"
+
+        ts_projects.append({
+            "title": project_name,
+            "description": portfolio_item.get("summary") or portfolio_item.get("description") or "",
+            "image": image_url,
+            "tags": tags[:6],
+            "featured": i < 2,
+        })
+
+    skill_categories = [
+        {"name": cat, "skills": sorted(items)}
+        for cat, items in all_skills.items()
+        if items
+    ]
+
+    # --- Heatmap ---------------------------------------------------------------
+    heatmap_data: Optional[Dict[str, Any]] = None
+    try:
+        heatmap_data = _build_heatmap_data(store)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not build heatmap data: %s", exc)
+
+    # --- Top-3 showcase -------------------------------------------------------
+    showcase_data: Optional[List[Dict[str, Any]]] = None
+    try:
+        showcase_data = _build_showcase_data(store, limit=3)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not build showcase data: %s", exc)
+
+    # --- Skills progression timeline ------------------------------------------
+    skills_timeline_data: Optional[List[Dict[str, Any]]] = None
+    try:
+        skills_timeline_data = _build_skills_progression(store, req.project_ids)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not build skills progression: %s", exc)
+
+    profile: Dict[str, Any] = {
+        "name": resolved_name,
+        "title": resolved_title,
+        "bio": resolved_bio,
+        "email": resolved_email,
+        "location": resolved_location,
+        "socials": socials,
+        "about": {
+            "description": [resolved_bio] if resolved_bio else [],
+            "highlights": highlights,
+        },
+        "skills": skill_categories,
+        "projects": ts_projects,
+    }
+    if heatmap_data:
+        profile["heatmap"] = heatmap_data
+    if showcase_data:
+        profile["showcase"] = showcase_data
+    if req.hidden_sections:
+        profile["hiddenSections"] = req.hidden_sections
+    if skills_timeline_data:
+        profile["skillsTimeline"] = skills_timeline_data
+
+    config_path = PORTFOLIO_TEMPLATE_DIR / "src" / "config" / "portfolio.ts"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(_build_portfolio_ts(profile), encoding="utf-8")
+    logger.info("Wrote portfolio config to %s", config_path)
+
+    server_running = _ensure_dev_server()
+
+    return {
+        "status": "ok",
+        "url": "http://localhost:3000",
+        "server_started": server_running,
+        "message": (
+            "Portfolio generated. Visit http://localhost:3000 to view it."
+            if server_running
+            else "Portfolio config written. Run 'cd portfolio-template && npm run dev' on the host to view it at http://localhost:3000."
+        ),
+    }

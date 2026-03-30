@@ -131,6 +131,15 @@ class ProjectRoleUpdatePayload(BaseModel):
     role: str
 
 
+class ProjectEditPayload(BaseModel):
+    project_name: Optional[str] = None
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    project_type: Optional[str] = None
+    complexity: Optional[str] = None
+    summary: Optional[str] = None
+
+
 def _resolve_zip_hash(store: ProjectInsightsStore, zip_path: str) -> Optional[str]:
     runs = store.list_recent_zipfiles(limit=5)
 def _model_dump(model: Optional[BaseModel]) -> Dict[str, Any]:
@@ -171,6 +180,15 @@ def _normalize_role(role_raw: str) -> str:
             detail=f"role cannot exceed {MAX_ROLE_LENGTH} characters",
         )
     return role
+
+
+def _normalize_edit_string(value: Optional[str], field_name: str) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        raise HTTPException(status_code=422, detail=f"{field_name} must be a non-empty string")
+    return cleaned
 
 
 def _resolve_project_metadata_or_404(
@@ -441,6 +459,11 @@ def _run_upload(
             and "git_identifier" in inspect.signature(pipeline.start).parameters
         ):
             start_kwargs["git_identifier"] = config.git_identifier
+        if (
+            getattr(config, "resume_owner_name", None) is not None
+            and "resume_owner_name" in inspect.signature(pipeline.start).parameters
+        ):
+            start_kwargs["resume_owner_name"] = config.resume_owner_name
         result = pipeline.start(
             zip_path,
             **start_kwargs,
@@ -464,12 +487,15 @@ def _run_upload(
         store.save_run_representation(ingest_id, resolved_representation)
     represented_output = _represent_report(report or {"projects": result.get("projects") or {}}, resolved_representation)
     project_names = [name for name in (result.get("projects") or {}).keys() if name != "_misc_files"]
+    artifacts = result.get("artifacts")
+    resume_pdf_path = artifacts.get("resume_pdf_path") if isinstance(artifacts, dict) else None
 
     return {
         "status": "ok",
         "zip_hash": zip_hash,
         "ingest_id": ingest_id,
         "projects": project_names,
+        "resume_pdf_path": resume_pdf_path,
         "representation": resolved_representation,
         "represented_output": represented_output,
     }
@@ -553,6 +579,47 @@ def get_project(
         payload.update(thumbnail_ref)
 
     return {"project_id": project_id, **payload}
+
+
+@router.patch("/{project_id}")
+def edit_project(
+    project_id: int,
+    payload: ProjectEditPayload,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    project_name = _normalize_edit_string(payload.project_name, "project_name")
+    portfolio_fields: Dict[str, Any] = {}
+    for key in ("tagline", "description", "project_type", "complexity", "summary"):
+        value = _normalize_edit_string(getattr(payload, key), key)
+        if value is not None:
+            portfolio_fields[key] = value
+
+    if project_name is None and not portfolio_fields:
+        raise HTTPException(status_code=422, detail="At least one editable field is required")
+
+    changed = store.update_project_snapshot(
+        project_info_id=project_id,
+        project_name=project_name,
+        portfolio_fields=portfolio_fields if portfolio_fields else None,
+    )
+    if not changed:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    updated = store.load_project_insight_by_id(project_id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "ok", "project_id": project_id, "project": updated}
+
+
+@router.delete("/{project_id}")
+def remove_project(
+    project_id: int,
+    store: ProjectInsightsStore = Depends(get_store),
+):
+    deleted = store.soft_delete_project_snapshot(project_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "ok", "project_id": project_id}
 
 
 @router.put("/{project_id}/role")
@@ -739,6 +806,7 @@ def update_existing_zip(
 
     # Resolve git_identifier from config
     git_identifier = getattr(config, "git_identifier", None)
+    resume_owner_name = getattr(config, "resume_owner_name", None)
 
     try:
         from src.pipeline.orchestrator import ArtifactPipeline  # type: ignore
@@ -748,6 +816,7 @@ def update_existing_zip(
             new_zip_path=new_zip_path,
             old_zip_hash=old_zip_hash,
             git_identifier=git_identifier,
+            resume_owner_name=resume_owner_name,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -18,6 +18,7 @@
 | **Skill Analysis** | ✅ PASS | Skills extracted from file contributions |
 | **Code Quality Analysis** | ✅ PASS | 17 code files analyzed |
 | **Report Generation** | ✅ PASS | Text reports generated successfully |
+| **Startup Scripts** | ✅ PASS | Cross-platform one-click launch verified |
 
 ---
 
@@ -147,6 +148,25 @@
 - ✅ `llm.openai_client` - OpenAIClient
 
 **Result**: All modules import successfully with dependencies installed
+
+---
+
+### Test 7: Cross-Platform Startup Scripts (Manual Verification)
+**Targets**: `start-miner.sh` (Mac/Linux) & `start-miner.bat` (Windows)
+**Status**: ✅ PASS  
+**Command**: `./start-miner.sh` / `start-miner.bat`
+
+**Verified Startup Flow**:
+- ✅ Docker Compose successfully boots `backend` in detached mode
+- ✅ Wait hook successfully detects port 8000 initialization
+- ✅ Background `portfolio-template` server successfully boots
+- ✅ `node_modules` installation skip/run logic works conditionally
+- ✅ `frontend` Electron app boots correctly and takes foreground focus
+
+**Verified Teardown Flow**:
+- ✅ Closing Electron app triggers graceful exit trap
+- ✅ `docker compose down` halts database and backend containers
+- ✅ Background `portfolio-template` node process successfully killed
 
 ---
 

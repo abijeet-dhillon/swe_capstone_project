@@ -209,3 +209,55 @@ def test_git_identifier_defaults_to_none(manager):
     manager.create_config("no_git_user", "/tmp/data.zip", False)
     cfg = manager.load_config("no_git_user")
     assert cfg.git_identifier is None
+
+
+def test_resume_owner_name_stores_and_loads(manager):
+    manager.create_config("resume_user", "/tmp/data.zip", False, resume_owner_name="Student Name")
+    cfg = manager.load_config("resume_user")
+    assert cfg.resume_owner_name == "Student Name"
+
+
+def test_resume_owner_name_can_be_updated(manager):
+    manager.create_config("resume_update_user", "/tmp/data.zip", False)
+    assert manager.update_config("resume_update_user", resume_owner_name="Updated Name") is True
+    cfg = manager.load_config("resume_update_user")
+    assert cfg.resume_owner_name == "Updated Name"
+
+
+def test_extended_profile_fields_persist(manager):
+    manager.create_config("profile_user", "/tmp/data.zip", False)
+    updated = manager.update_config(
+        "profile_user",
+        name="Jane Smith",
+        phone_number="123-456-7890",
+        linkedin_url="https://linkedin.com/in/jane",
+        github_url="https://github.com/jane",
+        linkedin_label="LinkedIn",
+        github_label="GitHub",
+        education=[
+            {
+                "school": "University of Victoria",
+                "degree": "BSc Computer Science",
+                "location": "Victoria, BC",
+                "from": "Sep 2022",
+                "to": "May 2026",
+                "still_studying": False,
+            }
+        ],
+        awards=["Dean's List"],
+        portfolio_title="Software Engineer",
+        portfolio_about_me="Building products with Python.",
+        portfolio_years_of_experience="3+",
+        portfolio_open_source_contribution="10+ PRs",
+    )
+    assert updated is True
+
+    cfg = manager.load_config("profile_user")
+    assert cfg is not None
+    assert cfg.name == "Jane Smith"
+    assert cfg.phone_number == "123-456-7890"
+    assert cfg.linkedin_url == "https://linkedin.com/in/jane"
+    assert cfg.github_url == "https://github.com/jane"
+    assert cfg.education and cfg.education[0]["school"] == "University of Victoria"
+    assert cfg.awards == ["Dean's List"]
+    assert cfg.portfolio_title == "Software Engineer"

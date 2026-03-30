@@ -6,14 +6,19 @@ FROM python:3.10-slim
 WORKDIR /code
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libzbar0 \
     sqlite3 \
     libsqlite3-dev \
     tesseract-ocr \
     tesseract-ocr-eng \
-    git
+    git \
+    texlive-latex-base \
+    texlive-latex-recommended \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
+    && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip and related tools
 RUN pip install --upgrade pip setuptools wheel
@@ -24,5 +29,11 @@ COPY requirements.txt requirements.txt
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the code
-COPY . .
+# Copy the rest of the backend code
+COPY src/ src/
+COPY scripts/ scripts/
+COPY utils/ utils/
+COPY tests/ tests/
+COPY docs/ docs/
+COPY env.template env.template
+COPY README.md README.md

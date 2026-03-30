@@ -26,7 +26,7 @@ DEFAULT_DB_URL = "sqlite:///data/app.db"
 DEFAULT_DB_PATH = DEFAULT_DB_URL.replace("sqlite:///", "")
 # Fixed local encryption key (overridable via INSIGHTS_ENCRYPTION_KEY env var)
 DEFAULT_INSIGHTS_KEY = os.getenv("INSIGHTS_ENCRYPTION_KEY", "local-insights-key")
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 # Legacy tables (no longer written)
 LEGACY_ZIP_TABLE = "zipfile"
@@ -199,6 +199,13 @@ class ProjectInsightsStore:
                         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
                         (7, _utcnow()),
                     )
+                    current_version = 7
+                if current_version < 8:
+                    self._apply_project_soft_delete_schema(conn)
+                    conn.execute(
+                        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?);",
+                        (8, _utcnow()),
+                    )
                 conn.commit()
 
     def _apply_initial_schema(self, conn: sqlite3.Connection) -> None:
@@ -291,6 +298,7 @@ class ProjectInsightsStore:
                 ingest_id INTEGER NOT NULL,
                 project_name TEXT,
                 project_path TEXT,
+                is_deleted INTEGER NOT NULL DEFAULT 0 CHECK (is_deleted IN (0, 1)),
                 is_git_repo INTEGER NOT NULL DEFAULT 0,
                 total_files INTEGER NOT NULL DEFAULT 0,
                 total_lines INTEGER NOT NULL DEFAULT 0,
@@ -641,6 +649,14 @@ class ProjectInsightsStore:
             """
         )
 
+    def _apply_project_soft_delete_schema(self, conn: sqlite3.Connection) -> None:
+        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({PROJECT_INFO_TABLE});")}
+        if "is_deleted" in columns:
+            return
+        conn.execute(
+            f"ALTER TABLE {PROJECT_INFO_TABLE} ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;"
+        )
+
     # Public API
     def record_pipeline_run(
         self,
@@ -861,6 +877,156 @@ class ProjectInsightsStore:
             changed = self.replace_resume_bullets(project_info_id, resume_bullets) or changed
         return changed
 
+    def update_project_snapshot(
+        self,
+        project_info_id: int,
+        project_name: Optional[str] = None,
+        portfolio_fields: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Update editable project fields on a run-specific project snapshot.
+
+        Returns False when the project snapshot is missing or soft-deleted.
+        """
+        editable = {
+            "tagline",
+            "description",
+            "project_type",
+            "complexity",
+            "is_collaborative",
+            "summary",
+            "key_features",
+        }
+        update_data: Dict[str, Any] = {}
+        for key, value in (portfolio_fields or {}).items():
+            if key in editable:
+                update_data[key] = value
+
+        with self._lock:
+            with self._connect() as conn:
+                conn.isolation_level = None
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    row = conn.execute(
+                        f"""
+                        SELECT id
+                        FROM {PROJECT_INFO_TABLE}
+                        WHERE id = ? AND is_deleted = 0;
+                        """,
+                        (project_info_id,),
+                    ).fetchone()
+                    if not row:
+                        conn.execute("ROLLBACK;")
+                        return False
+
+                    changed = False
+                    now = _utcnow()
+                    if project_name is not None:
+                        conn.execute(
+                            f"""
+                            UPDATE {PROJECT_INFO_TABLE}
+                            SET project_name = ?, updated_at = ?
+                            WHERE id = ?;
+                            """,
+                            (project_name, now, project_info_id),
+                        )
+                        changed = True
+
+                    if update_data:
+                        insight_row = conn.execute(
+                            f"""
+                            SELECT id
+                            FROM {PORTFOLIO_INSIGHTS_TABLE}
+                            WHERE project_info_id = ?;
+                            """,
+                            (project_info_id,),
+                        ).fetchone()
+                        if insight_row:
+                            sets = []
+                            params: List[Any] = []
+                            if "tagline" in update_data:
+                                sets.append("tagline = ?")
+                                params.append(update_data["tagline"])
+                            if "description" in update_data:
+                                sets.append("description = ?")
+                                params.append(update_data["description"])
+                            if "project_type" in update_data:
+                                sets.append("project_type = ?")
+                                params.append(update_data["project_type"])
+                            if "complexity" in update_data:
+                                sets.append("complexity = ?")
+                                params.append(update_data["complexity"])
+                            if "is_collaborative" in update_data:
+                                sets.append("is_collaborative = ?")
+                                params.append(1 if update_data["is_collaborative"] else 0)
+                            if "summary" in update_data:
+                                sets.append("summary = ?")
+                                params.append(update_data["summary"])
+                            if "key_features" in update_data:
+                                sets.append("key_features_json = ?")
+                                try:
+                                    params.append(json.dumps(update_data["key_features"] or []))
+                                except Exception:
+                                    params.append("[]")
+                            if sets:
+                                params.append(project_info_id)
+                                conn.execute(
+                                    f"""
+                                    UPDATE {PORTFOLIO_INSIGHTS_TABLE}
+                                    SET {", ".join(sets)}
+                                    WHERE project_info_id = ?;
+                                    """,
+                                    tuple(params),
+                                )
+                                changed = True
+                        else:
+                            conn.execute(
+                                f"""
+                                INSERT INTO {PORTFOLIO_INSIGHTS_TABLE} (
+                                    project_info_id, generated_at, pipeline_version, tagline, description,
+                                    project_type, complexity, is_collaborative, summary, key_features_json
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                                """,
+                                (
+                                    project_info_id,
+                                    now,
+                                    "manual",
+                                    update_data.get("tagline"),
+                                    update_data.get("description"),
+                                    update_data.get("project_type"),
+                                    update_data.get("complexity"),
+                                    1 if update_data.get("is_collaborative") else 0,
+                                    update_data.get("summary"),
+                                    json.dumps(update_data.get("key_features", []) or []),
+                                ),
+                            )
+                            changed = True
+
+                    if not changed:
+                        conn.execute("ROLLBACK;")
+                        return False
+
+                    conn.execute("COMMIT;")
+                    return True
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
+
+    def soft_delete_project_snapshot(self, project_info_id: int) -> bool:
+        """Soft-delete a project snapshot from the current views."""
+        with self._lock:
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    f"""
+                    UPDATE {PROJECT_INFO_TABLE}
+                    SET is_deleted = 1, updated_at = ?
+                    WHERE id = ? AND is_deleted = 0;
+                    """,
+                    (_utcnow(), project_info_id),
+                )
+                conn.commit()
+                return bool(cursor.rowcount and cursor.rowcount > 0)
+
     def upsert_project_thumbnail(
         self,
         project_info_id: int,
@@ -957,28 +1123,39 @@ class ProjectInsightsStore:
             ingest_id = self._latest_ingest_id(conn, zip_hash)
             if not ingest_id:
                 return None
-            project_row = conn.execute(
-                f"SELECT id FROM {PROJECTS_TABLE} WHERE source_hash = ? AND project_name = ?;",
-                (zip_hash, project_name),
-            ).fetchone()
-            if not project_row:
-                return None
-            project_id = project_row[0]
             project_info_id = conn.execute(
                 f"""
-                SELECT id FROM {PROJECT_INFO_TABLE}
-                WHERE project_id = ? AND ingest_id = ?;
+                SELECT pi.id
+                FROM {PROJECT_INFO_TABLE} pi
+                JOIN {PROJECTS_TABLE} p ON p.id = pi.project_id
+                WHERE p.source_hash = ?
+                  AND pi.ingest_id = ?
+                  AND pi.is_deleted = 0
+                  AND (
+                    p.project_name = ?
+                    OR COALESCE(pi.project_name, p.project_name) = ?
+                  )
+                ORDER BY pi.id DESC
+                LIMIT 1;
                 """,
-                (project_id, ingest_id),
+                (zip_hash, ingest_id, project_name, project_name),
             ).fetchone()
             if not project_info_id:
                 project_info_id = conn.execute(
                     f"""
-                    SELECT id FROM {PROJECT_INFO_TABLE}
-                    WHERE project_id = ?
-                    ORDER BY id DESC LIMIT 1;
+                    SELECT pi.id
+                    FROM {PROJECT_INFO_TABLE} pi
+                    JOIN {PROJECTS_TABLE} p ON p.id = pi.project_id
+                    WHERE p.source_hash = ?
+                      AND pi.is_deleted = 0
+                      AND (
+                        p.project_name = ?
+                        OR COALESCE(pi.project_name, p.project_name) = ?
+                      )
+                    ORDER BY pi.ingest_id DESC, pi.id DESC
+                    LIMIT 1;
                     """,
-                    (project_id,),
+                    (zip_hash, project_name, project_name),
                 ).fetchone()
             if not project_info_id:
                 return None
@@ -996,7 +1173,11 @@ class ProjectInsightsStore:
         """
         with self._connect() as conn:
             row = conn.execute(
-                f"SELECT id FROM {PROJECT_INFO_TABLE} WHERE id = ?;",
+                f"""
+                SELECT id
+                FROM {PROJECT_INFO_TABLE}
+                WHERE id = ? AND is_deleted = 0;
+                """,
                 (project_id,),
             ).fetchone()
             if not row:
@@ -1016,6 +1197,99 @@ class ProjectInsightsStore:
                     (json.dumps(skills or []), _utcnow(), project_id),
                 )
                 conn.commit()
+
+    def upsert_project_chronology_override(
+        self,
+        project_id: int,
+        timeline: List[Dict[str, Any]],
+    ) -> bool:
+        """
+        Persist a project-specific chronology override under chronology_json.project_overrides.
+
+        The override is keyed by project_info.id so chronological endpoints can return
+        timeline data that reflects user mutations from /skills endpoints.
+        """
+        with self._lock:
+            with self._connect() as conn:
+                project_row = conn.execute(
+                    f"SELECT ingest_id FROM {PROJECT_INFO_TABLE} WHERE id = ?;",
+                    (project_id,),
+                ).fetchone()
+                if not project_row:
+                    return False
+                ingest_id = int(project_row[0])
+
+                chronology_row = conn.execute(
+                    f"""
+                    SELECT id, chronology_json
+                    FROM {CHRONOLOGY_TABLE}
+                    WHERE ingest_id = ?
+                    ORDER BY id DESC
+                    LIMIT 1;
+                    """,
+                    (ingest_id,),
+                ).fetchone()
+
+                chronology_payload: Dict[str, Any] = {}
+                chronology_row_id: Optional[int] = None
+                if chronology_row:
+                    chronology_row_id = int(chronology_row[0])
+                    raw_payload = chronology_row[1]
+                    if raw_payload:
+                        try:
+                            loaded = json.loads(raw_payload)
+                            if isinstance(loaded, dict):
+                                chronology_payload = loaded
+                        except Exception:
+                            chronology_payload = {}
+
+                if not isinstance(chronology_payload.get("timeline"), list):
+                    chronology_payload["timeline"] = []
+                if not isinstance(chronology_payload.get("categories"), list):
+                    chronology_payload["categories"] = []
+                if not isinstance(chronology_payload.get("total_events"), int):
+                    chronology_payload["total_events"] = len(chronology_payload["timeline"])
+
+                overrides = chronology_payload.get("project_overrides")
+                if not isinstance(overrides, dict):
+                    overrides = {}
+                    chronology_payload["project_overrides"] = overrides
+
+                categories = sorted(
+                    {
+                        str(item.get("category"))
+                        for item in timeline
+                        if isinstance(item, dict) and isinstance(item.get("category"), str)
+                    }
+                )
+                overrides[str(project_id)] = {
+                    "timeline": timeline,
+                    "total_events": len(timeline),
+                    "categories": categories,
+                    "updated_at": _utcnow(),
+                }
+
+                now = _utcnow()
+                payload_json = json.dumps(chronology_payload)
+                if chronology_row_id is not None:
+                    conn.execute(
+                        f"""
+                        UPDATE {CHRONOLOGY_TABLE}
+                        SET chronology_json = ?, created_at = ?
+                        WHERE id = ?;
+                        """,
+                        (payload_json, now, chronology_row_id),
+                    )
+                else:
+                    conn.execute(
+                        f"""
+                        INSERT OR REPLACE INTO {CHRONOLOGY_TABLE} (ingest_id, chronology_json, created_at)
+                        VALUES (?, ?, ?);
+                        """,
+                        (ingest_id, payload_json, now),
+                    )
+                conn.commit()
+                return True
 
     def load_latest_global_insights(self) -> Optional[Dict[str, Any]]:
         """Load global insights for the latest ingest run."""
@@ -1227,11 +1501,11 @@ class ProjectInsightsStore:
 
             project_rows = conn.execute(
                 f"""
-                SELECT p.project_name, pi.id
+                SELECT COALESCE(pi.project_name, p.project_name) AS display_name, pi.id
                 FROM {PROJECTS_TABLE} p
                 JOIN {PROJECT_INFO_TABLE} pi ON pi.project_id = p.id
-                WHERE p.source_hash = ? AND pi.ingest_id = ?
-                ORDER BY p.project_name ASC;
+                WHERE p.source_hash = ? AND pi.ingest_id = ? AND pi.is_deleted = 0
+                ORDER BY display_name ASC;
                 """,
                 (zip_hash, ingest_id),
             ).fetchall()
@@ -1280,7 +1554,7 @@ class ProjectInsightsStore:
             for row in rows:
                 ingest_id, source_hash, source_path, created_at, updated_at, pipeline_version, _started_at = row
                 project_count = conn.execute(
-                    f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE} WHERE ingest_id = ?;",
+                    f"SELECT COUNT(*) FROM {PROJECT_INFO_TABLE} WHERE ingest_id = ? AND is_deleted = 0;",
                     (ingest_id,),
                 ).fetchone()[0]
                 results.append(
@@ -1329,7 +1603,7 @@ class ProjectInsightsStore:
                 SELECT p.project_name
                 FROM {PROJECTS_TABLE} p
                 JOIN {PROJECT_INFO_TABLE} pi ON pi.project_id = p.id
-                WHERE p.source_hash = ? AND pi.ingest_id = ?
+                WHERE p.source_hash = ? AND pi.ingest_id = ? AND pi.is_deleted = 0
                 ORDER BY p.project_name ASC;
                 """,
                 (zip_hash, ingest_id),
@@ -1337,16 +1611,20 @@ class ProjectInsightsStore:
         return [row[0] for row in rows]
 
     def list_projects_for_zip_detailed(self, zip_hash: str) -> List[Dict[str, Any]]:
-        """Return project id, name, and source_hash for all projects under a zip hash."""
+        """Return project snapshot id, name, and source_hash for all projects under a zip hash."""
         with self._connect() as conn:
+            ingest_id = self._latest_ingest_id(conn, zip_hash)
+            if not ingest_id:
+                return []
             rows = conn.execute(
                 f"""
-                SELECT p.id, p.project_name, p.source_hash
+                SELECT pi.id, COALESCE(pi.project_name, p.project_name), p.source_hash
                 FROM {PROJECTS_TABLE} p
-                WHERE p.source_hash = ?
-                ORDER BY p.project_name ASC;
+                JOIN {PROJECT_INFO_TABLE} pi ON pi.project_id = p.id
+                WHERE p.source_hash = ? AND pi.ingest_id = ? AND pi.is_deleted = 0
+                ORDER BY COALESCE(pi.project_name, p.project_name) ASC;
                 """,
-                (zip_hash,),
+                (zip_hash, ingest_id),
             ).fetchall()
         return [
             {"project_id": r[0], "project_name": r[1], "zip_hash": r[2]}
@@ -2448,6 +2726,7 @@ class ProjectInsightsStore:
         global_insights = self._load_global_insights(conn, ingest_id) if include_global_insights else {}
 
         payload = {
+            "project_id": project_info_id,
             "project_name": project_name,
             "project_path": project_path or root_path,
             "is_git_repo": bool(is_git_repo),
@@ -2869,12 +3148,13 @@ class ProjectInsightsStore:
             features = []
         bullets = conn.execute(
             f"""
-            SELECT bullet_text FROM {RESUME_BULLETS_TABLE}
+            SELECT bullet_text, source FROM {RESUME_BULLETS_TABLE}
             WHERE portfolio_insight_id = ?
             ORDER BY display_order ASC;
             """,
             (insight_id,),
         ).fetchall()
+        has_ai_bullets = any(row[1] == "manual" for row in bullets)
         portfolio_item = {
             "project_name": project_name,
             "tagline": tagline,
@@ -2891,6 +3171,7 @@ class ProjectInsightsStore:
             "summary": summary,
             "has_documentation": project_metrics.get("has_documentation", False),
             "has_tests": project_metrics.get("has_tests", False),
+            "has_ai_analysis": has_ai_bullets,
         }
         resume_item = {
             "project_name": project_name,

@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+from llm.openai_client import DEFAULT_MODEL
+
 
 class AnalysisType(Enum):
     """Types of analysis that can be performed"""
@@ -33,9 +35,9 @@ class LLMAnalyzer:
     def __init__(
         self, 
         api_key: Optional[str] = None,
-        model: str = "gpt-4o-mini",
+        model: str = DEFAULT_MODEL,
         temperature: float = 0.7,
-        max_tokens: int = 1500
+        max_tokens: int = 4096
     ):
         """
         Initialize the LLM Analyzer
@@ -411,7 +413,7 @@ Recent Commits:
 def quick_analyze(
     content: str,
     analysis_type: str = "code_review",
-    model: str = "gpt-4o-mini"
+    model: str = DEFAULT_MODEL
 ) -> str:
     """
     Quick analysis function for simple use cases

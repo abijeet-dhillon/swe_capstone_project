@@ -30,6 +30,7 @@ from src.project.presentation import (
     generate_portfolio_item,
     generate_resume_item,
 )
+from src.resume.resume_artifact import generate_resume_pdf_artifact
 from src.config.config_manager import UserConfigManager
 from src.git.individual_contrib_analyzer import summarize_author_contrib
 
@@ -193,6 +194,7 @@ class ArtifactPipeline:
         data_access_consent: bool = True,
         prompt_project_names: bool = False,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main entry point - parse ZIP, identify projects, analyze each project
@@ -355,6 +357,9 @@ class ArtifactPipeline:
                 "categorized_contents": categorized_contents_full,
                 "projects": project_results
             }
+            cleaned_resume_owner_name = (resume_owner_name or "").strip()
+            if cleaned_resume_owner_name:
+                result["resume_owner"] = {"name": cleaned_resume_owner_name}
             
             # Step 6: Print summary
             print(f"\n[6/9] Generating summary...")
@@ -401,11 +406,31 @@ class ArtifactPipeline:
                 print(f"     ✓ All results including ranking and skills saved to database")
             else:
                 print(f"\n[9/9] Compilation complete (database persistence disabled)")
+
+            # Optional: Generate AI resume bullets now that data is safely stored.
+            # Runs only when LLM consent is given and a store is available.
+            # Any failure here is silent — template bullets remain as the fallback.
+            if use_llm and self.insights_store:
+                try:
+                    self._generate_ai_resume_bullets(zip_path, project_results, llm_output)
+                except Exception as e:
+                    print(f"     ⚠️  AI resume bullet generation skipped: {e}")
             
             # Save JSON report to reports/ directory
             print(f"\n📄 Saving JSON report...")
             report_path = self._save_json_report(zip_path, result)
             print(f"     ✓ Report saved to: {report_path}")
+            result["artifacts"] = {"json_report_path": str(report_path), "resume_pdf_path": None}
+
+            print(f"🧾 Rendering resume .pdf artifact...")
+            resume_pdf_path = report_path.with_suffix(".pdf")
+            try:
+                rendered_resume_path = generate_resume_pdf_artifact(result, resume_pdf_path)
+                result["artifacts"]["resume_pdf_path"] = str(rendered_resume_path)
+                print(f"     ✓ Resume artifact saved to: {rendered_resume_path}")
+            except Exception as exc:
+                # Resume rendering should not break successful analysis/report generation.
+                print(f"     ⚠️  Resume artifact generation skipped: {exc}")
             
             # Mark progress as complete
             self.progress_tracker.update(stage='complete', processed_files=zip_index.file_count)
@@ -986,13 +1011,19 @@ class ArtifactPipeline:
             user_contribution = self._extract_user_contribution(
                 filtered, git_identifier
             )
-        
+
         result = {
             "total_commits": filtered_total_commits,
             "total_contributors": len(filtered),
             "contributors": filtered,
-            "user_contribution": user_contribution
+            "user_contribution": user_contribution,
         }
+        if git_identifier:
+            result["git_identifier_matched"] = user_contribution is not None
+            if user_contribution is None:
+                result["user_contribution_warning"] = (
+                    "No contributor matched the provided git identifier; using generic project wording."
+                )
         return result
     
     def _extract_user_contribution(self, contributors: List[Dict[str, Any]], git_identifier: str) -> Optional[Dict[str, Any]]:
@@ -1415,6 +1446,94 @@ class ArtifactPipeline:
 
         return summaries
 
+    @staticmethod
+    def _clean_summary(text: str, max_chars: int = 300) -> str:
+        """Strip markdown formatting and return the first 2 clean sentences."""
+        import re
+        text = re.sub(r"#+\s+", "", text)
+        text = re.sub(r"\*+", "", text)
+        text = re.sub(r"^\s*[-*]\s+", " ", text, flags=re.MULTILINE)
+        text = re.sub(r"\d+\.\s+", " ", text)
+        text = " ".join(text.split())
+        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+        result = " ".join(s for s in sentences[:2] if s).strip()
+        if len(result) > max_chars:
+            result = result[:max_chars].rsplit(" ", 1)[0] + "..."
+        return result
+
+    def _generate_ai_resume_bullets(
+        self,
+        zip_path: Path,
+        project_results: Dict[str, Any],
+        llm_summaries: Dict[str, Any],
+    ) -> None:
+        """
+        Generate AI-powered resume bullets for each project and persist them.
+
+        Called after _persist_insights so all project data is already safely
+        stored. Any per-project failure is caught individually so one bad
+        project cannot stop the others.
+        """
+        from src.services.resume_bullet_service import generate_resume_bullets_with_llm
+
+        # Resolve the storage zip_hash by matching on zip_path
+        runs = self.insights_store.list_recent_zipfiles(limit=20)
+        zip_hash = None
+        zip_path_str = str(zip_path)
+        for run in runs:
+            if run.get("zip_path") == zip_path_str:
+                zip_hash = run.get("zip_hash")
+                break
+
+        if not zip_hash:
+            print("     ⚠️  AI resume bullets: could not resolve zip hash, skipping")
+            return
+
+        project_records = self.insights_store.list_projects_for_zip_detailed(zip_hash)
+        id_by_name = {r["project_name"]: r["project_id"] for r in project_records}
+
+        eligible = [
+            name for name in project_results
+            if not name.startswith("_") and name in id_by_name
+        ]
+        print(f"\n🤖 Generating AI resume bullets for {len(eligible)} project(s)...")
+
+        for project_name in eligible:
+            project_id = id_by_name[project_name]
+            project_data = project_results[project_name]
+            doc_summaries = llm_summaries.get(project_name) or []
+
+            try:
+                bullets = generate_resume_bullets_with_llm(
+                    project_name, project_data, doc_summaries
+                )
+                if bullets:
+                    self.insights_store.replace_resume_bullets(project_id, bullets)
+                    print(f"     ✓ AI bullets saved for '{project_name}'")
+                else:
+                    print(f"     ⚠️  No bullets returned for '{project_name}', keeping template")
+            except Exception as e:
+                print(f"     ⚠️  AI bullets skipped for '{project_name}': {e}")
+
+            # If doc summaries exist, use a cleaned version as the portfolio
+            # summary so it differs from the template description.
+            try:
+                ai_summary = next(
+                    (
+                        s["summary"].strip()
+                        for s in doc_summaries
+                        if isinstance(s, dict) and isinstance(s.get("summary"), str)
+                        and len(s["summary"].strip()) > 30
+                    ),
+                    None,
+                )
+                if ai_summary:
+                    self.insights_store.update_portfolio_insights_fields(
+                        project_id, {"summary": self._clean_summary(ai_summary)}
+                    )
+            except Exception as e:
+                print(f"     ⚠️  Portfolio summary update skipped for '{project_name}': {e}")
+
     def _persist_insights(self, zip_path: Path, payload: Dict[str, Any]) -> None:
         """Persist pipeline output to the configured insights store."""
         if not self.insights_store:
@@ -1437,6 +1556,7 @@ class ArtifactPipeline:
         new_zip_path: str,
         old_zip_hash: str,
         git_identifier: Optional[str] = None,
+        resume_owner_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run the pipeline on a new ZIP and merge results with an existing analysis.
@@ -1472,6 +1592,7 @@ class ArtifactPipeline:
             data_access_consent=True,
             prompt_project_names=False,
             git_identifier=git_identifier,
+            resume_owner_name=resume_owner_name,
         )
 
         if not result or result.get("status") == "cancelled":
