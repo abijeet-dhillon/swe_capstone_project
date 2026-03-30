@@ -281,22 +281,26 @@ Known issue tracking for handoff and maintenance:
 
 This repository is the Team 14 capstone submission for COSC 499. It is organized as a handoff-ready project with implementation, verification artifacts, and developer-facing documentation for future continuation.
 
-## Additional Project and Planning Material (Condensed)
+## Work Breakdown Structure (WBS)
 
-The original README included an extensive Work Breakdown Structure. For readability, it is condensed here into major workstreams:
+### Mining Digital Work Artifacts System
 
-1. Project Management
-2. Requirements Analysis and Design
-3. Scanner and Configuration Module
-4. Adapter Framework
-5. Data Processing Pipeline
-6. Analytics and Insights Engine
-7. API Development
-8. Export and Reporting Module
-9. Testing and Quality Assurance
-10. Infrastructure and DevOps
-11. Documentation
-12. Deployment and Release
-13. Project Closure and Knowledge Transfer
+### Team 14: Privacy-First Portfolio Mining Pipeline
 
-Planning artifacts and course documentation remain available under `docs/plan/`, `docs/logs/`, and other `docs/` subfolders.
+Short form summary of the original WBS:
+
+1. **1.0 Project Management** - planning, team coordination, stakeholder communication.
+2. **2.0 Requirements Analysis and Design** - requirements, architecture, database, security/privacy design.
+3. **3.0 Scanner and Configuration Module** - config management, scanning, ZIP validation, file type detection.
+4. **4.0 Adapter Framework** - Git/doc/media adapters and fallback adapter support.
+5. **5.0 Data Processing Pipeline** - normalization, deduplication, redaction, storage.
+6. **6.0 Analytics and Insights Engine** - local analytics, optional LLM integration, ranking and portfolio insights.
+7. **7.0 API Development** - FastAPI setup, endpoint implementation, authorization and audit controls.
+8. **8.0 Export and Reporting Module** - JSON/CSV/PDF export flows and report templates.
+9. **9.0 Testing and Quality Assurance** - unit, integration, performance, security, and UAT coverage.
+10. **10.0 Infrastructure and DevOps** - environment setup, CI/CD, containerization, monitoring/logging.
+11. **11.0 Documentation** - technical, user, and developer documentation deliverables.
+12. **12.0 Deployment and Release** - release prep, deployment execution, post-deployment validation.
+13. **13.0 Project Closure** - final deliverables and knowledge transfer.
+
+Supporting planning artifacts remain under `docs/plan/`, `docs/logs/`, and other `docs/` subfolders.
